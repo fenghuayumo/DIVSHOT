@@ -1,0 +1,45 @@
+[[vk::binding(0)]] Texture2D<float4> main_tex;
+[[vk::binding(1)]] RWTexture2D<float4> output_tex;
+[[vk::binding(2)]] cbuffer _ {
+    float4 main_tex_size;
+    float4 output_tex_size;
+};
+
+#include "inc/image.hlsl"
+#include "inc/color/srgb.hlsl"
+
+struct LinearToSrgbRemap {
+    static LinearToSrgbRemap create() {
+        LinearToSrgbRemap res;
+        return res;
+    }
+
+    float4 remap(float4 v) {
+        // return float4(sRGB_EOTF(v.rgb), 1.0);
+        return float4((v.rgb), 1.0);
+    }
+};
+
+[numthreads(8, 8, 1)]
+void main(in uint2 px : SV_DispatchThreadID) {
+    if( px.x >= output_tex_size.x || px.y >= output_tex_size.y ) {
+        return;
+    }
+    #if 1
+    float3 main;
+    if (any(main_tex_size.xy != output_tex_size.xy)) {
+        main = image_sample_catmull_rom(
+            TextureImage::from_parts(main_tex, main_tex_size.xy),
+            (px + 0.5) / output_tex_size.xy,
+            LinearToSrgbRemap::create()
+        ).rgb;
+    } else {
+        main = sRGB_EOTF(saturate(main_tex[px].rgb));
+    }
+
+    float3 result = main.rgb;
+    #else
+    float3 result = float3(0.7, 0.4, 0.1);
+    #endif
+    output_tex[px] = float4(result, 1);
+}

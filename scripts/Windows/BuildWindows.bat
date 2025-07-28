@@ -1,0 +1,1 @@
+Common\BuildWindowsTarget.bat Runtime

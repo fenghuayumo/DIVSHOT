@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=splatx
+GenericName=3dgs shot
+Comment=a lightweight radiance field tool.
+Exec=splatx %F
+Icon=splatx
+Terminal=false
+MimeType=image/*;
+Categories=Graphics;

@@ -1,0 +1,16 @@
+PackageIdentifier: hby.splatx
+PackageVersion: @SPLATX_VERSION@
+PackageLocale: en-US
+Publisher: hby (Thomas Müller)
+PackageName: splatx
+License: BSD-3
+ShortDescription: @CPACK_PACKAGE_DESCRIPTION_SUMMARY@
+Installers:
+- Architecture: x64
+  InstallerType: wix
+  InstallerSha256: @SPLATX_INSTALLER_SHA256@
+#   InstallerSwitches:
+#     Silent: /q
+#     SilentWithProgress: /q
+ManifestType: singleton
+ManifestVersion: 1.0.0
