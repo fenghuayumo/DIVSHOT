@@ -7,12 +7,6 @@
 
 </div>
 
-## Install On Windows
-* 1. VS2022
-* 2. Cuda SDK
-* 3. Vulkan SDK
-
-
 ## Project structure
 <!-- 
 *  diverse
@@ -29,10 +23,15 @@
 ```
 git clone https://github.com/fenghuayumo/SplatX.git
 git submodule update --init --recursive
-
+```
 
 #### Windows 
-* Run Scripts/GenerateVS.bat to generate a visual studio project.
+Install Dev Tool 
+* 1. VS2022
+* 2. Cuda SDK
+* 3. Vulkan SDK
+
+* Run scripts/GenerateVS.bat to generate a visual studio project.
 
 #### Mac
 Ony support arm arch.
@@ -43,7 +42,6 @@ brew install cmake
 brew install opencv
 brew install pytorch
 ```
-Note: first compile colmap
 
 ```bash
 brew install \
@@ -65,6 +63,7 @@ brew install \
 
 M1/M2/M3 Macs: using cmake to compile, just execute the following command.
 using cmake generate xcode
+
 ```
 mkdir build
 cd build
