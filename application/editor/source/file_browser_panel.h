@@ -27,7 +27,7 @@ namespace diverse
         void set_open_directory(bool value);
         void set_callback(const std::function<void(const std::string&)>& callback)
         {
-            m_Callback = callback;
+            this->callback = callback;
         }
 
         bool is_open();
@@ -36,7 +36,7 @@ namespace diverse
         std::filesystem::path& get_path();
 
     private:
-        std::function<void(const std::string&)> m_Callback;
-        ImGui::FileBrowser* m_FileBrowser;
+        std::function<void(const std::string&)> callback;
+        ImGui::FileBrowser* file_browser;
     };
 }

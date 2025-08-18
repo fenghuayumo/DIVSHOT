@@ -12,7 +12,7 @@
 
 namespace diverse
 {
-    auto lauch_process(const std::string& commandLine) -> int
+    auto lauch_process(const std::string& commandLine,const char* env_path) -> int
     {
 #ifdef DS_PLATFORM_WINDOWS
         STARTUPINFOW si;
@@ -25,6 +25,11 @@ namespace diverse
         // std::string commandLine = "my_program.exe arg1 \"arg with spaces\" arg3"; 
         std::wstring wCommandLine = std::wstring(commandLine.begin(), commandLine.end());
         const wchar_t* commandLinePtr = wCommandLine.c_str();
+        std::wstring envVars;
+        if(env_path)
+        {
+            envVars = string_convert(env_path);
+        }
 
         // Convert to TCHAR for CreateProcess
         if (!CreateProcessW(NULL,  // Use the command line to get the executable name
@@ -33,7 +38,7 @@ namespace diverse
             NULL,  // Thread security attributes
             FALSE, // Inherit handles
             0,     // Creation flags
-            NULL,  // Environment block
+            (LPVOID)envVars.c_str(),  // Environment block
             NULL,  // Current directory
             &si,   // Startup info
             &pi)) { // Process information

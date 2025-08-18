@@ -32,7 +32,8 @@ namespace diverse
         void draw_splat_edit_toolbox(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void draw_progress(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void draw_3d_paint_toolbar(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
-        void drwa_splat_mask_box(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
+        void draw_splat_focus_box(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
+        void draw_shade_toolbar(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void handle_splat_edit(Camera* camera,maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void handle_splat_crop(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void handle_3d_paint(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
@@ -49,6 +50,7 @@ namespace diverse
                 u32 surface_width,
                 u32 surface_height,
                 glm::vec3& isect_points)->bool;
+        void draw_splat_edit_ui(ImVec2 sceneViewPosition, ImVec2 sceneViewSize);
     protected:
         void take_photo_dialog();
         void render_frame_image();
@@ -58,7 +60,7 @@ namespace diverse
         template <typename T>
         void ShowComponentGizmo(float width, float height, float xpos, float ypos, const glm::mat4& viewProj, const maths::Frustum& frustum, entt::registry& registry)
         {
-            if (m_ShowComponentGizmoMap[typeid(T).hash_code()])
+            if (show_component_gizmo_map[typeid(T).hash_code()])
             {
                 auto group = registry.group<T>(entt::get<maths::Transform>);
 
@@ -77,20 +79,20 @@ namespace diverse
                     ImGui::SetCursorPos({ screenPos.x - ImGui::GetFontSize() * 0.5f, screenPos.y - ImGui::GetFontSize() * 0.5f });
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.7f, 0.7f, 0.0f));
 
-                    // if(ImGui::Button(m_Editor->GetComponentIconMap()[typeid(T).hash_code()]))
+                    // if(ImGui::Button(editor->GetComponentIconMap()[typeid(T).hash_code()]))
                     //{
-                    //     m_Editor->set_selected(entity);
+                    //     editor->set_selected(entity);
                     // }
 
-                    ImGui::TextUnformatted(m_Editor->get_component_iconmap()[typeid(T).hash_code()]);
+                    ImGui::TextUnformatted(editor->get_component_iconmap()[typeid(T).hash_code()]);
                     ImGui::PopStyleColor();
 
                     const char* demangledName = nullptr;
-                    auto found = m_DemangledNames.find(typeid(T).hash_code());
-                    if (found == m_DemangledNames.end())
+                    auto found = demangled_names.find(typeid(T).hash_code());
+                    if (found == demangled_names.end())
                     {
-                        m_DemangledNames[typeid(T).hash_code()] = stringutility::demangle(typeid(T).name());
-                        demangledName = m_DemangledNames[typeid(T).hash_code()].c_str();
+                        demangled_names[typeid(T).hash_code()] = stringutility::demangle(typeid(T).name());
+                        demangledName = demangled_names[typeid(T).hash_code()].c_str();
                     }
                     else
                         demangledName = found->second.c_str();
@@ -100,16 +102,16 @@ namespace diverse
             }
         }
 
-        std::unordered_map<size_t, bool> m_ShowComponentGizmoMap;
-        std::unordered_map<size_t, std::string> m_DemangledNames;
+        std::unordered_map<size_t, bool> show_component_gizmo_map;
+        std::unordered_map<size_t, std::string> demangled_names;
         // std::shared_ptr<rhi::GpuTexture> m_GameViewTexture = nullptr;
 
-        bool m_ShowStats = false;
-        Scene* m_CurrentScene = nullptr;
-        uint32_t m_Width, m_Height;
-        glm::vec2 m_StartMousePos;
-        glm::vec2 m_EndMousePos;
-        bool      m_IsDoingSplatSelectOp = false;
+        bool show_stats = false;
+        Scene* current_scene = nullptr;
+        uint32_t width, height;
+        glm::vec2 start_mouse_pos;
+        glm::vec2 end_mouse_pos;
+        bool      is_doing_splat_select_op = false;
 
         struct PhotonSetting
         {
@@ -117,6 +119,6 @@ namespace diverse
             glm::ivec2  resolution = glm::ivec2(1920,1080);
             int         spp = 1024;
             i32         frame_counter = 0;
-        }m_photon_setting;
+        }photon_setting;
     };
 }

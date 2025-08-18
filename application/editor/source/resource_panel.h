@@ -69,8 +69,8 @@ namespace diverse
         ResourcePanel(bool active = false);
         ~ResourcePanel()
         {
-            m_TextureLibrary.destroy();
-            ArenaRelease(m_Arena);
+            texture_library.destroy();
+            ArenaRelease(arena);
         }
 
         void on_imgui_render() override;
@@ -80,7 +80,7 @@ namespace diverse
 
         void destroy_graphics_resources() override
         {
-            for(auto& dir : m_Directories)
+            for(auto& dir : directories)
             {
                 if(dir.second)
                 {
@@ -88,23 +88,23 @@ namespace diverse
                     dir.second->Children.clear();
                 }
             }
-            m_FolderIcon.reset();
-            m_FileIcon.reset();
-            m_Directories.clear();
-            m_CurrentSelected.reset();
-            m_CurrentDir.reset();
-            m_BaseProjectDir.reset();
-            m_NextDirectory.reset();
-            m_PreviousDirectory.reset();
-            m_BreadCrumbData.clear();
-            m_TextureLibrary.destroy();
+            folder_icon.reset();
+            file_icon.reset();
+            directories.clear();
+            current_selected.reset();
+            current_dir.reset();
+            base_project_dir.reset();
+            next_directory.reset();
+            previous_directory.reset();
+            bread_crumb_data.clear();
+            texture_library.destroy();
         }
 
         int get_parsed_asset_id(String8 extension)
         {
-            for(int i = 0; i < assetTypes.size(); i++)
+            for(int i = 0; i < asset_types.size(); i++)
             {
-                if(Str8Match(extension, assetTypes[i]))
+                if(Str8Match(extension, asset_types[i]))
                 {
                     return i;
                 }
@@ -121,42 +121,42 @@ namespace diverse
         void remove_directory(SharedPtr<DirectoryInformation>& directory, bool removeFromParent = true);
         void on_new_project() override;
         void refresh();
-        void queue_refresh() { m_Refresh = true; }
+        void queue_refresh() { is_refresh = true; }
 
     private:
-        static inline std::vector<String8> assetTypes = {
+        static inline std::vector<String8> asset_types = {
             Str8Lit("fbx"), Str8Lit("obj"), Str8Lit("wav"), Str8Lit("cs"), Str8Lit("png"), Str8Lit("blend"), Str8Lit("lsc"), Str8Lit("ogg"), Str8Lit("lua")
         };
 
         float MinGridSize = 50;
         float MaxGridSize = 400;
-        String8 m_MovePath;
-        String8 m_LastNavPath;
-        String8 m_Delimiter;
+        String8 move_path;
+        String8 last_nav_path;
+        String8 delimiter;
 
-        size_t m_BasePathLen;
-        bool m_IsDragging;
-        bool m_IsInListView;
-        bool m_UpdateBreadCrumbs;
-        bool m_ShowHiddenFiles;
-        int m_GridItemsPerRow;
+        size_t base_path_len;
+        bool is_dragging;
+        bool is_in_list_view;
+        bool update_bread_crumbs;
+        bool show_hidden_files;
+        int grid_items_per_row;
         float grid_size = 360.0f;
 
-        ImGuiTextFilter m_Filter;
+        ImGuiTextFilter filter;
 
-        bool textureCreated = false;
+        bool texture_created = false;
 
-        String8 m_BasePath;
-        String8 m_AssetPath;
+        String8 base_path;
+        String8 asset_path;
 
-        bool m_Refresh = false;
+        bool is_refresh = false;
 
-        bool m_UpdateNavigationPath = true;
+        bool update_navigation_path = true;
 
-        SharedPtr<DirectoryInformation> m_CurrentDir;
-        SharedPtr<DirectoryInformation> m_BaseProjectDir;
-        SharedPtr<DirectoryInformation> m_NextDirectory;
-        SharedPtr<DirectoryInformation> m_PreviousDirectory;
+        SharedPtr<DirectoryInformation> current_dir;
+        SharedPtr<DirectoryInformation> base_project_dir;
+        SharedPtr<DirectoryInformation> next_directory;
+        SharedPtr<DirectoryInformation> previous_directory;
 
         struct cmp_str
         {
@@ -180,26 +180,26 @@ namespace diverse
             }
         };
 
-        std::unordered_map<String8, SharedPtr<DirectoryInformation>, String8Hash, cmp_str> m_Directories;
-        std::vector<SharedPtr<DirectoryInformation>> m_BreadCrumbData;
-        SharedPtr<asset::Texture> m_FolderIcon;
-        SharedPtr<asset::Texture> m_FileIcon;
-        SharedPtr<asset::Texture> m_ArchiveIcon;
-        SharedPtr<asset::Texture> m_VideoIcon;
-        SharedPtr<asset::Texture> m_AudioIcon;
-        SharedPtr<asset::Texture> m_ModelIcon;
-        SharedPtr<asset::Texture> m_FontIcon;
-        SharedPtr<asset::Texture> m_SplatIcon;
-        SharedPtr<asset::Texture> m_UnknownIcon;
+        std::unordered_map<String8, SharedPtr<DirectoryInformation>, String8Hash, cmp_str> directories;
+        std::vector<SharedPtr<DirectoryInformation>> bread_crumb_data;
+        SharedPtr<asset::Texture> folder_icon;
+        SharedPtr<asset::Texture> file_icon;
+        SharedPtr<asset::Texture> archive_icon;
+        SharedPtr<asset::Texture> video_icon;
+        SharedPtr<asset::Texture> audio_icon;
+        SharedPtr<asset::Texture> model_icon;
+        SharedPtr<asset::Texture> font_icon;
+        SharedPtr<asset::Texture> splat_icon;
+        SharedPtr<asset::Texture> unknown_icon;
 
-        SharedPtr<DirectoryInformation> m_CurrentSelected;
+        SharedPtr<DirectoryInformation> current_selected;
 
-        ResourceManager<asset::Texture> m_TextureLibrary;
+        ResourceManager<asset::Texture> texture_library;
 
-        String8 m_CopiedPath;
-        bool m_CutFile = false;
-        std::string m_RenamePath;
-        bool        m_RenameFile = false;
-        Arena* m_Arena;
+        String8 copied_path;
+        bool cut_file = false;
+        std::string rename_path;
+        bool        rename_file = false;
+        Arena* arena;
     };
 }

@@ -88,14 +88,14 @@ namespace diverse
         :EditorPanel(active)
     {
         DS_PROFILE_FUNCTION();
-        m_Name       = U8CStr2CStr(ICON_MDI_FOLDER_STAR " Resources###resources");
-        m_SimpleName = "Resources";
+        name       = U8CStr2CStr(ICON_MDI_FOLDER_STAR " Resources###resources");
+        simple_name = "Resources";
 
-        m_Arena = ArenaAlloc(Kilobytes(64));
+        arena = ArenaAlloc(Kilobytes(64));
 #ifdef DS_PLATFORM_WINDOWS
-        m_Delimiter = Str8Lit("\\");
+        delimiter = Str8Lit("\\");
 #else
-        m_Delimiter = Str8Lit("/");
+        delimiter = Str8Lit("/");
 #endif
 
         float dpi  = Application::get().get_window()->get_dpi_scale();
@@ -103,33 +103,33 @@ namespace diverse
         grid_size *= dpi;
         MinGridSize *= dpi;
         MaxGridSize *= dpi;
-        m_BasePath = PushStr8F(m_Arena, "%sassets", Application::get().get_project_settings().m_ProjectRoot.c_str());
+        base_path = PushStr8F(arena, "%sassets", Application::get().get_project_settings().ProjectRoot.c_str());
 
         std::string assetsBasePath;
         FileSystem::get().resolve_physical_path("//assets", assetsBasePath);
-        m_AssetPath = PushStr8Copy(m_Arena, Str8C((char*)std::filesystem::path(assetsBasePath).string().c_str()));
+        asset_path = PushStr8Copy(arena, Str8C((char*)std::filesystem::path(assetsBasePath).string().c_str()));
 
-        String8 baseDirectoryHandle = process_directory(m_BasePath, nullptr, true);
-        m_BaseProjectDir            = m_Directories[baseDirectoryHandle];
-        change_directory(m_BaseProjectDir);
+        String8 baseDirectoryHandle = process_directory(base_path, nullptr, true);
+        base_project_dir            = directories[baseDirectoryHandle];
+        change_directory(base_project_dir);
 
-        m_CurrentDir = m_BaseProjectDir;
+        current_dir = base_project_dir;
 
-        m_UpdateNavigationPath = true;
-        m_IsDragging           = false;
-        m_IsInListView         = false;
-        m_UpdateBreadCrumbs    = true;
-        m_ShowHiddenFiles      = false;
+        update_navigation_path = true;
+        is_dragging           = false;
+        is_in_list_view         = false;
+        update_bread_crumbs    = true;
+        show_hidden_files      = false;
         const std::string resouce_path = "../resource/";
-        m_FileIcon = get_embed_texture(resouce_path + "icons/Document.png");
-        m_FolderIcon = get_embed_texture(resouce_path + "icons/Folder.png");
-        m_ArchiveIcon = get_embed_texture(resouce_path + "icons/Archive.png");
-        m_ModelIcon = get_embed_texture(resouce_path + "icons/Mesh.png");
-        m_VideoIcon = get_embed_texture(resouce_path + "icons/Video.png");
-        m_AudioIcon = get_embed_texture(resouce_path + "icons/Audio.png");
-        m_SplatIcon = get_embed_texture(resouce_path + "icons/TexturedMesh.png");
-        m_UnknownIcon = get_embed_texture(resouce_path + "icons/Undefined.png");
-        m_Refresh     = false;
+        file_icon = get_embed_texture(resouce_path + "icons/Document.png");
+        folder_icon = get_embed_texture(resouce_path + "icons/Folder.png");
+        archive_icon = get_embed_texture(resouce_path + "icons/Archive.png");
+        model_icon = get_embed_texture(resouce_path + "icons/Mesh.png");
+        video_icon = get_embed_texture(resouce_path + "icons/Video.png");
+        audio_icon = get_embed_texture(resouce_path + "icons/Audio.png");
+        splat_icon = get_embed_texture(resouce_path + "icons/TexturedMesh.png");
+        unknown_icon = get_embed_texture(resouce_path + "icons/Undefined.png");
+        is_refresh = false;
     }
 
     void ResourcePanel::change_directory(SharedPtr<DirectoryInformation>& directory)
@@ -137,13 +137,13 @@ namespace diverse
         if(!directory)
             return;
 
-        m_PreviousDirectory    = m_CurrentDir;
-        m_CurrentDir           = directory;
-        m_UpdateNavigationPath = true;
+        previous_directory    = current_dir;
+        current_dir           = directory;
+        update_navigation_path = true;
 
-        if(!m_CurrentDir->Opened)
+        if(!current_dir->Opened)
         {
-            process_directory(m_CurrentDir->Path, m_CurrentDir->Parent, true);
+            process_directory(current_dir->Path, current_dir->Parent, true);
         }
     }
 
@@ -157,7 +157,7 @@ namespace diverse
         for(auto& subdir : directory->Children)
             remove_directory(subdir, false);
 
-        m_Directories.erase(m_Directories.find(directory->Path));
+        directories.erase(directories.find(directory->Path));
     }
 
     bool IsHidden(const std::filesystem::path& filePath)
@@ -178,15 +178,15 @@ namespace diverse
 
     String8 ResourcePanel::process_directory(String8 directoryPath, const SharedPtr<DirectoryInformation>& parent, bool processChildren)
     {
-        const auto& directory = m_Directories[directoryPath];
+        const auto& directory = directories[directoryPath];
         if(directory && directory->Opened)
             return directory->Path;
 
         SharedPtr<DirectoryInformation> directoryInfo = directory ? directory : createSharedPtr<DirectoryInformation>(directoryPath, !std::filesystem::is_directory(std::string((const char*)directoryPath.str, directoryPath.size)));
         directoryInfo->Parent                         = parent;
 
-        if(Str8Match(directoryPath, m_BasePath))
-            directoryInfo->Path = m_BasePath;
+        if(Str8Match(directoryPath, base_path))
+            directoryInfo->Path = base_path;
         else
             directoryInfo->Path = directoryPath;
 
@@ -203,7 +203,7 @@ namespace diverse
             directoryInfo->Leaf   = true;
             for(auto& entry : std::filesystem::directory_iterator(stdPath))
             {
-                if(!m_ShowHiddenFiles && IsHidden(entry.path()))
+                if(!show_hidden_files && IsHidden(entry.path()))
                 {
                     continue;
                 }
@@ -215,8 +215,8 @@ namespace diverse
                 {
                     directoryInfo->Opened = true;
 
-                    String8 subdirHandle = process_directory(PushStr8Copy(m_Arena, Str8C((char*)entry.path().generic_string().c_str())), directoryInfo, false);
-                    directoryInfo->Children.push_back(m_Directories[subdirHandle]);
+                    String8 subdirHandle = process_directory(PushStr8Copy(arena, Str8C((char*)entry.path().generic_string().c_str())), directoryInfo, false);
+                    directoryInfo->Children.push_back(directories[subdirHandle]);
                 }
             }
         }
@@ -231,7 +231,7 @@ namespace diverse
             directoryInfo->Type           = fileType;
             directoryInfo->Path           = directoryPath; // .filename().string();
             directoryInfo->FileSize       = std::filesystem::exists(stdPath) ? std::filesystem::file_size(stdPath) : 0;
-            directoryInfo->FileSizeString = PushStr8Copy(m_Arena, stringutility::byte_2_string(directoryInfo->FileSize).c_str());
+            directoryInfo->FileSizeString = PushStr8Copy(arena, stringutility::byte_2_string(directoryInfo->FileSize).c_str());
             directoryInfo->Hidden         = std::filesystem::exists(stdPath) ? IsHidden(stdPath) : true;
             directoryInfo->Opened         = true;
             directoryInfo->Leaf           = true;
@@ -245,14 +245,14 @@ namespace diverse
         }
 
         if(!directory)
-            m_Directories[directoryInfo->Path] = directoryInfo;
+            directories[directoryInfo->Path] = directoryInfo;
         return directoryInfo->Path;
     }
 
     void ResourcePanel::draw_folder(SharedPtr<DirectoryInformation>& dirInfo, bool defaultOpen)
     {
         DS_PROFILE_FUNCTION();
-        ImGuiTreeNodeFlags nodeFlags = ((dirInfo == m_CurrentDir) ? ImGuiTreeNodeFlags_Selected : 0);
+        ImGuiTreeNodeFlags nodeFlags = ((dirInfo == current_dir) ? ImGuiTreeNodeFlags_Selected : 0);
         nodeFlags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
 
         if(dirInfo->Parent == nullptr)
@@ -266,16 +266,16 @@ namespace diverse
         {
             float mouseScroll = Input::get().get_scroll_offset();
 
-            if(m_IsInListView)
+            if(is_in_list_view)
             {
                 if(mouseScroll > 0)
-                    m_IsInListView = false;
+                    is_in_list_view = false;
             }
             else
             {
                 grid_size += mouseScroll;
                 if(grid_size < MinGridSize)
-                    m_IsInListView = true;
+                    is_in_list_view = true;
             }
 
             grid_size = maths::Clamp(grid_size, MinGridSize, MaxGridSize);
@@ -297,14 +297,14 @@ namespace diverse
                 change_directory(dirInfo);
             }
 
-            const char* folderIcon = ((isOpen && !dirInfo->Leaf) || m_CurrentDir == dirInfo) ? U8CStr2CStr(ICON_MDI_FOLDER_OPEN) : U8CStr2CStr(ICON_MDI_FOLDER);
+            const char* folderIcon = ((isOpen && !dirInfo->Leaf) || current_dir == dirInfo) ? U8CStr2CStr(ICON_MDI_FOLDER_OPEN) : U8CStr2CStr(ICON_MDI_FOLDER);
             ImGui::SameLine();
             ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetIconColour());
             ImGui::TextUnformatted(folderIcon);
             ImGui::PopStyleColor();
             ImGui::SameLine();
 
-            auto RootPath = Str8StdS(Application::get().get_project_settings().m_ProjectRoot);
+            auto RootPath = Str8StdS(Application::get().get_project_settings().ProjectRoot);
             String8 RelativePath = { dirInfo->Path.str + RootPath.size, dirInfo->Path.size - RootPath.size };
             ImGui::TextUnformatted((const char*)(stringutility::str8_path_skip_last_slash(RelativePath).str));
 
@@ -348,9 +348,9 @@ namespace diverse
                 ImGui::TreePop();
         }
 
-        if(m_IsDragging && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))
+        if(is_dragging && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))
         {
-            m_MovePath = dirInfo->Path;
+            move_path = dirInfo->Path;
         }
     }
 
@@ -360,18 +360,18 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
 
-        m_TextureLibrary.update((float)Engine::get().get_time_step().get_elapsed_seconds());
-        if(ImGui::Begin(m_Name.c_str(), &m_Active))
+        texture_library.update((float)Engine::get().get_time_step().get_elapsed_seconds());
+        if(ImGui::Begin(name.c_str(), &is_active))
         {
             FileIndex        = 0;
             auto windowSize  = ImGui::GetWindowSize();
             bool vertical    = windowSize.y > windowSize.x;
             static bool Init = false;
 
-            if(m_Refresh)
+            if(is_refresh)
             {
                 refresh();
-                m_Refresh = false;
+                is_refresh = false;
             }
 
             if(!vertical)
@@ -391,7 +391,7 @@ namespace diverse
                 {
                     ImGui::BeginChild("##folders");
                     {
-                        draw_folder(m_BaseProjectDir, true);
+                        draw_folder(base_project_dir, true);
                     }
                     ImGui::EndChild();
                 }
@@ -405,11 +405,11 @@ namespace diverse
                 if(data)
                 {
                     String8* file = (String8*)data->Data;
-                    if(move_file(*file, m_MovePath))
+                    if(move_file(*file, move_path))
                     {
-                        DS_LOG_INFO("Moved File: {0} to {1}", (const char*)((*file).str), (const char*)m_MovePath.str);
+                        DS_LOG_INFO("Moved File: {0} to {1}", (const char*)((*file).str), (const char*)move_path.str);
                     }
-                    m_IsDragging = false;
+                    is_dragging = false;
                 }
                 ImGui::EndDragDropTarget();
             }
@@ -439,7 +439,7 @@ namespace diverse
                     ImGui::TextUnformatted(U8CStr2CStr(ICON_MDI_MAGNIFY));
                     ImGui::SameLine();
        
-                    m_Filter.Draw("##Filter", ImGui::GetContentRegionAvail().x - ImGui::GetStyle().IndentSpacing - 30);
+                    filter.Draw("##Filter", ImGui::GetContentRegionAvail().x - ImGui::GetStyle().IndentSpacing - 30);
 
                     ImGui::SameLine();
                     // Button for advanced settings
@@ -450,18 +450,18 @@ namespace diverse
                     }
                     if (ImGui::BeginPopup("SettingsPopup"))
                     {
-                        if (m_IsInListView)
+                        if (is_in_list_view)
                         {
                             if (ImGui::Button(U8CStr2CStr(ICON_MDI_VIEW_LIST " Switch to Grid View")))
                             {
-                                m_IsInListView = !m_IsInListView;
+                                is_in_list_view = !is_in_list_view;
                             }
                         }
                         else
                         {
                             if (ImGui::Button(U8CStr2CStr(ICON_MDI_VIEW_GRID " Switch to List View")))
                             {
-                                m_IsInListView = !m_IsInListView;
+                                is_in_list_view = !is_in_list_view;
                             }
                         }
 
@@ -472,11 +472,11 @@ namespace diverse
 
                         if (ImGui::Selectable("New folder"))
                         {
-                            std::filesystem::create_directory(std::filesystem::path(std::string((char*)m_CurrentDir->Path.str, m_CurrentDir->Path.size)) / "NewFolder");
+                            std::filesystem::create_directory(std::filesystem::path(std::string((char*)current_dir->Path.str, current_dir->Path.size)) / "NewFolder");
                             queue_refresh();
                         }
 
-                        if (!m_IsInListView)
+                        if (!is_in_list_view)
                         {
                             ImGui::SliderFloat("##GridSize", &grid_size, 40.0f, 400.0f);
                         }
@@ -486,40 +486,40 @@ namespace diverse
               
                     if(ImGui::Button(U8CStr2CStr(ICON_MDI_ARROW_LEFT)))
                     {
-                        if(m_CurrentDir != m_BaseProjectDir)
+                        if(current_dir != base_project_dir)
                         {
-                            change_directory(m_CurrentDir->Parent);
+                            change_directory(current_dir->Parent);
                         }
                     }
                     ImGui::SameLine();
                     if(ImGui::Button(U8CStr2CStr(ICON_MDI_ARROW_RIGHT)))
                     {
-                        m_PreviousDirectory = m_CurrentDir;
+                        previous_directory = current_dir;
                         // m_CurrentDir = m_LastNavPath;
-                        m_UpdateNavigationPath = true;
+                        update_navigation_path = true;
                     }
                     ImGui::SameLine();
 
-                    if(m_UpdateNavigationPath)
+                    if(update_navigation_path)
                     {
-                        m_BreadCrumbData.clear();
-                        auto current = m_CurrentDir;
+                        bread_crumb_data.clear();
+                        auto current = current_dir;
                         while(current)
                         {
                             if(current->Parent != nullptr)
                             {
-                                m_BreadCrumbData.push_back(current);
+                                bread_crumb_data.push_back(current);
                                 current = current->Parent;
                             }
                             else
                             {
-                                m_BreadCrumbData.push_back(m_BaseProjectDir);
+                                bread_crumb_data.push_back(base_project_dir);
                                 current = nullptr;
                             }
                         }
 
-                        std::reverse(m_BreadCrumbData.begin(), m_BreadCrumbData.end());
-                        m_UpdateNavigationPath = false;
+                        std::reverse(bread_crumb_data.begin(), bread_crumb_data.end());
+                        update_navigation_path = false;
                     }
                     {
                         int secIdx = 0, newPwdLastSecIdx = -1;
@@ -530,9 +530,9 @@ namespace diverse
                         int dirIndex = 0;
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.2f, 0.7f, 0.0f));
 
-                        for(auto& directory : m_BreadCrumbData)
+                        for(auto& directory : bread_crumb_data)
                         {
-                            auto RootPath = Str8StdS(Application::get().get_project_settings().m_ProjectRoot);
+                            auto RootPath = Str8StdS(Application::get().get_project_settings().ProjectRoot);
                             String8 RelativePath = { directory->Path.str + RootPath.size, directory->Path.size - RootPath.size};
                             if(ImGui::SmallButton((const char*)stringutility::get_file_name(RelativePath).str))
                                 change_directory(directory);
@@ -545,7 +545,7 @@ namespace diverse
                         if(newPwdLastSecIdx >= 0)
                         {
                             int i        = 0;
-                            auto stdPath = std::filesystem::path(std::string((const char*)m_CurrentDir->Path.str, m_CurrentDir->Path.size));
+                            auto stdPath = std::filesystem::path(std::string((const char*)current_dir->Path.str, current_dir->Path.size));
 
                             for(const auto& sec : stdPath)
                             {
@@ -558,9 +558,9 @@ namespace diverse
                                 stdPath /= "\\";
 #endif
 
-                            m_PreviousDirectory    = m_CurrentDir;
-                            m_CurrentDir           = m_Directories[Str8C((char*)stdPath.string().c_str())];
-                            m_UpdateNavigationPath = true;
+                            previous_directory    = current_dir;
+                            current_dir           = directories[Str8C((char*)stdPath.string().c_str())];
+                            update_navigation_path = true;
                         }
 
                         ImGui::SameLine();
@@ -592,7 +592,7 @@ namespace diverse
                     float lineHeight = ImGui::GetTextLineHeight();
                     int flags        = ImGuiTableFlags_ContextMenuInBody | ImGuiTableFlags_ScrollY;
 
-                    if(m_IsInListView)
+                    if(is_in_list_view)
                     {
                         ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, { 0, 0 });
                         columnCount = 1;
@@ -616,34 +616,34 @@ namespace diverse
 
                     if(ImGui::BeginTable("BodyTable", columnCount, flags))
                     {
-                        m_GridItemsPerRow = (int)floor(xAvail / (grid_size + ImGui::GetStyle().ItemSpacing.x));
-                        m_GridItemsPerRow = maths::Max(1, m_GridItemsPerRow);
+                        grid_items_per_row = (int)floor(xAvail / (grid_size + ImGui::GetStyle().ItemSpacing.x));
+                        grid_items_per_row = maths::Max(1, grid_items_per_row);
 
-                        textureCreated = false;
+                        texture_created = false;
 
                         ImGuiHelper::PushID();
 
-                        if(m_IsInListView)
+                        if(is_in_list_view)
                         {
-                            for(int i = 0; i < m_CurrentDir->Children.size(); i++)
+                            for(int i = 0; i < current_dir->Children.size(); i++)
                             {
-                                if(m_CurrentDir->Children.size() > 0)
+                                if(current_dir->Children.size() > 0)
                                 {
-                                    if(!m_ShowHiddenFiles && m_CurrentDir->Children[i]->Hidden)
+                                    if(!show_hidden_files && current_dir->Children[i]->Hidden)
                                     {
                                         continue;
                                     }
 
-                                    if(m_Filter.IsActive())
+                                    if(filter.IsActive())
                                     {
-                                        if(!m_Filter.PassFilter((const char*)(stringutility::str8_path_skip_last_slash(m_CurrentDir->Children[i]->Path).str)))
+                                        if(!filter.PassFilter((const char*)(stringutility::str8_path_skip_last_slash(current_dir->Children[i]->Path).str)))
                                         {
                                             continue;
                                         }
                                     }
 
                                     ImGui::TableNextColumn();
-                                    bool doubleClicked = render_file(i, !m_CurrentDir->Children[i]->IsFile, shownIndex, !m_IsInListView);
+                                    bool doubleClicked = render_file(i, !current_dir->Children[i]->IsFile, shownIndex, !is_in_list_view);
 
                                     if(doubleClicked)
                                         break;
@@ -653,23 +653,23 @@ namespace diverse
                         }
                         else
                         {
-                            for(int i = 0; i < m_CurrentDir->Children.size(); i++)
+                            for(int i = 0; i < current_dir->Children.size(); i++)
                             {
-                                if(!m_ShowHiddenFiles && m_CurrentDir->Children[i]->Hidden)
+                                if(!show_hidden_files && current_dir->Children[i]->Hidden)
                                 {
                                     continue;
                                 }
 
-                                if(m_Filter.IsActive())
+                                if(filter.IsActive())
                                 {
-                                    if(!m_Filter.PassFilter((const char*)(stringutility::str8_path_skip_last_slash(m_CurrentDir->Children[i]->Path).str)))
+                                    if(!filter.PassFilter((const char*)(stringutility::str8_path_skip_last_slash(current_dir->Children[i]->Path).str)))
                                     {
                                         continue;
                                     }
                                 }
 
                                 ImGui::TableNextColumn();
-                                bool doubleClicked = render_file(i, !m_CurrentDir->Children[i]->IsFile, shownIndex, !m_IsInListView);
+                                bool doubleClicked = render_file(i, !current_dir->Children[i]->IsFile, shownIndex, !is_in_list_view);
 
                                 if(doubleClicked)
                                     break;
@@ -681,14 +681,14 @@ namespace diverse
 
                         if(ImGui::BeginPopupContextWindow("AssetPanelHierarchyContextWindow", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
                         {
-                            if(std::filesystem::exists(ToStdString(m_CopiedPath)) && ImGui::Selectable("Paste"))
+                            if(std::filesystem::exists(ToStdString(copied_path)) && ImGui::Selectable("Paste"))
                             {
-                                if(m_CutFile)
+                                if(cut_file)
                                 {
-                                    const std::filesystem::path& fullPath = ToStdString(m_CopiedPath);
+                                    const std::filesystem::path& fullPath = ToStdString(copied_path);
                                     std::string filename                  = fullPath.stem().string();
                                     std::string extension                 = fullPath.extension().string();
-                                    std::filesystem::path destinationPath = std::filesystem::path(ToStdString(m_CurrentDir->Path)) / (filename + extension);
+                                    std::filesystem::path destinationPath = std::filesystem::path(ToStdString(current_dir->Path)) / (filename + extension);
 
                                     {
                                         while(std::filesystem::exists(destinationPath))
@@ -701,10 +701,10 @@ namespace diverse
                                 }
                                 else
                                 {
-                                    const std::filesystem::path& fullPath = ToStdString(m_CopiedPath);
+                                    const std::filesystem::path& fullPath = ToStdString(copied_path);
                                     std::string filename                  = fullPath.stem().string();
                                     std::string extension                 = fullPath.extension().string();
-                                    std::filesystem::path destinationPath = std::filesystem::path(ToStdString(m_CurrentDir->Path)) / (filename + extension);
+                                    std::filesystem::path destinationPath = std::filesystem::path(ToStdString(current_dir->Path)) / (filename + extension);
                                     {
                                         while(std::filesystem::exists(destinationPath))
                                         {
@@ -714,16 +714,16 @@ namespace diverse
                                     }
                                     std::filesystem::copy(fullPath, destinationPath);
                                 }
-                                m_CopiedPath.str  = nullptr;
-                                m_CopiedPath.size = 0;
+                                copied_path.str  = nullptr;
+                                copied_path.size = 0;
 
-                                m_CutFile = false;
+                                cut_file = false;
                                 refresh();
                             }
 
                             if(ImGui::Selectable("Open Location"))
                             {
-                                diverse::OS::instance()->openFileLocation(ToStdString(m_CurrentDir->Path));
+                                diverse::OS::instance()->openFileLocation(ToStdString(current_dir->Path));
                             }
 
                             ImGui::Separator();
@@ -740,26 +740,26 @@ namespace diverse
 
                             if(ImGui::Selectable("New folder"))
                             {
-                                std::filesystem::create_directory(std::filesystem::path(ToStdString(m_CurrentDir->Path)) / "NewFolder");
+                                std::filesystem::create_directory(std::filesystem::path(ToStdString(current_dir->Path)) / "NewFolder");
                                 refresh();
                             }
 
-                            if(!m_IsInListView)
+                            if(!is_in_list_view)
                             {
                                 ImGui::SliderFloat("##GridSize", &grid_size, MinGridSize, MaxGridSize);
                             }
                             ImGui::EndPopup();
                         }
-                        if (m_RenameFile)
+                        if (rename_file)
                         {
-                            const std::filesystem::path& fullPath = std::filesystem::path(ToStdString(m_BasePath)) / m_RenamePath;
-                            const std::filesystem::path& srcPath = std::filesystem::path(ToStdString(m_CurrentSelected->Path));
+                            const std::filesystem::path& fullPath = std::filesystem::path(ToStdString(base_path)) / rename_path;
+                            const std::filesystem::path& srcPath = std::filesystem::path(ToStdString(current_selected->Path));
                             std::string filename = fullPath.stem().string();
                             std::string extension = fullPath.extension().string();
-                            std::filesystem::path destinationPath = std::filesystem::path(ToStdString(m_CurrentDir->Path)) / (filename + extension);
+                            std::filesystem::path destinationPath = std::filesystem::path(ToStdString(current_dir->Path)) / (filename + extension);
                             std::filesystem::rename(srcPath, destinationPath);
-                            m_RenamePath = "";
-                            m_RenameFile = false;
+                            rename_path = "";
+                            rename_file = false;
                             refresh();
                         }
 
@@ -775,11 +775,11 @@ namespace diverse
                 if(data)
                 {
                     String8* a = (String8*)data->Data;
-                    if(move_file(*a, m_MovePath))
+                    if(move_file(*a, move_path))
                     {
-                        DS_LOG_INFO("Moved File: {0} to {1}", (const char*)((*a).str), (const char*)m_MovePath.str);
+                        DS_LOG_INFO("Moved File: {0} to {1}", (const char*)((*a).str), (const char*)move_path.str);
                     }
-                    m_IsDragging = false;
+                    is_dragging = false;
                 }
                 ImGui::EndDragDropTarget();
             }
@@ -809,8 +809,8 @@ namespace diverse
         bool doubleClicked = false;
         if(gridView)
         {
-            auto& CurrentEnty              = m_CurrentDir->Children[dirIndex];
-            auto textureId = m_FolderIcon;
+            auto& CurrentEnty              = current_dir->Children[dirIndex];
+            auto textureId = folder_icon;
 
             auto cursorPos = ImGui::GetCursorPos();
 
@@ -822,15 +822,15 @@ namespace diverse
                     {
                         textureId = CurrentEnty->Thumbnail;
                     }
-                    else if(!textureCreated)
+                    else if(!texture_created)
                     {
-                        textureCreated         = true;
-                        CurrentEnty->Thumbnail = m_TextureLibrary.get_resource(ToStdString(CurrentEnty->Path));
-                        textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : m_FileIcon;
+                        texture_created = true;
+                        CurrentEnty->Thumbnail = texture_library.get_resource(ToStdString(CurrentEnty->Path));
+                        textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : file_icon;
                     }
                     else
                     {
-                        textureId = m_FileIcon;
+                        textureId = file_icon;
                     }
                 }
                 else if(CurrentEnty->Type == FileType::Scene)
@@ -839,24 +839,24 @@ namespace diverse
                     {
                         textureId = CurrentEnty->Thumbnail;
                     }
-                    else if(!textureCreated)
+                    else if(!texture_created)
                     {
-                        ArenaTemp scratch = ArenaTempBegin(m_Arena);
-                        String8 sceneScreenShotPath = PushStr8F(scratch.arena, "%s/scenes/cache/%s.png", m_BasePath.str, CurrentEnty->Path);
+                        ArenaTemp scratch = ArenaTempBegin(arena);
+                        String8 sceneScreenShotPath = PushStr8F(scratch.arena, "%s/scenes/cache/%s.png", base_path.str, CurrentEnty->Path);
                         const auto stdPath = ToStdString(sceneScreenShotPath);
                         if(std::filesystem::exists(std::filesystem::path(stdPath)))
                         {
-                            textureCreated         = true;
-                            CurrentEnty->Thumbnail = m_TextureLibrary.get_resource(stdPath);
-                            textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : m_FileIcon;
+                            texture_created = true;
+                            CurrentEnty->Thumbnail = texture_library.get_resource(stdPath);
+                            textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : file_icon;
                         }
                         else
-                            textureId = m_ArchiveIcon;
+                            textureId = archive_icon;
                         ArenaTempEnd(scratch);
                     }
                     else
                     {
-                        textureId = m_ArchiveIcon;
+                        textureId = archive_icon;
                     }
                 }
                 else if (CurrentEnty->Type == FileType::Font)
@@ -872,15 +872,15 @@ namespace diverse
                     {
                         textureId = CurrentEnty->Thumbnail;
                     }
-					else if (!textureCreated)
+					else if (!texture_created)
 					{
-						textureCreated         = true;
-						CurrentEnty->Thumbnail = m_AudioIcon;
-						textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : m_FileIcon;
+                        texture_created = true;
+						CurrentEnty->Thumbnail = audio_icon;
+						textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : file_icon;
 					}
 					else
 					{
-						textureId = m_AudioIcon;
+						textureId = audio_icon;
 					}
                 }
                 else if (CurrentEnty->Type == FileType::Video)
@@ -889,77 +889,77 @@ namespace diverse
                     {
                         textureId = CurrentEnty->Thumbnail;
                     }
-					else if(!textureCreated)
+					else if(!texture_created)
 					{
-						textureCreated         = true;
-						CurrentEnty->Thumbnail = m_VideoIcon;
-						textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : m_FileIcon;
+                        texture_created = true;
+						CurrentEnty->Thumbnail = video_icon;
+						textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : file_icon;
 					}
 					else
 					{
-						textureId = m_VideoIcon;
+						textureId = video_icon;
 					}
                 }
                 else
                 {
-                    textureId = m_FileIcon;
+                    textureId = file_icon;
                 }
             }
             bool flipImage = false;
 
             bool highlight = false;
             {
-                highlight = m_CurrentDir->Children[dirIndex] == m_CurrentSelected;
+                highlight = current_dir->Children[dirIndex] == current_selected;
             }
 
             // Background button
             bool const clicked = ImGuiHelper::ToggleButton(ImGuiHelper::GenerateID(), highlight, backgroundThumbnailSize, 0.0f, 1.0f, ImGuiButtonFlags_AllowOverlap);
             if(clicked)
             {
-                m_CurrentSelected = m_CurrentDir->Children[dirIndex];
+                current_selected = current_dir->Children[dirIndex];
                 //String8 RelativePath = { m_CurrentSelected->Path.str + m_BasePath.size + 1, m_CurrentSelected->Path.size - m_BasePath.size };
                 //IsRenameFile = Str8StdS(m_RenamePath) == RelativePath;
             }
             //whether F2 key is pressed
             if (highlight && Input::get().get_key_pressed(diverse::InputCode::Key::F2))
             {
-                String8 RelativePath = { m_CurrentSelected->Path.str + m_BasePath.size + 1, m_CurrentSelected->Path.size - m_BasePath.size };
-                m_RenamePath = ToStdString(RelativePath);
-                m_CurrentSelected->IsRenaming = true;
+                String8 RelativePath = { current_selected->Path.str + base_path.size + 1, current_selected->Path.size - base_path.size };
+                rename_path = ToStdString(RelativePath);
+                current_selected->IsRenaming = true;
             }
             if (highlight && Input::get().get_key_pressed(diverse::InputCode::Key::Delete))
             {
-                auto fullPath = m_CurrentDir->Children[dirIndex]->Path;
+                auto fullPath = current_dir->Children[dirIndex]->Path;
                 std::filesystem::remove_all(std::string((const char*)fullPath.str, fullPath.size));
                 queue_refresh();
             }
 
             if(ImGui::BeginPopupContextItem())
             {
-                m_CurrentSelected = m_CurrentDir->Children[dirIndex];
+                current_selected = current_dir->Children[dirIndex];
 
                 if(ImGui::Selectable("Cut"))
                 {
-                    m_CopiedPath = m_CurrentDir->Children[dirIndex]->Path;
-                    m_CutFile    = true;
+                    copied_path = current_dir->Children[dirIndex]->Path;
+                    cut_file    = true;
                 }
 
                 if(ImGui::Selectable("Copy"))
                 {
-                    m_CopiedPath = m_CurrentDir->Children[dirIndex]->Path;
-                    m_CutFile    = false;
+                    copied_path = current_dir->Children[dirIndex]->Path;
+                    cut_file    = false;
                 }
 
                 if(ImGui::Selectable("Delete"))
                 {
-                    auto fullPath = m_CurrentDir->Children[dirIndex]->Path;
+                    auto fullPath = current_dir->Children[dirIndex]->Path;
                     std::filesystem::remove_all(std::string((const char*)fullPath.str, fullPath.size));
                     queue_refresh();
                 }
 
                 if(ImGui::Selectable("Duplicate"))
                 {
-                    std::filesystem::path fullPath        = std::string((const char*)m_CurrentDir->Children[dirIndex]->Path.str, m_CurrentDir->Children[dirIndex]->Path.size);
+                    std::filesystem::path fullPath        = std::string((const char*)current_dir->Children[dirIndex]->Path.str, current_dir->Children[dirIndex]->Path.size);
                     std::filesystem::path destinationPath = fullPath;
 
                     {
@@ -978,20 +978,20 @@ namespace diverse
 
                 if (ImGui::Selectable("Rename"))
                 {
-                    String8 RelativePath = { m_CurrentSelected->Path.str + m_BasePath.size + 1, m_CurrentSelected->Path.size - m_BasePath.size };
-                    m_RenamePath = ToStdString(RelativePath);
-                    m_CurrentSelected->IsRenaming = true;
+                    String8 RelativePath = { current_selected->Path.str + base_path.size + 1, current_selected->Path.size - base_path.size };
+                    rename_path = ToStdString(RelativePath);
+                    current_selected->IsRenaming = true;
 				}
 
                 if(ImGui::Selectable("Open Location"))
                 {
-                    auto fullPath = m_CurrentDir->Children[dirIndex]->Path;
+                    auto fullPath = current_dir->Children[dirIndex]->Path;
                     diverse::OS::instance()->openFileLocation(std::string((const char*)fullPath.str, fullPath.size));
                 }
 
-                if(m_CurrentDir->Children[dirIndex]->IsFile && ImGui::Selectable("Open External"))
+                if(current_dir->Children[dirIndex]->IsFile && ImGui::Selectable("Open External"))
                 {
-                    auto fullPath = m_CurrentDir->Children[dirIndex]->Path;
+                    auto fullPath = current_dir->Children[dirIndex]->Path;
                     diverse::OS::instance()->openFileExternal(std::string((const char*)fullPath.str, fullPath.size));
                 }
 
@@ -999,7 +999,7 @@ namespace diverse
 
                 if(ImGui::Selectable("Import New Asset"))
                 {
-                    m_Editor->open_file();
+                    editor->open_file();
                 }
 
                 if(ImGui::Selectable("Refresh"))
@@ -1009,35 +1009,35 @@ namespace diverse
 
                 if(ImGui::Selectable("New folder"))
                 {
-                    std::filesystem::create_directory(std::filesystem::path(std::string((const char*)m_CurrentDir->Path.str, m_CurrentDir->Path.size) + "/NewFolder"));
+                    std::filesystem::create_directory(std::filesystem::path(std::string((const char*)current_dir->Path.str, current_dir->Path.size) + "/NewFolder"));
                     queue_refresh();
                 }
 
-                if(!m_IsInListView)
+                if(!is_in_list_view)
                 {
                     ImGui::SliderFloat("##GridSize", &grid_size, MinGridSize, MaxGridSize);
                 }
                 ImGui::EndPopup();
             }
 
-            if(ImGui::IsItemHovered() && m_CurrentDir->Children[dirIndex]->Thumbnail)
+            if(ImGui::IsItemHovered() && current_dir->Children[dirIndex]->Thumbnail)
             {
-                ImGuiHelper::Tooltip(m_CurrentDir->Children[dirIndex]->Thumbnail->gpu_texture, { 512, 512 }, (const char*)(m_CurrentDir->Children[dirIndex]->Path.str));
+                ImGuiHelper::Tooltip(current_dir->Children[dirIndex]->Thumbnail->gpu_texture, { 512, 512 }, (const char*)(current_dir->Children[dirIndex]->Path.str));
             }
             else
-                ImGuiHelper::Tooltip((const char*)(m_CurrentDir->Children[dirIndex]->Path.str));
+                ImGuiHelper::Tooltip((const char*)(current_dir->Children[dirIndex]->Path.str));
 
             if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
             {
-                ImGui::TextUnformatted(m_Editor->get_iconfont_icon(ToStdString(m_CurrentDir->Children[dirIndex]->Path)));
+                ImGui::TextUnformatted(editor->get_iconfont_icon(ToStdString(current_dir->Children[dirIndex]->Path)));
 
                 ImGui::SameLine();
-                m_MovePath = m_CurrentDir->Children[dirIndex]->Path;
-                ImGui::TextUnformatted((const char*)m_MovePath.str);
+                move_path = current_dir->Children[dirIndex]->Path;
+                ImGui::TextUnformatted((const char*)move_path.str);
 
-                size_t size = sizeof(const char*) + m_MovePath.size;
-                ImGui::SetDragDropPayload("AssetFile", m_MovePath.str, size);
-                m_IsDragging = true;
+                size_t size = sizeof(const char*) + move_path.size;
+                ImGui::SetDragDropPayload("AssetFile", move_path.str, size);
+                is_dragging = true;
                 ImGui::EndDragDropSource();
             }
 
@@ -1048,7 +1048,7 @@ namespace diverse
 
             ImGui::SetCursorPos({ cursorPos.x + padding, cursorPos.y + padding });
             ImGui::SetNextItemAllowOverlap();
-            ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(m_TextureLibrary.get_default_resource("white")->gpu_texture)), {backgroundThumbnailSize.x - padding * 2.0f, backgroundThumbnailSize.y - padding * 2.0f}, {0, 0}, {1, 1}, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg) + ImVec4(0.04f, 0.04f, 0.04f, 0.04f));
+            ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(texture_library.get_default_resource("white")->gpu_texture)), {backgroundThumbnailSize.x - padding * 2.0f, backgroundThumbnailSize.y - padding * 2.0f}, {0, 0}, {1, 1}, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg) + ImVec4(0.04f, 0.04f, 0.04f, 0.04f));
 
             ImGui::SetCursorPos({ cursorPos.x + thumbnailPadding * 0.75f, cursorPos.y + thumbnailPadding });
             ImGui::SetNextItemAllowOverlap();
@@ -1057,27 +1057,27 @@ namespace diverse
 
             const ImVec2 typeColorFrameSize = { scaledThumbnailSizeX, scaledThumbnailSizeX * 0.03f };
             ImGui::SetCursorPosX(cursorPos.x + padding);
-            ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(m_TextureLibrary.get_default_resource("white")->gpu_texture)), typeColorFrameSize, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f), !CurrentEnty->IsFile ? ImVec4(0.0f, 0.0f, 0.0f, 0.0f) : CurrentEnty->FileTypeColour);
+            ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(texture_library.get_default_resource("white")->gpu_texture)), typeColorFrameSize, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f), !CurrentEnty->IsFile ? ImVec4(0.0f, 0.0f, 0.0f, 0.0f) : CurrentEnty->FileTypeColour);
 
-            if (m_CurrentSelected && m_CurrentSelected->IsRenaming && highlight)
+            if (current_selected && current_selected->IsRenaming && highlight)
             {
                 ImGui::SetCursorPos(ImVec2(cursorPos.x + padding * 2, ImGui::GetCursorPosY() + padding * 4));
-                if (!ImGuiHelper::InputText(m_RenamePath, "##FileNameChange"))
+                if (!ImGuiHelper::InputText(rename_path, "##FileNameChange"))
                 {
                     const ImVec2 rectMin = ImGui::GetItemRectMin();
                     const ImVec2 rectSize = ImGui::GetItemRectSize();
                     const ImRect clipRect = ImRect({ rectMin.x, rectMin.y }, { rectMin.x + rectSize.x,rectMin.y + rectSize.y });
 
-                    String8 RelativePath = { m_CurrentSelected->Path.str + m_BasePath.size + 1, m_CurrentSelected->Path.size - m_BasePath.size };
+                    String8 RelativePath = { current_selected->Path.str + base_path.size + 1, current_selected->Path.size - base_path.size };
                     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsKeyReleased(ImGuiKey_Enter))
                     {
-                        if (!(Str8StdS(m_RenamePath) == RelativePath)) 
+                        if (!(Str8StdS(rename_path) == RelativePath)) 
                         {
-                            m_RenameFile = true;
-                            m_CurrentSelected->IsRenaming = false;
+                            rename_file = true;
+                            current_selected->IsRenaming = false;
                         }
                         else
-                            m_CurrentSelected->IsRenaming = clipRect.Contains(ImGui::GetMousePos());
+                            current_selected->IsRenaming = clipRect.Contains(ImGui::GetMousePos());
 					}
                 }
             }
@@ -1093,7 +1093,7 @@ namespace diverse
             //render file type and size
             if(CurrentEnty->IsFile)
             {
-                ImGui::SetCursorPos({ cursorPos.x + padding * (float)m_Editor->get_window()->get_dpi_scale(), cursorPos.y + backgroundThumbnailSize.y - (ImGui::GetIO().Fonts->Fonts[2]->FontSize - padding * (float)m_Editor->get_window()->get_dpi_scale()) * 3.2f });
+                ImGui::SetCursorPos({ cursorPos.x + padding * (float)editor->get_window()->get_dpi_scale(), cursorPos.y + backgroundThumbnailSize.y - (ImGui::GetIO().Fonts->Fonts[2]->FontSize - padding * (float)editor->get_window()->get_dpi_scale()) * 3.2f });
                 ImGui::BeginDisabled();
                 ImGuiHelper::ScopedFont smallFont(ImGui::GetIO().Fonts->Fonts[2]);
                 ImGui::Indent();
@@ -1106,7 +1106,7 @@ namespace diverse
                 ImGui::TextUnformatted((const char*)(fileTypeString).str);
                 ImGui::Unindent();
                 cursorPos = ImGui::GetCursorPos();
-                ImGui::SetCursorPos({ cursorPos.x + padding * (float)m_Editor->get_window()->get_dpi_scale(), cursorPos.y - (ImGui::GetIO().Fonts->Fonts[2]->FontSize * 0.6f - padding * (float)m_Editor->get_window()->get_dpi_scale()) });
+                ImGui::SetCursorPos({ cursorPos.x + padding * (float)editor->get_window()->get_dpi_scale(), cursorPos.y - (ImGui::GetIO().Fonts->Fonts[2]->FontSize * 0.6f - padding * (float)editor->get_window()->get_dpi_scale()) });
                 ImGui::Indent();
                 ImGui::TextUnformatted((const char*)CurrentEnty->FileSizeString.str);
                 ImGui::Unindent();
@@ -1120,10 +1120,10 @@ namespace diverse
             //{
             //    ImGuiHelper::InputText(m_RenamePath, "##FileNameChange");
             //}
-            ImGui::TextUnformatted(folder ? U8CStr2CStr(ICON_MDI_FOLDER) : m_Editor->get_iconfont_icon(std::string((const char*)m_CurrentDir->Children[dirIndex]->Path.str, m_CurrentDir->Children[dirIndex]->Path.size)));
+            ImGui::TextUnformatted(folder ? U8CStr2CStr(ICON_MDI_FOLDER) : editor->get_iconfont_icon(std::string((const char*)current_dir->Children[dirIndex]->Path.str, current_dir->Children[dirIndex]->Path.size)));
             ImGui::SameLine();
 
-            if(ImGui::Selectable((const char*)stringutility::get_file_name(m_CurrentDir->Children[dirIndex]->Path, !m_CurrentDir->Children[dirIndex]->IsFile).str, false, ImGuiSelectableFlags_AllowDoubleClick))
+            if(ImGui::Selectable((const char*)stringutility::get_file_name(current_dir->Children[dirIndex]->Path, !current_dir->Children[dirIndex]->IsFile).str, false, ImGuiSelectableFlags_AllowDoubleClick))
             {
                 if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
@@ -1131,19 +1131,19 @@ namespace diverse
                 }
             }
 
-            ImGuiHelper::Tooltip((const char*)m_CurrentDir->Children[dirIndex]->Path.str);
+            ImGuiHelper::Tooltip((const char*)current_dir->Children[dirIndex]->Path.str);
 
             if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
             {
-                ImGui::TextUnformatted(m_Editor->get_iconfont_icon(ToStdString(m_CurrentDir->Children[dirIndex]->Path)));
+                ImGui::TextUnformatted(editor->get_iconfont_icon(ToStdString(current_dir->Children[dirIndex]->Path)));
 
                 ImGui::SameLine();
-                m_MovePath = m_CurrentDir->Children[dirIndex]->Path;
-                ImGui::TextUnformatted((const char*)m_MovePath.str);
+                move_path = current_dir->Children[dirIndex]->Path;
+                ImGui::TextUnformatted((const char*)move_path.str);
 
-                size_t size = sizeof(const char*) + m_MovePath.size;
-                ImGui::SetDragDropPayload("AssetFile", m_MovePath.str, size);
-                m_IsDragging = true;
+                size_t size = sizeof(const char*) + move_path.size;
+                ImGui::SetDragDropPayload("AssetFile", move_path.str, size);
+                is_dragging = true;
                 ImGui::EndDragDropSource();
             }
         }
@@ -1152,11 +1152,11 @@ namespace diverse
         {
             if(folder)
             {
-                change_directory(m_CurrentDir->Children[dirIndex]);
+                change_directory(current_dir->Children[dirIndex]);
             }
             else
             {
-                m_Editor->file_open_callback(std::string((const char*)m_CurrentDir->Children[dirIndex]->Path.str, m_CurrentDir->Children[dirIndex]->Path.size));
+                editor->file_open_callback(std::string((const char*)current_dir->Children[dirIndex]->Path.str, current_dir->Children[dirIndex]->Path.size));
             }
         }
 
@@ -1177,53 +1177,53 @@ namespace diverse
 
     void ResourcePanel::on_new_project()
     {
-        m_BasePath = PushStr8F(m_Arena, "%sassets", Application::get().get_project_settings().m_ProjectRoot.c_str());
+        base_path = PushStr8F(arena, "%sassets", Application::get().get_project_settings().ProjectRoot.c_str());
 
         std::string assetsBasePath;
         FileSystem::get().resolve_physical_path("//assets", assetsBasePath);
-        m_AssetPath = PushStr8Copy(m_Arena, Str8C((char*)std::filesystem::path(assetsBasePath).string().c_str()));
+        asset_path = PushStr8Copy(arena, Str8C((char*)std::filesystem::path(assetsBasePath).string().c_str()));
 
-        String8 baseDirectoryHandle = process_directory(m_BasePath, nullptr, true);
-        m_BaseProjectDir = m_Directories[baseDirectoryHandle];
-        change_directory(m_BaseProjectDir);
+        String8 baseDirectoryHandle = process_directory(base_path, nullptr, true);
+        base_project_dir = directories[baseDirectoryHandle];
+        change_directory(base_project_dir);
 
-        m_CurrentDir = m_BaseProjectDir;
+        current_dir = base_project_dir;
         queue_refresh();
     }
 
     void ResourcePanel::refresh()
     {
-        m_TextureLibrary.destroy();
+        texture_library.destroy();
 
         Arena* temp         = ArenaAlloc(256);
-        String8 currentPath = PushStr8Copy(temp, m_CurrentDir->Path);
+        String8 currentPath = PushStr8Copy(temp, current_dir->Path);
 
-        ArenaClear(m_Arena);
-        m_Directories.clear();
+        ArenaClear(arena);
+        directories.clear();
 
-        m_BasePath                  = PushStr8F(m_Arena, "%sassets", Application::get().get_project_settings().m_ProjectRoot.c_str());
-        String8 baseDirectoryHandle = process_directory(m_BasePath, nullptr, true);
-        m_BaseProjectDir            = m_Directories[baseDirectoryHandle];
-        change_directory(m_BaseProjectDir);
+        base_path                  = PushStr8F(arena, "%sassets", Application::get().get_project_settings().ProjectRoot.c_str());
+        String8 baseDirectoryHandle = process_directory(base_path, nullptr, true);
+        base_project_dir            = directories[baseDirectoryHandle];
+        change_directory(base_project_dir);
 
-        m_UpdateNavigationPath = true;
+        update_navigation_path = true;
 
-        m_BaseProjectDir    = m_Directories[baseDirectoryHandle];
-        m_PreviousDirectory = nullptr;
-        m_CurrentDir        = nullptr;
+        base_project_dir    = directories[baseDirectoryHandle];
+        previous_directory = nullptr;
+        current_dir        = nullptr;
 
         bool dirFound = false;
-        for(auto dir : m_Directories)
+        for(auto dir : directories)
         {
             if(Str8Match(dir.first, currentPath))
             {
-                m_CurrentDir = dir.second;
+                current_dir = dir.second;
                 dirFound     = true;
                 break;
             }
         }
         if(dirFound)
-            change_directory(m_CurrentDir);
+            change_directory(current_dir);
 
         ArenaRelease(temp);
     }

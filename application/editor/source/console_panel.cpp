@@ -20,8 +20,8 @@ namespace diverse
         : EditorPanel(active)
     {
         DS_PROFILE_FUNCTION();
-        m_Name = U8CStr2CStr(ICON_MDI_VIEW_LIST " Console###console");
-        m_SimpleName = "Console";
+        name = U8CStr2CStr(ICON_MDI_VIEW_LIST " Console###console");
+        simple_name = "Console";
         s_MessageBufferRenderFilter = Message::Level::Trace | Message::Level::Info | Message::Level::Debug | Message::Level::Warn | Message::Level::Error | Message::Level::Critical;
     }
 
@@ -82,7 +82,7 @@ namespace diverse
         DS_PROFILE_FUNCTION();
         auto flags = ImGuiWindowFlags_NoCollapse;
         ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_FirstUseEver);
-        ImGui::Begin(m_Name.c_str(), &m_Active, flags);
+        ImGui::Begin(name.c_str(), &is_active, flags);
         {
             imgui_render_header();
             ImGui::Separator();

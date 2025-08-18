@@ -121,6 +121,7 @@ namespace diverse
 		auto	get_camera_transform()-> maths::Transform* {return camera_transform;}
 		auto	binldess_descriptorset()-> rhi::DescriptorSet* {return bindless_descriptor_set.get();}
 		auto 	invalidate_pt_state()->void { reset_pt = true;}	
+		auto    has_reset_pt_state()->bool {return reset_pt;}
 		auto 	refresh_shaders()->void {return rg_renderer->refresh_shaders();}
 		auto	register_event_render_graph(rg::RenderGraph& rg) -> void;
 		u32 	get_buf_id(GaussianModel* model);
@@ -215,6 +216,7 @@ namespace diverse
 		std::vector<glm::vec2>   			supersample_offsets;
 
 		bool		reset_pt = false;
+		bool 		skip_gs_render = false;
 		u32 		mesh_buf_id = 0;
 	};
 }

@@ -9,9 +9,20 @@
 
 namespace diverse
 {
+   
     class DS_EXPORT Camera
     {
     public:
+        enum class CameraViewMode
+        {
+            Front,
+            Back,
+            Left,
+            Right,
+            Top,
+            Bottom,
+            Perspective,
+        };
         Camera();
         Camera(float FOV, float Near, float Far, float aspect);
         Camera(float aspectRatio, float scale);
@@ -135,6 +146,8 @@ namespace diverse
         float get_ev100() const { return std::log2((aperture * aperture) / shutter_speed * 100.0f / shutter_speed); }
         float get_exposure() const { return 1.0f / (std::pow(2.0f, get_ev100()) * 1.2f); }
 
+        void set_view_mode(CameraViewMode mode);
+        CameraViewMode get_view_mode() const { return view_mode; }
     protected:
         void update_projection_matrix();
 
@@ -158,5 +171,6 @@ namespace diverse
         float sensitivity      = 250.0f;
 
         bool orthographic = false;
+        CameraViewMode view_mode = CameraViewMode::Perspective;
     };
 }

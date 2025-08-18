@@ -393,7 +393,7 @@ namespace diverse
 
                 auto pickpass = rg.add_pass("pick pass");
                 std::vector<std::pair<std::string, std::string>> defines;
-                defines.push_back({ "AABB", "1" });
+                defines.push_back({ "GSPLAT_AA", std::to_string((u32)splat->ModelRef->antialiased()) });
                 defines.push_back({ "PICK_PASS", "1" });
 #if SPLAT_EDIT
                 defines.push_back({ "SPLAT_EDIT", "1" });

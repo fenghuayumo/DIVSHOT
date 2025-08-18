@@ -152,10 +152,10 @@ namespace diverse
         void draw_panel_info(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         HistogramData   histogram;
 
-        bool            m_IsDraging = false;
-        glm::vec2       m_DragStart;
-        glm::vec2       m_DragEnd;
-        int             m_SelectType = 0;
-        int             m_LeftPanelWidth = 140;
+        bool            is_dragging = false;
+        glm::vec2       drag_start;
+        glm::vec2       drag_end;
+        int             select_type = 0;
+        int             left_panel_width = 140;
     };
 }

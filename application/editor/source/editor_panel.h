@@ -13,35 +13,35 @@ namespace diverse
     {
     public:
         EditorPanel(bool active = true)
-            : m_Active(active)
+            : is_active(active)
         {
         }
         virtual ~EditorPanel() = default;
 
         const std::string& get_name() const
         {
-            return m_Name;
+            return name;
         }
         const std::string& get_simple_name() const
         {
-            return m_SimpleName;
+            return simple_name;
         }
 
         void set_editor(Editor* editor)
         {
-            m_Editor = editor;
+            this->editor = editor;
         }
         Editor* get_editor()
         {
-            return m_Editor;
+            return editor;
         }
         bool& active()
         {
-            return m_Active;
+            return is_active;
         }
         void set_active(bool active)
         {
-            m_Active = active;
+            this->is_active = active;
         }
         virtual void on_imgui_render() = 0;
         virtual void on_new_scene(Scene* scene)
@@ -67,9 +67,9 @@ namespace diverse
         virtual bool handle_mouse_released(MouseButtonReleasedEvent& e) {return true;}
         virtual bool handle_file_drop(WindowFileEvent& e) {return true;} 
     protected:
-        bool m_Active = true;
-        std::string m_Name;
-        std::string m_SimpleName;
-        Editor* m_Editor = nullptr;
+        bool is_active = true;
+        std::string name;
+        std::string simple_name;
+        Editor* editor = nullptr;
     };
 }

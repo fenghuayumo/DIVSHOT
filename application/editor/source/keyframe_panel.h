@@ -22,8 +22,8 @@ namespace diverse
         void	on_update(float dt) override;
         void    on_new_scene(Scene* scene) override;
 
-        void    set_key_frame_state(KeyFrameState state) { m_keyframe_state = state; }
-        float&  auto_play_speed() { return m_auto_play_speed; }
+        void    set_key_frame_state(KeyFrameState state) { keyframe_state = state; }
+        float&  play_speed_ref() { return play_speed; }
     protected:
         void    render_time_line(KeyFrameTimeLine* timeline);
         void    reset_render_frame();
@@ -36,14 +36,14 @@ namespace diverse
         void    render_tool_bar_header(ImRect ToolBarAreaRect, ImDrawList* draw_list, KeyFrameTimeLine* timeline);
         bool    clearTempDir();
         void    export_video_dialog(KeyFrameTimeLine* timeline);
-        float   m_play_time = 0.0f;
-        float   m_auto_play_speed = 0.0f;
+        float   play_time = 0.0f;
+        float   play_speed = 0.0f;
 
-        KeyFrameState   m_keyframe_state = KeyFrameState::Pause;
-        uint32_t m_render_frame_idx = 0;
-        std::vector<std::future<void>> m_render_futures;
+        KeyFrameState   keyframe_state = KeyFrameState::Pause;
+        uint32_t render_frame_idx = 0;
+        std::vector<std::future<void>> render_futures;
 
-        bool m_rendering = false;
+        bool rendering = false;
         struct RenderSettings 
         {
             glm::ivec2 resolution = { 1920, 1080 };
@@ -67,7 +67,7 @@ namespace diverse
 
             std::string filename = "video.mp4";
         };
-        RenderSettings m_render_settings;
-        i32            m_frame_counter = 0;
+        RenderSettings render_settings;
+        i32            frame_counter = 0;
     };
 }

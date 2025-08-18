@@ -20,17 +20,17 @@ namespace diverse
     KeyFramePanel::KeyFramePanel(bool active)
         : EditorPanel(active)
     {
-        m_Name = U8CStr2CStr(ICON_MDI_VIDEO " KeyFrame###KeyFrame");
-        m_SimpleName = "KeyFrame";
+        name = U8CStr2CStr(ICON_MDI_VIDEO " KeyFrame###KeyFrame");
+        simple_name = "KeyFrame";
     }
 
     void KeyFramePanel::on_imgui_render()
     {
         auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-        if (ImGui::Begin(m_Name.c_str(), &m_Active, flags))
+        if (ImGui::Begin(name.c_str(), &is_active, flags))
         {
             //ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-            auto& timeLine = m_Editor->get_current_scene()->get_keyFrame_entity().get_component<KeyFrameTimeLine>();
+            auto& timeLine = editor->get_current_scene()->get_keyFrame_entity().get_component<KeyFrameTimeLine>();
             render_time_line(&timeLine);
         }
         ImGui::End();
@@ -65,7 +65,7 @@ namespace diverse
         ImGui::TextUnformatted("fps:");
         ImGui::SameLine();
         ImGui::PushItemWidth(40);
-        ImGui::DragInt(ImGuiHelper::GenerateID(), &m_render_settings.fps, 1.0f, 1, 120);
+        ImGui::DragInt(ImGuiHelper::GenerateID(), &render_settings.fps, 1.0f, 1, 120);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("set fps value");
         ImGui::PopItemWidth();
@@ -105,7 +105,7 @@ namespace diverse
         {
             if (ImGui::Button(U8CStr2CStr(ICON_MDI_STEP_BACKWARD_2)))
             {
-                auto_play_speed() *= -2.0f;
+                play_speed_ref() *= -2.0f;
             }
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Backward Speed X2");
@@ -125,12 +125,12 @@ namespace diverse
                 ImGui::SetTooltip("Previous Frame");
             ImGui::SameLine();
         }
-        if(m_keyframe_state == KeyFrameState::Pause)
+        if(keyframe_state == KeyFrameState::Pause)
         {
             if (ImGui::Button(U8CStr2CStr(ICON_MDI_PLAY)))
             {
                 set_key_frame_state(KeyFrameState::Play);
-                auto_play_speed() = 1.0f;
+                play_speed_ref() = 1.0f;
             }
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Play");
@@ -141,7 +141,7 @@ namespace diverse
             if (ImGui::Button(U8CStr2CStr(ICON_MDI_PAUSE)))
             {
                 set_key_frame_state(KeyFrameState::Pause);
-                auto_play_speed() = 0.0f;
+                play_speed_ref() = 0.0f;
             }
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Pause");
@@ -163,7 +163,7 @@ namespace diverse
                 ImGui::SetTooltip("Next");
             ImGui::SameLine();
             if (ImGui::Button(U8CStr2CStr(ICON_MDI_STEP_FORWARD_2)))
-                auto_play_speed() *= 2.0f;
+                play_speed_ref() *= 2.0f;
 
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Forward Speed X2");
@@ -239,17 +239,19 @@ namespace diverse
         
         draw_list->AddRectFilled(timeLinePos, timeLinePos + timeLineSize, ImGui::GetColorU32(ImGuiCol_Button), 0);
 
-        const int timelineCnt = timeline->endShowTime - timeline->startShowTime;
-        const float timePixelWidth = timeLineSize.x /(float)timelineCnt;
-        const float timelineHeight = timeLineSize.y ;
+        const int timelineCnt = 100; // 固定显示200个时间线刻度
+        const float timePixelWidth = timeLineSize.x / (float)timelineCnt;
+        const float timelineHeight = timeLineSize.y;
         ImVec2 contenSize = ImVec2(canvas_size.x, canvas_size.y - toolbar_height);
         auto drawTimeLine = [&]() {
-            for (int i = 0; i < timelineCnt; i++) {
+            for (int i = 0; i <= timelineCnt; i++) {
                 float x = timeLinePos.x + i * timePixelWidth;
                 if (i % 10 == 0) 
                 {
                     draw_list->AddLine(ImVec2(x, timeLinePos.y), ImVec2(x, timeLinePos.y + contenSize.y), IM_COL32(128, 128, 128, 255), 2.0f);
-                    auto time_str = std::to_string((i + timeline->startShowTime));
+                    // 根据起始时间计算实际时间点
+                    int64_t actualTime = timeline->startShowTime + (i * (timeline->endShowTime - timeline->startShowTime)) / timelineCnt;
+                    auto time_str = std::to_string(actualTime);
                     ImGui::SetWindowFontScale(1.1);
                     draw_list->AddText(ImVec2(x - 0.5f * timePixelWidth, timeLinePos.y - 12 * dpi), IM_COL32(224, 224, 224, 255), time_str.c_str());
                     ImGui::SetWindowFontScale(1.0);
@@ -263,7 +265,8 @@ namespace diverse
         drawTimeLine();
 
         ImRect custom_view_rect(timeLinePos, timeLinePos + contenSize);
-        auto mouseTime = (int64_t)((io.MousePos.x - timeLinePos.x ) / timePixelWidth) + timeline->startShowTime;
+        // 根据鼠标位置计算实际时间点
+        auto mouseTime = timeline->startShowTime + (int64_t)((io.MousePos.x - timeLinePos.x) / timePixelWidth) * (timeline->endShowTime - timeline->startShowTime) / timelineCnt;
         menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu");
         if (custom_view_rect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
         {
@@ -297,7 +300,9 @@ namespace diverse
         {
             if (!timeline->bSeeking || ImGui::IsMouseDragging(ImGuiMouseButton_Left))
             {
-                auto timepoint = (int64_t)((io.MousePos.x - timeLineRect.Min.x) / timePixelWidth) + timeline->startShowTime;
+                // 根据鼠标位置计算时间点
+                float mouseRatio = (io.MousePos.x - timeLineRect.Min.x) / timeLineSize.x;
+                auto timepoint = timeline->startShowTime + (int64_t)(mouseRatio * (timeline->endShowTime - timeline->startShowTime));
                 if (timepoint < timeline->startShowTime)
                 {
                     timeline->startShowTime = std::max<int64_t>(timepoint, timeline->startShowTime - 2);;
@@ -323,7 +328,9 @@ namespace diverse
         }
         if (!is_draw_rect  && custom_view_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
         {
-            auto timepoint = (int64_t)((io.MousePos.x - timeLineRect.Min.x) / timePixelWidth) + timeline->startShowTime;
+            // 根据鼠标位置计算时间点
+            float mouseRatio = (io.MousePos.x - timeLineRect.Min.x) / timeLineSize.x;
+            auto timepoint = timeline->startShowTime + (int64_t)(mouseRatio * (timeline->endShowTime - timeline->startShowTime));
             add_key_frame(mouseTime, timeline);
         }
         ImGui::EndChildFrame();
@@ -331,7 +338,9 @@ namespace diverse
         if (timeline->currentTime >= timeline->startShowTime && timeline->currentTime <= timeline->endShowTime)
         {
             static const float cursorWidth = 2.f * dpi;
-            float x = timeLinePos.x + (timeline->currentTime - timeline->startShowTime) * timePixelWidth + 1;
+            // 根据当前时间计算光标位置
+            float timeRatio = (float)(timeline->currentTime - timeline->startShowTime) / (float)(timeline->endShowTime - timeline->startShowTime);
+            float x = timeLinePos.x + timeRatio * timeLineSize.x;
             draw_list->AddLine(ImVec2(x, timeLinePos.y), ImVec2(x, timeLinePos.y + contenSize.y), COL_CURSOR_LINE, cursorWidth);
         }
         draw_list->PopClipRect();
@@ -361,7 +370,9 @@ namespace diverse
 
         for (auto key_frame : timeline->keyframes)
         {
-            int px = (int)timeLinePos.x + (key_frame.timePoint - timeline->startShowTime)* timePixelWidth;
+            // 根据关键帧时间计算位置
+            float timeRatio = (float)(key_frame.timePoint - timeline->startShowTime) / (float)(timeline->endShowTime - timeline->startShowTime);
+            int px = (int)(timeLinePos.x + timeRatio * timeLineSize.x);
             if (px <= keyframe_rect.Max.x && px >= keyframe_rect.Min.x)
             {
                 auto size = keyframe_rect.Max.y - keyframe_rect.Min.y;
@@ -389,8 +400,8 @@ namespace diverse
 
     void KeyFramePanel::on_update(float dt)
     {
-        auto timeline = &m_Editor->get_current_scene()->get_keyFrame_entity().get_component<KeyFrameTimeLine>();
-        if (m_auto_play_speed > 0.0f && timeline->currentTime >= timeline->start && timeline->currentTime <= timeline->end)
+        auto timeline = &editor->get_current_scene()->get_keyFrame_entity().get_component<KeyFrameTimeLine>();
+        if (play_speed > 0.0f && timeline->currentTime >= timeline->start && timeline->currentTime <= timeline->end)
         {
             set_camera_from_time(timeline->currentTime, timeline);
         }
@@ -399,47 +410,47 @@ namespace diverse
 
     void KeyFramePanel::prepare_next_Key_frame(KeyFrameTimeLine* timline)
     {
-        if (m_rendering) {
-            if (m_frame_counter == 0)
+        if (rendering) {
+            if (frame_counter == 0)
                 ImGui::OpenPopup("Render Video");
             f32 progress = (timline->currentTime - timline->start) / f32(timline->end - timline->start);
             if (ImGuiHelper::ProgressWindow("Render Video", progress, ImVec2(240, 0), true))
             {
                 reset_render_frame();
             }
-            if( (++m_frame_counter) % m_render_settings.spp != 0) return;
+            if( (++frame_counter) % render_settings.spp != 0) return;
 
             auto tmp_dir = std::filesystem::path{ "tmp" };
             if (! std::filesystem::exists(tmp_dir) ) {
                 if (!std::filesystem::create_directory(tmp_dir)) {
-                    m_rendering = false;
+                    rendering = false;
                     DS_LOG_ERROR("Failed to create temporary directory 'tmp' to hold rendered images.");
                     return;
                 }
             }
-            auto renderTarget = m_Editor->get_main_render_texture();
+            auto renderTarget = editor->get_main_render_texture();
             auto res = glm::ivec2(renderTarget->desc.extent[0], renderTarget->desc.extent[1]);
             auto img_data = renderTarget->export_texture();
-            m_render_futures.emplace_back(video_threadPool.enqueue_task([img_data = std::move(img_data),
-                frame_idx = m_render_frame_idx++, res, tmp_dir] {
+            render_futures.emplace_back(video_threadPool.enqueue_task([img_data = std::move(img_data),
+                frame_idx = render_frame_idx++, res, tmp_dir] {
                     write_stbi(tmp_dir / fmt::format("{:06d}.jpg", frame_idx), res.x, res.y, 4, (uint8_t*)img_data.data(), 100);
-                }));
+            }));
             bool end = timline->currentTime >= timline->end;
             if (end) {
 
-                wait_all(m_render_futures);
-                m_rendering = false;
-                m_render_futures.clear();
+                wait_all(render_futures);
+                rendering = false;
+                render_futures.clear();
 
                 DS_LOG_INFO("Finished rendering '.jpg' video frames to '{}'. Assembling them into a video next.", tmp_dir.string());
-                cv::VideoWriter videoWriter(m_render_settings.filename, cv::VideoWriter::fourcc('X', 'V', 'I', 'D'), m_render_settings.fps, cv::Size(res.x, res.y));
+                cv::VideoWriter videoWriter(render_settings.filename, cv::VideoWriter::fourcc('X', 'V', 'I', 'D'), render_settings.fps, cv::Size(res.x, res.y));
                 if (!videoWriter.isOpened()) {
                     DS_LOG_ERROR("Could not open the video writer.");
                     return;
                 }
                 int frameCount = 0;
                 cv::Mat frame;
-                while (frameCount < m_render_frame_idx) {
+                while (frameCount < render_frame_idx) {
                     auto frameFilename = tmp_dir / fmt::format("{:06d}.jpg", frameCount);
                     frame = cv::imread(frameFilename.string());
                     if (frame.empty()) {
@@ -452,12 +463,12 @@ namespace diverse
                 clearTempDir();
                 reset_render_frame();
             }
-            timline->currentTime += m_auto_play_speed;
+            timline->currentTime += play_speed;
             timline->currentTime = ImClamp(timline->currentTime, timline->start, timline->end);
         }
-        if (!m_rendering && m_keyframe_state == KeyFrameState::Play)
+        if (!rendering && keyframe_state == KeyFrameState::Play)
         {
-            timline->currentTime += m_auto_play_speed; 
+            timline->currentTime += play_speed; 
             timline->currentTime = ImClamp(timline->currentTime, timline->start, timline->end);
             if (timline->currentTime == timline->end)
             {
@@ -469,17 +480,17 @@ namespace diverse
 
     void KeyFramePanel::reset_render_frame()
     {
-        m_frame_counter = 0;
-        m_auto_play_speed = 0.0f;
-        m_rendering = false;
-        m_render_futures.clear();
+        frame_counter = 0;
+        play_speed = 0.0f;
+        rendering = false;
+        render_futures.clear();
 
         auto variable = CmadVariableMgr::get().find("r.accumulate.spp");
         if (variable) variable->set_value<int>(1);
         variable = CmadVariableMgr::get().find("r.video_export");
         if (variable) variable->set_value<bool>(false);
         auto [width, height] = Application::get().get_scene_view_dimensions();
-        m_Editor->handle_renderer_resize(width, height);
+        editor->handle_renderer_resize(width, height);
     }
 
     void KeyFramePanel::set_camera_from_time(int64 time_point, KeyFrameTimeLine* timeline)
@@ -488,16 +499,16 @@ namespace diverse
             return;
         auto play_time = std::max((time_point - timeline->start) / float(timeline->end - timeline->start), 0.0f);
         auto k = timeline->evalKeyFrame(play_time).cameraElement;
-        auto& camera_transform = m_Editor->get_editor_camera_transform();
+        auto& camera_transform = editor->get_editor_camera_transform();
         camera_transform.set_local_orientation(k.R);
         // camera_transform.set_local_position(k.T);
-        m_Editor->get_editor_camera_controller().update_focal_point(camera_transform, k.T);
+        editor->get_editor_camera_controller().update_focal_point(camera_transform, k.T);
         camera_transform.set_world_matrix(glm::mat4(1.0f));
     }
 
     void KeyFramePanel::add_key_frame(int64 time_point,KeyFrameTimeLine* timeline)
     {
-        auto transMat = m_Editor->get_editor_camera_transform().get_local_matrix();
+        auto transMat = editor->get_editor_camera_transform().get_local_matrix();
         auto cam_key_frame_var = CameraKeyFrameVar(transMat, 1, 1, 1, 1);
 
         auto it = std::find_if(timeline->keyframes.begin(), timeline->keyframes.end(), [&](const KeyFrame& it)->bool { return it.timePoint >= time_point; });
@@ -528,8 +539,8 @@ namespace diverse
 
     bool KeyFramePanel::clearTempDir()
     {
-        wait_all(m_render_futures);
-        m_render_futures.clear();
+        wait_all(render_futures);
+        render_futures.clear();
 
         bool success = true;
         auto tmp_dir = std::filesystem::path{ "tmp" };
@@ -564,13 +575,13 @@ namespace diverse
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted("FileName:");
         ImGui::SameLine();
-        ImGui::TextUnformatted(m_render_settings.filename.c_str());
+        ImGui::TextUnformatted(render_settings.filename.c_str());
         ImGui::SameLine();
         if( ImGuiHelper::Button("..")) //open file dialog
         {
             std::string videoPath = FileDialogs::saveFile({"mp4"});
             if (!videoPath.empty())
-                m_render_settings.filename = videoPath;
+                render_settings.filename = videoPath;
         }
 
         diverse::ImGuiHelper::PushID();
@@ -600,10 +611,10 @@ namespace diverse
         }
         ImGui::PopItemWidth();
         ImGui::NextColumn();
-        m_render_settings.resolution = resolution[cur_res];
+        render_settings.resolution = resolution[cur_res];
         
-        ImGuiHelper::Property("fps", m_render_settings.fps, 1, 120);
-        ImGuiHelper::Property("spp", m_render_settings.spp);
+        ImGuiHelper::Property("fps", render_settings.fps, 1, 120);
+        ImGuiHelper::Property("spp", render_settings.spp);
 
         ImGui::Columns(1);
         ImGui::Separator();
@@ -616,19 +627,19 @@ namespace diverse
         ImGui::SetCursorPosX(button_posx);
         if (ImGui::Button("Ok", ImVec2(button_sizex, 0)))
         {
-            if(!m_render_settings.filename.empty())
+            if(!render_settings.filename.empty())
             { 
-                m_render_frame_idx = 0;
-                m_rendering = true;
+                render_frame_idx = 0;
+                rendering = true;
                 timeline->currentTime = timeline->start;
-                auto_play_speed() = 1.0f;
+                play_speed = 1.0f;
 
                 auto variable = CmadVariableMgr::get().find("r.accumulate.spp");
-                if (variable) variable->set_value<int>(m_render_settings.spp);
+                if (variable) variable->set_value<int>(render_settings.spp);
                 variable = CmadVariableMgr::get().find("r.video_export");
                 if (variable) variable->set_value<bool>(true);
 
-                m_Editor->handle_renderer_resize(m_render_settings.resolution.x, m_render_settings.resolution.y);
+                editor->handle_renderer_resize(render_settings.resolution.x, render_settings.resolution.y);
             }
             ImGui::CloseCurrentPopup();
         }

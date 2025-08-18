@@ -235,7 +235,7 @@ namespace diverse
             float camera_near = 0.01f;
             float camera_far = 1000.0f;
 
-            std::vector<std::string> m_RecentProjects;
+            std::vector<std::string> recent_projects;
         };
         EditorSettings& get_settings() { return settings; }
         void set_scene_view_active(bool active) { scene_view_active = active; }
@@ -243,7 +243,7 @@ namespace diverse
         void set_scene_view_rect(const maths::Rect& rect) { scene_view_rect = rect; }
         std::unordered_map<size_t, const char*>& get_component_iconmap()
         {
-            return m_ComponentIconMap;
+            return component_icon_map;
         }
 
         bool handle_file_drop(WindowFileEvent& e);
@@ -287,32 +287,31 @@ namespace diverse
         void    export_mesh();
     public:
         std::vector<std::string>    dropped_files;
-        bool                    enable_focus_region = false;
-        maths::BoundingBox      get_focus_splat_region();
-        maths::Transform        focus_region_transform;
     protected:
         void export_webview();
     #ifdef DS_SPLAT_TRAIN
         void export_cameras();
         void export_sparse_pointcloud();
+        void train_splat_gaussian();
     #endif
     protected:
         NONCOPYABLE(Editor)
 
-        Application* m_Application;
+        Application* application;
 
         uint32_t im_guizmo_operation = 14463;
         std::vector<entt::entity> selected_entities;
         std::vector<entt::entity> copied_entities;
         entt::entity hovered_entity = entt::null;
         entt::entity current_splat_entity = entt::null;
+        entt::entity current_train_entity = entt::null;
         bool cut_copy_entity = false;
 
         EditorSettings settings;
         std::vector<SharedPtr<EditorPanel>> panels;
         SharedPtr<HelperPanel>          helper_panels;
         SharedPtr<EditorPanel>          image_2d_panel;  
-        std::unordered_map<size_t, const char*> m_ComponentIconMap;
+        std::unordered_map<size_t, const char*> component_icon_map;
         FileBrowserPanel file_browser_panel;
         
         Camera* current_camera = nullptr;
@@ -342,7 +341,9 @@ namespace diverse
         std::vector<std::string> splat_source_path;
         std::string     load_model_path;
         bool        is_train_gaussian = false;
+        bool        is_update_splat_rendering = false;
         bool        is_splat_edit = false;
+        int         splat_update_freq = 100;
         int         current_train_view_id = -1;
         int         hovered_train_view_id = -1;
         std::shared_ptr<class Pivot> pivot;

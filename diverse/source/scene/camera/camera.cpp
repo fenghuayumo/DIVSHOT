@@ -120,4 +120,20 @@ namespace diverse
         return ret;
     }
 
+    void Camera::set_view_mode(CameraViewMode mode)
+    {
+        view_mode = mode;
+        if(mode != CameraViewMode::Perspective) 
+        { 
+            set_orthographic(true); 
+            set_near(-10.0f); 
+        }
+        else
+        {
+            set_orthographic(false);
+            set_near(0.01f);
+            set_fov(60.0f);
+        }
+    }
+
 }

@@ -59,7 +59,7 @@ namespace diverse
         //debug quads
         debug_draw_data.renderer2d_data.index_count = 0;
         debug_draw_data.renderer2d_data.vertex_data = nullptr;
-        debug_draw_data.renderer2d_data.limits.SetMaxQuads(10000);
+        debug_draw_data.renderer2d_data.limits.SetMaxQuads(25000);
 
         indices = new uint32_t[debug_draw_data.renderer2d_data.limits.IndiciesSize];
 

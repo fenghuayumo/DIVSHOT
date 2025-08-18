@@ -12,56 +12,56 @@ namespace diverse
     FileBrowserPanel::FileBrowserPanel(bool active)
         : EditorPanel(active)
     {
-        m_Name = "FileBrowserWindow";
-        m_SimpleName = "FileBrowser";
+        name = "FileBrowserWindow";
+        simple_name = "FileBrowser";
 
-        m_FileBrowser = new ImGui::FileBrowser(ImGuiFileBrowserFlags_CreateNewDir | ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_HideHiddenFiles);
+        file_browser = new ImGui::FileBrowser(ImGuiFileBrowserFlags_CreateNewDir | ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_HideHiddenFiles);
 
-        m_FileBrowser->SetTitle("File Browser");
+        file_browser->SetTitle("File Browser");
         // m_FileBrowser->SetFileFilters({ ".sh" , ".h" });
-        m_FileBrowser->SetLabels(U8CStr2CStr(ICON_MDI_FOLDER), U8CStr2CStr(ICON_MDI_FILE), U8CStr2CStr(ICON_MDI_FOLDER_OPEN));
-        m_FileBrowser->Refresh();
+        file_browser->SetLabels(U8CStr2CStr(ICON_MDI_FOLDER), U8CStr2CStr(ICON_MDI_FILE), U8CStr2CStr(ICON_MDI_FOLDER_OPEN));
+        file_browser->Refresh();
     }
 
     FileBrowserPanel::~FileBrowserPanel()
     {
-        delete m_FileBrowser;
+        delete file_browser;
     }
 
     void FileBrowserPanel::on_imgui_render()
     {
-        m_FileBrowser->Display();
+        file_browser->Display();
 
-        if (m_FileBrowser->HasSelected())
+        if (file_browser->HasSelected())
         {
-            std::string tempFilePath = m_FileBrowser->GetSelected().string();
+            std::string tempFilePath = file_browser->GetSelected().string();
 
             std::string filePath = diverse::stringutility::back_slashes_2_slashes(tempFilePath);
 
-            m_Callback(filePath);
+            callback(filePath);
 
-            m_FileBrowser->ClearSelected();
+            file_browser->ClearSelected();
         }
     }
 
     bool FileBrowserPanel::is_open()
     {
-        return m_FileBrowser->IsOpened();
+        return file_browser->IsOpened();
     }
 
     void FileBrowserPanel::set_current_path(const std::string& path)
     {
-        m_FileBrowser->SetPwd(path);
+        file_browser->SetPwd(path);
     }
 
     void FileBrowserPanel::open()
     {
-        m_FileBrowser->Open();
+        file_browser->Open();
     }
 
     void FileBrowserPanel::set_open_directory(bool value)
     {
-        auto flags = m_FileBrowser->GetFlags();
+        auto flags = file_browser->GetFlags();
 
         if (value)
         {
@@ -71,22 +71,22 @@ namespace diverse
         {
             flags &= ~(ImGuiFileBrowserFlags_SelectDirectory);
         }
-        m_FileBrowser->SetFlags(flags);
+        file_browser->SetFlags(flags);
     }
 
     void FileBrowserPanel::set_file_type_filters(const std::vector<const char*>& fileFilters)
     {
-        m_FileBrowser->SetFileFilters(fileFilters);
+        file_browser->SetFileFilters(fileFilters);
     }
 
     void FileBrowserPanel::clear_file_type_filters()
     {
-        m_FileBrowser->ClearFilters();
+        file_browser->ClearFilters();
     }
 
     std::filesystem::path& FileBrowserPanel::get_path()
     {
-        return m_FileBrowser->GetPath();
+        return file_browser->GetPath();
     }
 
 }

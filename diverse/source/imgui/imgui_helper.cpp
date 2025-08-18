@@ -1745,7 +1745,7 @@ namespace diverse
                 auto button_sizex = 100;
                 auto button_posx = ImGui::GetCursorPosX() + (width / 2 - button_sizex) / 2;
                 ImGui::SetCursorPosX(button_posx);
-                if (ImGui::Button("Ok", ImVec2(button_sizex, 0)))
+                if (ImGui::Button("Yes", ImVec2(button_sizex, 0)))
                 {
                     if(f) f();
                     ImGui::CloseCurrentPopup();
@@ -1754,7 +1754,7 @@ namespace diverse
                 ImGui::SetItemDefaultFocus();
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(button_posx + width / 2);
-                if (ImGui::Button("Cancel", ImVec2(button_sizex, 0)))
+                if (ImGui::Button("No", ImVec2(button_sizex, 0)))
                 {
                     ImGui::CloseCurrentPopup();
                     ret = 0;

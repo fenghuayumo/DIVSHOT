@@ -95,12 +95,12 @@ namespace diverse
             int projectVersion = 1;
             archive(cereal::make_nvp("Project Version", projectVersion));
             std::string path;
-            archive(cereal::make_nvp("RenderAPI", m_ProjectSettings.RenderAPI),
-                cereal::make_nvp("Fullscreen", m_ProjectSettings.Fullscreen),
-                cereal::make_nvp("VSync", m_ProjectSettings.VSync),
-                cereal::make_nvp("ShowConsole", m_ProjectSettings.ShowConsole),
-                cereal::make_nvp("Title", m_ProjectSettings.Title));
-            auto paths = m_SceneManager->get_scene_file_paths();
+            archive(cereal::make_nvp("RenderAPI", project_settings.RenderAPI),
+                cereal::make_nvp("Fullscreen", project_settings.Fullscreen),
+                cereal::make_nvp("VSync", project_settings.VSync),
+                cereal::make_nvp("ShowConsole", project_settings.ShowConsole),
+                cereal::make_nvp("Title", project_settings.Title));
+            auto paths = scene_manager->get_scene_file_paths();
             std::vector<std::string> newPaths;
             for (auto& path : paths)
             {
@@ -109,67 +109,67 @@ namespace diverse
                 newPaths.push_back(path);
             }
             archive(cereal::make_nvp("Scenes", newPaths));
-            archive(cereal::make_nvp("SceneIndex", m_SceneManager->get_current_scene_index()));
-            archive(cereal::make_nvp("Borderless", m_ProjectSettings.Borderless));
-            archive(cereal::make_nvp("EngineAssetPath", m_ProjectSettings.m_EngineAssetPath));
+            archive(cereal::make_nvp("SceneIndex", scene_manager->get_current_scene_index()));
+            archive(cereal::make_nvp("Borderless", project_settings.Borderless));
+            archive(cereal::make_nvp("EngineAssetPath", project_settings.EngineAssetPath));
         }
         template <typename Archive>
         void load(Archive& archive)
         {
             int sceneIndex = 0;
-            archive(cereal::make_nvp("Project Version", m_ProjectSettings.ProjectVersion));
-            archive(cereal::make_nvp("RenderAPI", m_ProjectSettings.RenderAPI),
-                cereal::make_nvp("Fullscreen", m_ProjectSettings.Fullscreen),
-                cereal::make_nvp("VSync", m_ProjectSettings.VSync),
-                cereal::make_nvp("ShowConsole", m_ProjectSettings.ShowConsole),
-                cereal::make_nvp("Title", m_ProjectSettings.Title));
+            archive(cereal::make_nvp("Project Version", project_settings.ProjectVersion));
+            archive(cereal::make_nvp("RenderAPI", project_settings.RenderAPI),
+                cereal::make_nvp("Fullscreen", project_settings.Fullscreen),
+                cereal::make_nvp("VSync", project_settings.VSync),
+                cereal::make_nvp("ShowConsole", project_settings.ShowConsole),
+                cereal::make_nvp("Title", project_settings.Title));
             std::vector<std::string> sceneFilePaths;
             archive(cereal::make_nvp("Scenes", sceneFilePaths));
 
             for (auto& filePath : sceneFilePaths)
             {
-                m_SceneManager->add_file_to_load_list(filePath);
+                scene_manager->add_file_to_load_list(filePath);
             }
 
             if (sceneFilePaths.size() == sceneIndex)
                 add_default_scene();
             archive(cereal::make_nvp("SceneIndex", sceneIndex));
-            m_SceneManager->switch_scene(sceneIndex);
-            archive(cereal::make_nvp("Borderless", m_ProjectSettings.Borderless));
-            archive(cereal::make_nvp("EngineAssetPath", m_ProjectSettings.m_EngineAssetPath));
+            scene_manager->switch_scene(sceneIndex);
+            archive(cereal::make_nvp("Borderless", project_settings.Borderless));
+            archive(cereal::make_nvp("EngineAssetPath", project_settings.EngineAssetPath));
         }
         void   create_default_project();
         void   add_default_scene();
-        ImGuiManager*   get_imgui_manager() const { return m_ImGuiManager.get(); }
-        SceneManager*   get_scene_manager() const { return m_SceneManager.get(); }
-        DeferedRenderer* get_renderer() const { return m_Renderer.get(); }
+        ImGuiManager*   get_imgui_manager() const { return imgui_manager.get(); }
+        SceneManager*   get_scene_manager() const { return scene_manager.get(); }
+        DeferedRenderer* get_renderer() const { return main_renderer.get(); }
 
-        void    set_app_state(AppState state) { m_CurrentState = state; }
-        void    set_editor_state(EditorState state) { m_EditorState = state; }
-        void    set_scene_active(bool active) { m_SceneActive = active; }
+        void    set_app_state(AppState state) { current_state = state; }
+        void    set_editor_state(EditorState state) { editor_state = state; }
+        void    set_scene_active(bool active) { scene_active = active; }
         Scene*  get_current_scene() const;
 
-        bool    get_scene_active() const { return m_SceneActive; }
-        Window* get_window() const { return m_Window.get(); }
-        AppState get_state() const { return m_CurrentState; }
-        EditorState get_editor_state() const { return m_EditorState; }
+        bool    get_scene_active() const { return scene_active; }
+        Window* get_window() const { return window.get(); }
+        AppState get_state() const { return current_state; }
+        EditorState get_editor_state() const { return editor_state; }
 
         std::array<u32,2> get_window_size() const;
         float get_window_dpi() const;
 
-        std::tuple<u32,u32> get_scene_view_dimensions() {return { m_SceneViewWidth ,m_SceneViewHeight }; }
+        std::tuple<u32,u32> get_scene_view_dimensions() {return { scene_view_width ,scene_view_height }; }
         void set_scene_view_dimensions(uint32_t width, uint32_t height)
         {
-            if(width != m_SceneViewWidth)
+            if(width != scene_view_width)
             {
-                m_SceneViewWidth       = width;
-                m_SceneViewSizeUpdated = true;
+                scene_view_width       = width;
+                scene_view_size_updated = true;
             }
 
-            if(height != m_SceneViewHeight)
+            if(height != scene_view_height)
             {
-                m_SceneViewHeight      = height;
-                m_SceneViewSizeUpdated = true;
+                scene_view_height      = height;
+                scene_view_size_updated = true;
             }
         }
 
@@ -187,7 +187,7 @@ namespace diverse
         template <typename Func>
         void queue_event(Func&& func)
         {
-            m_EventQueue.push(func);
+            event_queue.push(func);
         }
 
         template <typename TEvent, bool Immediate = false, typename... TEventArgs>
@@ -200,8 +200,8 @@ namespace diverse
             }
             else
             {
-                std::scoped_lock<std::mutex> lock(m_EventQueueMutex);
-                m_EventQueue.push([event]()
+                std::scoped_lock<std::mutex> lock(event_queue_mutex);
+                event_queue.push([event]()
                     { Application::get().handle_event(*event); });
             }
         }
@@ -216,9 +216,9 @@ namespace diverse
         void                                invalidate_pt_state();
         struct ProjectSettings
         {
-            std::string m_ProjectRoot;
-            std::string m_ProjectName;
-            std::string m_EngineAssetPath;
+            std::string ProjectRoot;
+            std::string ProjectName;
+            std::string EngineAssetPath;
             uint32_t Width = 1200, Height = 800;
             bool Fullscreen = true;
             bool VSync = true;
@@ -232,51 +232,51 @@ namespace diverse
             bool DefaultIcon = true;
             bool HideTitleBar = false;
         };
-        ProjectSettings& get_project_settings() { return m_ProjectSettings; }
+        ProjectSettings& get_project_settings() { return project_settings; }
         void open_new_project(const std::string& path, const std::string& name = "New Project",bool create_scene = false);
         void open_project(const std::string& filePath);
 
-        Arena* get_frame_arena() const { return m_FrameArena; }
+        Arena* get_frame_arena() const { return frame_arena; }
     protected:
         bool handle_window_close(WindowCloseEvent& e);
-        ProjectSettings m_ProjectSettings;
-        bool m_ProjectLoaded = false;
-        bool m_SceneSaveOnClose = false;
-        uint32_t m_Frames = 0;
-        uint32_t m_Updates = 0;
-        float m_SecondTimer = 0.0f;
-        bool m_Minimized = false;
+        ProjectSettings project_settings;
+        bool project_loaded = false;
+        bool scene_save_on_close = false;
+        uint32_t frame_cnts = 0;
+        uint32_t update_cnts = 0;
+        float second_timer = 0.0f;
+        bool  is_minimized = false;
 
-        uint32_t m_SceneViewWidth = 0;
-        uint32_t m_SceneViewHeight = 0;
-        bool m_SceneViewSizeUpdated = false;
-        bool m_SceneActive = true;
+        uint32_t scene_view_width = 0;
+        uint32_t scene_view_height = 0;
+        bool scene_view_size_updated = false;
+        bool scene_active = true;
 
-        bool m_RenderDocEnabled = false;
+        bool render_doc_enabled = false;
 
-        std::mutex m_EventQueueMutex;
-        std::queue<std::function<void()>> m_EventQueue;
+        std::mutex event_queue_mutex;
+        std::queue<std::function<void()>> event_queue;
 
-        UniquePtr<Window> m_Window;
-        UniquePtr<Timer> m_Timer;
-        UniquePtr<ImGuiManager> m_ImGuiManager;
-        UniquePtr<DeferedRenderer> m_Renderer;
-        UniquePtr<SceneManager> m_SceneManager;
+        UniquePtr<Window>   window;
+        UniquePtr<Timer>    timer;
+        UniquePtr<ImGuiManager> imgui_manager;
+        UniquePtr<DeferedRenderer> main_renderer;
+        UniquePtr<SceneManager> scene_manager;
         //UniquePtr<SystemManager> m_SystemManager;
 
         static Application* s_Instance;
 
-        std::thread m_UpdateThread;
+        std::thread update_thread;
 
-        std::vector<std::function<void()>> m_MainThreadQueue;
-        std::mutex m_MainThreadQueueMutex;
+        std::vector<std::function<void()>> main_thread_queue;
+        std::mutex main_thread_queue_mutex;
 
-        AppState m_CurrentState = AppState::Loading;
-        EditorState m_EditorState = EditorState::Preview;
-        AppType m_AppType = AppType::Editor;
+        AppState current_state = AppState::Loading;
+        EditorState editor_state = EditorState::Preview;
+        AppType app_type = AppType::Editor;
         
-        Arena* m_FrameArena;
-        Arena* m_Arena;
+        Arena* frame_arena;
+        Arena* arena;
         NONCOPYABLE(Application)
     };
 

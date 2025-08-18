@@ -61,7 +61,7 @@ namespace diverse
 
             if(Input::get().get_mouse_held(InputCode::MouseKey::ButtonMiddle))
             {
-                mouse_sensitivity = 0.01f;
+                mouse_sensitivity = 0.1f;
                 glm::vec3 position = transform.get_local_position();
                 position.x -= (xpos - previous_curser_pos.x) /** camera->get_scale() */ * mouse_sensitivity * 0.5f;
                 position.y += (ypos - previous_curser_pos.y) /** camera->get_scale() */ * mouse_sensitivity * 0.5f;
@@ -306,8 +306,8 @@ namespace diverse
     void EditorCameraController::mouse_pan(maths::Transform& transform, const glm::vec2& delta)
     {
         auto [xSpeed, ySpeed] = pan_speed();
-        focal_point -= transform.get_right_direction() * delta.x * xSpeed * distance;
-        focal_point += transform.get_up_direction() * delta.y * ySpeed * distance;
+        focal_point -= transform.get_right_direction() * std::clamp(delta.x, -100.0f, 100.0f) * xSpeed * distance;
+        focal_point += transform.get_up_direction() * std::clamp(delta.y, -100.0f, 100.0f) * ySpeed * distance;
         transform.set_local_position(calculate_position(transform));
     }
 
@@ -406,17 +406,100 @@ namespace diverse
 
     bool EditorCameraController::is_moving() const
     {
-		return glm::length(velocity) > maths::M_EPSILON || glm::length(rotate_velocity) > maths::M_EPSILON || zoom_velocity != 0.0f;
+		return glm::length(velocity) > 0.0f || glm::length(rotate_velocity) > 0.0f || zoom_velocity != 0.0f;
     }
 
     glm::vec3 EditorCameraController::calculate_position(maths::Transform& transform) const
     {
-        return focal_point + transform.get_forward_direction() * distance + position_delta;
+        auto forward = transform.get_forward_direction();
+        auto right = transform.get_right_direction();
+        auto up = transform.get_up_direction();
+        auto camera_pos = focal_point + forward * distance;// + right * distance + up * distance;
+        return camera_pos + position_delta;
     }
 
     void EditorCameraController::update_focal_point(maths::Transform& transform,const glm::vec3& camera_pos)
     {
         transform.set_local_position(camera_pos);
-        distance = glm::distance(camera_pos, focal_point);
+        focal_point = camera_pos - transform.get_forward_direction() * distance;
+        //+ transform.get_right_direction() * distance  - transform.get_up_direction() * distance;
     }
+    void EditorCameraController::set_front_view(maths::Transform& transform)
+    {
+        // Front view: looking along negative Z-axis
+        glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        transform.set_local_orientation(rotation);
+        
+        // Update camera position for arcball mode
+        if (camera_mode == EditorCameraMode::ARCBALL)
+        {
+            transform.set_local_position(calculate_position(transform));
+        }
+    }
+
+    void EditorCameraController::set_back_view(maths::Transform& transform)
+    {
+        // Back view: looking along positive Z-axis (rotate 180 degrees around Y-axis)
+        glm::quat rotation = glm::angleAxis(glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
+        transform.set_local_orientation(rotation);
+        
+        // Update camera position for arcball mode
+        if (camera_mode == EditorCameraMode::ARCBALL)
+        {
+            transform.set_local_position(calculate_position(transform));
+        }
+    }
+
+    void EditorCameraController::set_left_view(maths::Transform& transform)
+    {
+        // Left view: looking along positive X-axis (rotate 90 degrees around Y-axis)
+        glm::quat rotation = glm::angleAxis(glm::pi<float>() / 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+        transform.set_local_orientation(rotation);
+        
+        // Update camera position for arcball mode
+        if (camera_mode == EditorCameraMode::ARCBALL)
+        {
+            transform.set_local_position(calculate_position(transform));
+        }
+    }
+
+    void EditorCameraController::set_right_view(maths::Transform& transform)
+    {
+        // Right view: looking along negative X-axis (rotate -90 degrees around Y-axis)
+        glm::quat rotation = glm::angleAxis(-glm::pi<float>() / 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+        transform.set_local_orientation(rotation);
+        
+        // Update camera position for arcball mode
+        if (camera_mode == EditorCameraMode::ARCBALL)
+        {
+            transform.set_local_position(calculate_position(transform));
+        }
+    }
+
+    void EditorCameraController::set_top_view(maths::Transform& transform)
+    {
+        // Top view: looking along negative Y-axis (rotate -90 degrees around X-axis)
+        glm::quat rotation = glm::angleAxis(-glm::pi<float>() / 2.0f, glm::vec3(1.0f, 0.0f, 0.0f));
+        transform.set_local_orientation(rotation);
+        
+        // Update camera position for arcball mode
+        if (camera_mode == EditorCameraMode::ARCBALL)
+        {
+            transform.set_local_position(calculate_position(transform));
+        }
+    }
+
+    void EditorCameraController::set_buttom_view(maths::Transform& transform)
+    {
+        // Bottom view: looking along positive Y-axis (rotate 90 degrees around X-axis)
+        glm::quat rotation = glm::angleAxis(glm::pi<float>() / 2.0f, glm::vec3(1.0f, 0.0f, 0.0f));
+        transform.set_local_orientation(rotation);
+        
+        // Update camera position for arcball mode
+        if (camera_mode == EditorCameraMode::ARCBALL)
+        {
+            transform.set_local_position(calculate_position(transform));
+        }
+    }
+
 }

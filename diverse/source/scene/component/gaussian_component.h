@@ -34,6 +34,7 @@ namespace diverse
 
 		GaussianRenderType gs_render_type = GaussianRenderType::Splat;
 		bool 			   participate_render = true;
+		bool 			   skip_render = false;
 		i32 			   sh_degree = 3;
 		f32 			   transparency = 1.0f;
 		f32 			   brightness = 0.0f;

@@ -20,8 +20,8 @@ namespace diverse
     TexturePaintPanel::TexturePaintPanel(bool active)
         : EditorPanel(active)
     {
-        m_Name = U8CStr2CStr(ICON_MDI_GATE " Texture Paint###texture_paint_panel");
-        m_SimpleName = "TexturePaintPanel";
+        name = U8CStr2CStr(ICON_MDI_GATE " Texture Paint###texture_paint_panel");
+        simple_name = "TexturePaintPanel";
     }
     
     void TexturePaintPanel::set_paint_texture(const std::shared_ptr<rhi::GpuTexture>& tex)
@@ -42,7 +42,7 @@ namespace diverse
     {
         auto flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
 
-        if (!ImGui::Begin(m_Name.c_str(), &m_Active, flags))
+        if (!ImGui::Begin(name.c_str(), &is_active, flags))
         {
             ImGui::End();
             return;

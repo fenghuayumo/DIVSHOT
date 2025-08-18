@@ -20,17 +20,17 @@
         </dict>
     </array>
     <key>CFBundleExecutable</key>
-    <string>splatx</string>
+    <string>diverseshot</string>
     <key>CFBundleGetInfoString</key>
     <string>lightweight 3d gaussian splatting tool.</string>
     <key>CFBundleIconFile</key>
     <string>icon128.icns</string>
     <key>CFBundleIdentifier</key>
-    <string>org.hby.splatx</string>
+    <string>org.hby.diverseshot</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>splatx</string>
+    <string>diverseshot</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
@@ -44,7 +44,7 @@
     <key>CSResourcesFileMapped</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string>© 2024 splatx</string>
+    <string>© 2024 diverseshot</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>

@@ -7,14 +7,14 @@ namespace diverse
     PostProcessPanel::PostProcessPanel(bool active)
         : EditorPanel(active)
     {
-		m_Name = U8CStr2CStr(ICON_MDI_INFORMATION " PostProcess###PostProcess");
-		m_SimpleName = "PostProcess";
+		name = U8CStr2CStr(ICON_MDI_INFORMATION " PostProcess###PostProcess");
+		simple_name = "PostProcess";
     }
 
     void PostProcessPanel::on_imgui_render()
     {
         auto flags = ImGuiWindowFlags_NoCollapse;
-        if (ImGui::Begin(m_Name.c_str(), &m_Active, flags) )
+        if (ImGui::Begin(name.c_str(), &is_active, flags) )
         {
             ImRect windowRect = { ImGui::GetWindowContentRegionMin(), ImGui::GetWindowContentRegionMax() };
             diverse::ImGuiHelper::PushID();

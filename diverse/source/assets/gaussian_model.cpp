@@ -40,7 +40,6 @@ namespace diverse
 						float* opacities_d, 
 						float* scales_d, 
 						float* rots_d,
-						uint8_t* degree_h,
 						int num_gaussians)
 	{
 		auto device = g_device;
@@ -49,14 +48,12 @@ namespace diverse
 		scales.resize(num_gaussians);
 		opacities.resize(num_gaussians);
 		shs.resize(num_gaussians);
-		degrees.resize(num_gaussians);
 
 		memcpy(pos.data(), pos_d, num_gaussians * sizeof(glm::vec3));
 		memcpy(rot.data(), rots_d, num_gaussians * sizeof(glm::vec4));
 		memcpy(scales.data(), scales_d, num_gaussians * sizeof(glm::vec3));
 		memcpy(opacities.data(), opacities_d, num_gaussians * sizeof(f32));
 		memcpy(shs.data(), shs_d, num_gaussians * sizeof(f32) * 48);
-		memcpy(degrees.data(), degree_h, num_gaussians * sizeof(uint8_t));
 
 		update_data();
 	}
@@ -406,7 +403,6 @@ namespace diverse
 						new_shs.back()[c * 15 + j + 3] = tmpSHData[j];
 				}
 			}
-			new_degrees.push_back(degrees[k]);
 		}
 		if( new_pos.size() == 0 ) 
 		{
@@ -420,7 +416,7 @@ namespace diverse
 		{ 
 			if (saved_path.find(".compressed") != std::string::npos)
 			{
-				ret = tinygsplat::save_compress_ply(saved_path, new_pos, new_scales, new_shs, new_rot, new_opacities);
+				ret = tinygsplat::save_compress_ply(saved_path, new_pos, new_scales, new_shs, new_rot, new_opacities,mip_antialiased);
 			}
 			else if(saved_path.find(".reduced") != std::string::npos)
 			{
@@ -428,7 +424,7 @@ namespace diverse
 				ret = tinygsplat::save_reduced_ply(saved_path, new_pos, new_scales, featureDc, featureRest,new_rot, new_opacities, new_degrees);
 			}
 			else
-				ret = tinygsplat::save_ply(filepath, new_pos, new_scales, new_shs, new_rot, new_opacities);
+				ret = tinygsplat::save_ply(filepath, new_pos, new_scales, new_shs, new_rot, new_opacities,mip_antialiased);
 		}
 		else if (ext == ".splat")
 		{
@@ -441,7 +437,7 @@ namespace diverse
 		}
 		else if (ext == ".spz")
 		{
-			ret = tinygsplat::save_spz_splats(filepath, new_pos, new_scales, new_shs, new_rot, new_opacities);
+			ret = tinygsplat::save_spz_splats(filepath, new_pos, new_scales, new_shs, new_rot, new_opacities,mip_antialiased);
 		}
 		if (!ret)
 		{
@@ -462,14 +458,14 @@ namespace diverse
 				//compressed
 				if (filePath.find(".compressed") != std::string::npos)
 				{
-					load_ret = tinygsplat::load_compress_ply(filePath, points);
+					load_ret = tinygsplat::load_compress_ply(filePath, points,mip_antialiased);
 				}
 				else if(filePath.find(".reduced") != std::string::npos){
 					load_ret = tinygsplat::load_reduced_ply(filePath, points);
 				}
 				else
 				{
-					load_ret = tinygsplat::load_ply(filePath, points);
+					load_ret = tinygsplat::load_ply(filePath, points,mip_antialiased);
 				}
 			}
 			else if (ext == ".splat")
@@ -482,7 +478,7 @@ namespace diverse
 			}
 			else if (ext == ".spz")
 			{
-				load_ret = tinygsplat::load_spz_splats(filePath, points);
+				load_ret = tinygsplat::load_spz_splats(filePath, points,mip_antialiased);
 			}
 			if (!load_ret)
 			{
@@ -504,7 +500,6 @@ namespace diverse
 		scales.resize(numSplats);
 		rot.resize(numSplats);
 		opacities.resize(numSplats);
-		degrees.resize(numSplats);
 		// Gaussians are done training, they won't move anymore. Arrange
 		// them according to 3D Morton order. This means better cache
 		// behavior for reading Gaussians that end up in the same tile 
@@ -533,7 +528,6 @@ namespace diverse
 
 			mapp[i].first = code;
 			mapp[i].second = i;
-			degrees[i] = 3;
 		});
 		
 		auto sorter = [](const std::pair < uint64_t, int>& a, const std::pair < uint64_t, int>& b) {
@@ -580,7 +574,6 @@ namespace diverse
 		std::vector<float>      	new_opacities;
 		std::vector<glm::vec3>      new_scales;
 		std::vector<glm::vec4>      new_rot;
-		std::vector<u8>				new_degrees;
 		std::vector<u16>			new_transform_idx;
 		std::vector<u8>				new_state;
 		std::vector<u8>				new_flag;
@@ -597,14 +590,12 @@ namespace diverse
 			new_flag.push_back(splat_select_flag[k]);
 			new_transform_idx.push_back(splat_transform_index[k]);
 			new_shs.push_back(shs[k]);
-			new_degrees.push_back(degrees[k]);
 		}
 		pos = new_pos;
 		shs = new_shs;
 		opacities = new_opacities;
 		scales = new_scales;
 		rot = new_rot;
-		degrees = new_degrees;
 		splat_state = new_state;
 		splat_select_flag = new_flag;
 		splat_transform_index = new_transform_idx;
@@ -646,7 +637,6 @@ namespace diverse
 			splat_transform_index.resize(num_size);
 			shs.resize(num_size);
 			opacities.resize(num_size);
-			degrees.resize(num_size);
 			parallel_for<size_t>(0, molde_num_splats, [&](size_t i) {
 				auto idx = i + old_size;
 				pos[idx] = model->position()[i];
@@ -678,9 +668,8 @@ namespace diverse
 							shs[idx][c* 15 + j + 3] = tmpSHData[j];
 					}
 				}
-				degrees[idx] = model->degrees[i];
 			});
-
+			mip_antialiased = model->mip_antialiased;
 			update_data();
 		}
 	}
@@ -702,7 +691,6 @@ namespace diverse
 			splat_transform_index.resize(num_size);
 			shs.resize(num_size);
 			opacities.resize(num_size);
-			degrees.resize(num_size);
 			add_indices.resize(indices.size());
 			parallel_for<size_t>(0, num_splats, [&](size_t i) {
 				auto idx = i + old_size;
@@ -735,10 +723,9 @@ namespace diverse
 							shs[idx][c * 15 + j + 3] = tmpSHData[j];
 					}
 				}
-				degrees[idx] = model->degrees[model_splat_id];
 				add_indices[i] = idx;
 			});
-
+			mip_antialiased = model->mip_antialiased;
 			update_data();
 		}
 		return add_indices;
@@ -755,7 +742,6 @@ namespace diverse
 		std::vector<float>      	new_opacities;
 		std::vector<glm::vec3>      new_scales;
 		std::vector<glm::vec4>      new_rot;
-		std::vector<u8> 			new_degrees;
 		std::vector<u8> 			new_splat_state;
 		std::vector<u16> 			new_splat_transform_index;
 		std::vector<u8> 			new_splat_select_flag;
@@ -771,7 +757,6 @@ namespace diverse
 				new_splat_transform_index.push_back(splat_transform_index[i]);
 				new_splat_select_flag.push_back(splat_select_flag[i]);
 				new_shs.push_back(shs[i]);
-				new_degrees.push_back(degrees[i]);
 			}
 		}
 		pos = new_pos;
@@ -779,7 +764,6 @@ namespace diverse
 		rot = new_rot;
 		shs = new_shs;
 		opacities = new_opacities;
-		degrees = new_degrees;
 		splat_state = new_splat_state;
 		splat_transform_index = new_splat_transform_index;
 		splat_select_flag = new_splat_select_flag;
@@ -793,7 +777,6 @@ namespace diverse
 		std::vector<float>      	new_opacities;
 		std::vector<glm::vec3>      new_scales;
 		std::vector<glm::vec4>      new_rot;
-		std::vector<u8> 			new_degrees;
 
 		for (int k = 0; k < pos.size(); k++)
 		{
@@ -804,8 +787,7 @@ namespace diverse
 			new_scales.push_back(scales[k]);
 			new_rot.push_back(rot[k]);
 			new_opacities.push_back(opacities[k]);
-			new_shs.push_back(shs[k]);
-			new_degrees.push_back(degrees[k]);
+			new_shs.push_back(shs[k]);	
 			if (apply_transform)
 			{
 				auto transform_index = splat_transform_index[k];
@@ -864,7 +846,10 @@ namespace diverse
 		const std::string chunkProps[12] = { "min_x", "min_y", "min_z", "max_x", "max_y", "max_z", "min_scale_x", "min_scale_y", "min_scale_z", "max_scale_x", "max_scale_y", "max_scale_z" };
 		const std::string vertexProps[4] = { "packed_position", "packed_rotation", "packed_scale", "packed_color" };
 
-		std::string header_text = std::format("ply\nformat binary_little_endian 1.0\ncomment generated by diverseshot\nelement chunk {}\n",numChunks);
+		std::string header_text = std::format("ply\nformat binary_little_endian 1.0\ncomment generated by splatx\nelement chunk {}\n",numChunks);
+		if (mip_antialiased) {
+			header_text += "comment splatx.anti_aliasing=1\n";
+		}
 		for(auto i=0;i<12;i++){
 			header_text += std::format("property float {}\n",chunkProps[i]);
 		}

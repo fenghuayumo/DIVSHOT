@@ -7,6 +7,7 @@
 
 #define DS_LOG_ERROR(...) std::cerr << std::format(__VA_ARGS__) << std::endl
 #define DS_LOG_INFO(...) std::cout << std::format(__VA_ARGS__) << std::endl
+#define DS_LOG_WARN(...) std::cerr << std::format(__VA_ARGS__) << std::endl
 namespace diverse
 {
 	ObjHandle PluginManager::create_object(const std::string& name)
@@ -49,6 +50,7 @@ namespace diverse
 			if (!plugin)
 			{
 				DS_LOG_WARN("Failed to load library: {}", name);
+				return false;
 			}
 #if DS_PLATFORM_WINDOWS
 			SetDllDirectoryA(nullptr);

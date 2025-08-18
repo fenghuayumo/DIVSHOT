@@ -77,7 +77,6 @@ namespace diverse
                                 float* opacities, 
                                 float* scales, 
                                 float* rots,
-                                uint8_t* degrees,
                                 int num_gaussians);
         void    update_from_pos_color(u8* pos_color,int num_gaussians);
         void    update_feature_dc_data(const std::vector<u32>& indices);
@@ -88,14 +87,12 @@ namespace diverse
         void    export_to_cpu();
         void    download_state_buffer();
         u64     get_num_gaussians() const;
-        u32&    update_feq() {return freqency;}
         std::string get_file_path() const {return file_path;}
         auto    position()->std::vector<glm::vec3>& {return pos;}
         auto    sh()->std::vector<std::array<float, 48>>& {return shs;}
         auto    opacity()->std::vector<float>& {return opacities;}
         auto    scale()->std::vector<glm::vec3>& {return scales;}
         auto    rotation()->std::vector<glm::vec4>& {return rot;}
-        auto    degree()->std::vector<uint8_t>& {return degrees;}
         auto    get_feature_dc_rest(const std::vector<std::array<float,48>>& colors)->std::pair<std::vector<glm::vec3>, std::vector<std::array<glm::vec3,15>>>;
         auto    state()->std::vector<u8>& {return splat_state;}
         auto    flags()->std::vector<u8>& {return splat_select_flag;}
@@ -113,6 +110,7 @@ namespace diverse
         auto    num_selected_gaussians() ->u32 {return num_select;}
         auto    num_hidden_gaussians() ->u32 {return num_hidden;}
         auto    num_delete_gaussians() -> u32 { return num_delete; }
+        auto    antialiased() -> bool& { return mip_antialiased; }
         SET_ASSET_TYPE(AssetType::Splat);
     protected:
         void    update_data();
@@ -136,11 +134,9 @@ namespace diverse
 		std::vector<float>                    opacities;
 		std::vector<glm::vec3>                scales;
 		std::vector<glm::vec4>                rot;
-        std::vector<uint8_t>                  degrees;
         std::vector<u8>                       splat_state;
         std::vector<u8>                       splat_select_flag;
         std::vector<u16>                      splat_transform_index;
-        u32                                   freqency = 100;
         std::string                           file_path;
         u32                                   num_select = 0;
         u32                                   num_hidden = 0;
@@ -148,5 +144,6 @@ namespace diverse
         bool                                  world_bound_dirty = true;
         bool                                  selection_bound_dirty = true;
         int                                   max_splats = 10000;
+        bool                                  mip_antialiased = false;     
 	};
 }

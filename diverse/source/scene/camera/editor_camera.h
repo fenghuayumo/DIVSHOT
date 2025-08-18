@@ -39,6 +39,12 @@ namespace diverse
         void set_current_mode(EditorCameraMode mode) { camera_mode = mode; }
         EditorCameraMode get_current_mode() const { return camera_mode; }
         bool is_moving() const;
+        void set_buttom_view(maths::Transform& transform);
+        void set_top_view(maths::Transform& transform);
+        void set_left_view(maths::Transform& transform);
+        void set_right_view(maths::Transform& transform);
+        void set_front_view(maths::Transform& transform);
+        void set_back_view(maths::Transform& transform);
     private:
         EditorCameraMode camera_mode = EditorCameraMode::ARCBALL;
         glm::vec2 stored_cursor_pos;

@@ -122,7 +122,8 @@ namespace diverse
 
         auto   reset_splat_intersected()->void;
         auto   get_splat_intersected()->bool;
-
+        auto   min_radius_ref()->float& { return min_radius; }
+        auto   max_opacity_ref()->float& { return max_opacity; }
         uint                    edit_op = 0x0000FFFF;
         GaussianComponent*      splat = nullptr;
         bool                    closed_polygon = false;
@@ -139,6 +140,8 @@ namespace diverse
         std::unordered_map<u32, u32> palette_map;
         std::vector<glm::mat3x4>    splat_transforms;
 
-        BrushTool              brush_tool;
+        BrushTool               brush_tool;
+        float                   min_radius = 0.0f;
+        float                   max_opacity = 1.0f;
     };
 }

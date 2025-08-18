@@ -44,7 +44,7 @@ namespace diverse
     void HelperPanel::draw_about_dialog()
     {
         auto resource_path = get_resource_path();
-        if( m_Active)
+        if( is_active)
             ImGui::OpenPopup("About");
         // Always center this window when appearing
         ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -62,7 +62,7 @@ namespace diverse
 
         ImGui::SetNextWindowContentSize(glm::vec2{ col_width[0] + col_width[1] + ImGui::GetStyle().ItemSpacing.x, 0 });
 
-        if (ImGui::BeginPopupModal("About", &m_Active,
+        if (ImGui::BeginPopupModal("About", &is_active,
             ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoSavedSettings |
             ImGuiWindowFlags_AlwaysAutoResize))
         {
@@ -186,7 +186,7 @@ namespace diverse
 
     void HelperPanel::draw_update_dialog()
 	{
-		if( m_Active)
+		if( is_active)
 			ImGui::OpenPopup("Update");
         // Always center this window when appearing
         ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -204,7 +204,7 @@ namespace diverse
 
         ImGui::SetNextWindowContentSize(glm::vec2{ col_width[0] + col_width[1] + ImGui::GetStyle().ItemSpacing.x, 0 });
 
-        if (ImGui::BeginPopupModal("Update", &m_Active,
+        if (ImGui::BeginPopupModal("Update", &is_active,
             ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoSavedSettings |
             ImGuiWindowFlags_AlwaysAutoResize))
         {

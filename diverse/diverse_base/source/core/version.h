@@ -6,7 +6,7 @@ namespace diverse
     {
         int major = 1;
         int minor = 0;
-        int patch = 0;
+        int patch = 2;
     };
 
     constexpr Version const DiverseVersion = Version();

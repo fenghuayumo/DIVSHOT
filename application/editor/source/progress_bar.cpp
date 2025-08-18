@@ -6,8 +6,8 @@ namespace diverse
 {
     ProgressBarPanel::ProgressBarPanel()
     {
-        m_Name = U8CStr2CStr(ICON_MDI_INFORMATION " Progess###Progess");
-        m_SimpleName = "Progess";
+        name = U8CStr2CStr(ICON_MDI_INFORMATION " Progess###Progess");
+        simple_name = "Progess";
     }
 
     void ProgressBarPanel::on_imgui_render()

@@ -76,15 +76,15 @@ namespace diverse
         void    on_new_scene(Scene* scene) override;
         bool    handle_file_drop(WindowFileEvent& e) override;
     protected:
-        CamLenPreviewImageSet*  m_PreviewSets;
-        CamLenPreviewImage* m_SelectNode;
+        CamLenPreviewImageSet*  preview_sets;
+        CamLenPreviewImage* select_node;
 
-        CamLenPreviewImage* m_DoubleClicked;
+        CamLenPreviewImage* double_clicked;
         //CamLenPreviewImage m_HadRecentDropped;
-        CamLenPreviewImage* m_CurrentPrevious;
-        bool m_SelectUp;
-        bool m_SelectDown;
+        CamLenPreviewImage* current_previous;
+        bool select_up;
+        bool select_down;
 
-        CamLenPreviewState  m_state = CamLenPreviewState::Normal;
+        CamLenPreviewState  preview_state = CamLenPreviewState::Normal;
     };
 }

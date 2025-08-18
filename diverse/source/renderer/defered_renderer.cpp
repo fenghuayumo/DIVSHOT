@@ -269,6 +269,7 @@ namespace diverse
 			reset_pt = true;
 
 		auto group = registry.group<GaussianComponent>(entt::get<maths::Transform>);
+		bool skip_render = false;
 		for (auto gs_ent : group)
 		{
 			if (!Entity(gs_ent, current_scene).active())
@@ -276,6 +277,7 @@ namespace diverse
 
 			const auto& [gs_com, trans] = group.get<GaussianComponent, maths::Transform>(gs_ent);
 			if(!gs_com.ModelRef->is_flag_set(AssetFlag::UploadedGpu) || !gs_com.participate_render) continue;
+			skip_render |= gs_com.skip_render;
 			if (gs_com.ModelRef->gaussians_buf && model_2_gs_buf_id.find(gs_com.ModelRef.get()) != model_2_gs_buf_id.end())
 			{ 
 				auto offset = -gs_com.black_point + gs_com.brightness;
@@ -298,6 +300,7 @@ namespace diverse
 				}
 			}
 		}
+		skip_gs_render = skip_render;
 		//pointcloud
 		auto pointcloud_group = registry.group<PointCloudComponent>(entt::get<maths::Transform>);
 		for(auto pcd : pointcloud_group)
@@ -400,6 +403,7 @@ namespace diverse
 
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model.ModelRef->gaussian_state_buf.get(), v_buf_id);
 				model_2_gs_buf_id[model.ModelRef] = v_buf_id;
+				skip_gs_render = false;
 			}
 		}
 		//
@@ -512,6 +516,8 @@ namespace diverse
 		rg::Handle<rhi::GpuTexture> output;
 		auto accum_img = rg.import_res<rhi::GpuTexture>(main_render_tex, rhi::AccessType::Nothing);
 		auto depth_img = rg.import_res(depth_render_tex, rhi::AccessType::Nothing);
+		if( skip_gs_render)
+			return accum_img;
 		rg::clear_color(rg, accum_img, { 0.0f,0.0f,0.0f,1.0f });
 		rg::clear_depth(rg, depth_img, 0.0f);
 #ifdef DS_PLATFORM_WINDOWS

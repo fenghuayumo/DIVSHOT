@@ -226,16 +226,16 @@ namespace diverse
         editor_camera_transform.set_local_transform(viewMat);*/
         editor_camera_transform.set_local_orientation(glm::radians(glm::vec3(-15.0f, 30.0f, 0.0f)));
         editor_camera_transform.set_world_matrix(glm::mat4(1.0f));
-        m_ComponentIconMap[typeid(PointLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
-        m_ComponentIconMap[typeid(SpotLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
-        m_ComponentIconMap[typeid(RectLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
-        m_ComponentIconMap[typeid(Camera).hash_code()] = U8CStr2CStr(ICON_MDI_CAMERA);
-        m_ComponentIconMap[typeid(maths::Transform).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_LINE);
-        m_ComponentIconMap[typeid(GaussianComponent).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_POLYGON);
-        m_ComponentIconMap[typeid(GaussianCrop).hash_code()] = U8CStr2CStr(ICON_MDI_SQUARE);
-        m_ComponentIconMap[typeid(Editor).hash_code()] = U8CStr2CStr(ICON_MDI_SQUARE);
-        m_ComponentIconMap[typeid(Environment).hash_code()]    = U8CStr2CStr(ICON_MDI_EARTH);
-        //m_ComponentIconMap[typeid(TextComponent).hash_code()] = ICON_MDI_TEXT;
+        component_icon_map[typeid(PointLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(SpotLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(RectLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(Camera).hash_code()] = U8CStr2CStr(ICON_MDI_CAMERA);
+        component_icon_map[typeid(maths::Transform).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_LINE);
+        component_icon_map[typeid(GaussianComponent).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_POLYGON);
+        component_icon_map[typeid(GaussianCrop).hash_code()] = U8CStr2CStr(ICON_MDI_SQUARE);
+        component_icon_map[typeid(Editor).hash_code()] = U8CStr2CStr(ICON_MDI_SQUARE);
+        component_icon_map[typeid(Environment).hash_code()]    = U8CStr2CStr(ICON_MDI_EARTH);
+        //component_icon_map[typeid(TextComponent).hash_code()] = ICON_MDI_TEXT;
 
         panels.emplace_back(createSharedPtr<ConsolePanel>());
         panels.emplace_back(createSharedPtr<SceneViewPanel>());
@@ -569,9 +569,9 @@ namespace diverse
 
         if (FileSystem::file_exists(filePath))
         {
-            auto it = std::find(settings.m_RecentProjects.begin(), settings.m_RecentProjects.end(), filePath);
-            if (it == settings.m_RecentProjects.end())
-                settings.m_RecentProjects.push_back(filePath);
+            auto it = std::find(settings.recent_projects.begin(), settings.recent_projects.end(), filePath);
+            if (it == settings.recent_projects.end())
+                settings.recent_projects.push_back(filePath);
         }
       /*  System::JobSystem::Context context;
         System::JobSystem::execute(context, [this, filePath](JobDispatchArgs args) {*/
@@ -599,8 +599,8 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
         DS_LOG_INFO("Setting default editor settings");
-        m_ProjectSettings.m_ProjectRoot = "../../ExampleProject/";
-        m_ProjectSettings.m_ProjectName = "Example";
+        project_settings.ProjectRoot = "../../ExampleProject/";
+        project_settings.ProjectName = "Example";
 
         ini_file.Add("ShowGrid", settings.show_grid);
         ini_file.Add("ShowGizmos", settings.show_gizmos);
@@ -611,8 +611,8 @@ namespace diverse
         ini_file.Add("SnapQuizmo", settings.snap_quizmo);
         ini_file.Add("DebugDrawFlags", settings.debug_draw_flags);
         ini_file.Add("Theme", (int)settings.theme);
-        ini_file.Add("ProjectRoot", m_ProjectSettings.m_ProjectRoot);
-        ini_file.Add("ProjectName", m_ProjectSettings.m_ProjectName);
+        ini_file.Add("ProjectRoot", project_settings.ProjectRoot);
+        ini_file.Add("ProjectName", project_settings.ProjectName);
         ini_file.Add("SleepOutofFocus", settings.sleep_outof_focus);
         ini_file.Add("RecentProjectCount", 0);
         ini_file.Add("CameraSpeed", settings.camera_speed);
@@ -620,6 +620,7 @@ namespace diverse
         ini_file.Add("CameraFar", settings.camera_far);
         ini_file.Add("saveSceneShowAgain", saveSceneShowAgain);
         ini_file.SetOrAdd("TrainGaussian", is_train_gaussian);
+        ini_file.SetOrAdd("SplatUpdateFreq", splat_update_freq);
         ini_file.Rewrite();
     }
 
@@ -635,23 +636,24 @@ namespace diverse
         ini_file.SetOrAdd("SnapQuizmo", settings.snap_quizmo);
         ini_file.SetOrAdd("DebugDrawFlags", settings.debug_draw_flags);
         ini_file.SetOrAdd("Theme", (int)settings.theme);
-        ini_file.SetOrAdd("ProjectRoot", m_ProjectSettings.m_ProjectRoot);
-        ini_file.SetOrAdd("ProjectName", m_ProjectSettings.m_ProjectName);
+        ini_file.SetOrAdd("ProjectRoot", project_settings.ProjectRoot);
+        ini_file.SetOrAdd("ProjectName", project_settings.ProjectName);
         ini_file.SetOrAdd("SleepOutofFocus", settings.sleep_outof_focus);
         ini_file.SetOrAdd("CameraSpeed", settings.camera_speed);
         ini_file.SetOrAdd("CameraNear", settings.camera_near);
         ini_file.SetOrAdd("CameraFar", settings.camera_far);
 
-        std::sort(settings.m_RecentProjects.begin(), settings.m_RecentProjects.end());
-        settings.m_RecentProjects.erase(std::unique(settings.m_RecentProjects.begin(), settings.m_RecentProjects.end()), settings.m_RecentProjects.end());
-        ini_file.SetOrAdd("RecentProjectCount", int(settings.m_RecentProjects.size()));
+        std::sort(settings.recent_projects.begin(), settings.recent_projects.end());
+        settings.recent_projects.erase(std::unique(settings.recent_projects.begin(), settings.recent_projects.end()), settings.recent_projects.end());
+        ini_file.SetOrAdd("RecentProjectCount", int(settings.recent_projects.size()));
 
-        for (int i = 0; i < int(settings.m_RecentProjects.size()); i++)
+        for (int i = 0; i < int(settings.recent_projects.size()); i++)
         {
-            ini_file.SetOrAdd("RecentProject" + std::to_string(i), settings.m_RecentProjects[i]);
+            ini_file.SetOrAdd("RecentProject" + std::to_string(i), settings.recent_projects[i]);
         }
         ini_file.SetOrAdd("saveSceneShowAgain", saveSceneShowAgain);
         ini_file.SetOrAdd("TrainGaussian", is_train_gaussian);
+        ini_file.SetOrAdd("SplatUpdateFreq", splat_update_freq);
         ini_file.Rewrite();
     }
 
@@ -668,8 +670,8 @@ namespace diverse
         settings.debug_draw_flags = ini_file.GetOrDefault("DebugDrawFlags", settings.debug_draw_flags);
         settings.theme = ImGuiHelper::Theme(ini_file.GetOrDefault("Theme", (int)settings.theme));
 
-        m_ProjectSettings.m_ProjectRoot = ini_file.GetOrDefault("ProjectRoot", std::string("../../ExampleProject/"));
-        m_ProjectSettings.m_ProjectName = ini_file.GetOrDefault("ProjectName", std::string("Example"));
+        project_settings.ProjectRoot = ini_file.GetOrDefault("ProjectRoot", std::string("../../ExampleProject/"));
+        project_settings.ProjectName = ini_file.GetOrDefault("ProjectName", std::string("Example"));
         settings.sleep_outof_focus = ini_file.GetOrDefault("SleepOutofFocus", true);
         settings.camera_speed = ini_file.GetOrDefault("CameraSpeed", 100.0f);
         settings.camera_near = ini_file.GetOrDefault("CameraNear", 0.01f);
@@ -678,13 +680,13 @@ namespace diverse
         editor_camera_controller.set_speed(settings.camera_speed);
 
         int recentProjectCount = 0;
-        std::string projectPath = m_ProjectSettings.m_ProjectRoot + m_ProjectSettings.m_ProjectName + std::string(".dvs");
+        std::string projectPath = project_settings.ProjectRoot + project_settings.ProjectName + std::string(".dvs");
 
         if (FileSystem::file_exists(projectPath))
         {
-            auto it = std::find(settings.m_RecentProjects.begin(), settings.m_RecentProjects.end(), projectPath);
-            if (it == settings.m_RecentProjects.end())
-                settings.m_RecentProjects.push_back(projectPath);
+            auto it = std::find(settings.recent_projects.begin(), settings.recent_projects.end(), projectPath);
+            if (it == settings.recent_projects.end())
+                settings.recent_projects.push_back(projectPath);
         }
 
         recentProjectCount = ini_file.GetOrDefault("RecentProjectCount", 0);
@@ -694,15 +696,16 @@ namespace diverse
 
             if (FileSystem::folder_exists(projectPath))
             {
-                auto it = std::find(settings.m_RecentProjects.begin(), settings.m_RecentProjects.end(), projectPath);
-                if (it == settings.m_RecentProjects.end())
-                    settings.m_RecentProjects.push_back(projectPath);
+                auto it = std::find(settings.recent_projects.begin(), settings.recent_projects.end(), projectPath);
+                if (it == settings.recent_projects.end())
+                    settings.recent_projects.push_back(projectPath);
             }
         }
         saveSceneShowAgain = ini_file.GetOrDefault("saveSceneShowAgain", saveSceneShowAgain);
         is_train_gaussian = ini_file.GetOrDefault("TrainGaussian", is_train_gaussian);
-        std::sort(settings.m_RecentProjects.begin(), settings.m_RecentProjects.end());
-        settings.m_RecentProjects.erase(std::unique(settings.m_RecentProjects.begin(), settings.m_RecentProjects.end()), settings.m_RecentProjects.end());
+        splat_update_freq = ini_file.GetOrDefault("SplatUpdateFreq", splat_update_freq);
+        std::sort(settings.recent_projects.begin(), settings.recent_projects.end());
+        settings.recent_projects.erase(std::unique(settings.recent_projects.begin(), settings.recent_projects.end()), settings.recent_projects.end());
     }
 
     maths::Ray Editor::get_screen_ray(int x, int y, Camera* camera, int width, int height)
@@ -1018,7 +1021,7 @@ namespace diverse
 #if DS_PROFILE
         isProfiling = tracy::GetProfiler().IsConnected();
 #endif
-        if (!isProfiling && settings.sleep_outof_focus && !Application::get().get_window()->get_window_focus() && m_EditorState != EditorState::Preview && !firstFrame)
+        if (!isProfiling && settings.sleep_outof_focus && !Application::get().get_window()->get_window_focus() && editor_state != EditorState::Preview && !firstFrame)
             OS::instance()->delay(1000000);
 
         Application::render();
@@ -1083,30 +1086,30 @@ namespace diverse
 
         if (settings.debug_draw_flags & EditorDebugFlags::MeshBoundingBoxes)
         { 
-            for (auto m_SelectedEntity : selected_entities)
-                if (registry.valid(m_SelectedEntity)) // && Application::Get().GetEditorState() == EditorState::Preview)
+            for (auto select_ent : selected_entities)
+                if (registry.valid(select_ent)) // && Application::Get().GetEditorState() == EditorState::Preview)
                 {
-                    auto transform = registry.try_get<maths::Transform>(m_SelectedEntity);
-                    auto point_light = registry.try_get<PointLightComponent>(m_SelectedEntity);
+                    auto transform = registry.try_get<maths::Transform>(select_ent);
+                    auto point_light = registry.try_get<PointLightComponent>(select_ent);
                     if (point_light && transform)
                     {
                         DebugRenderer::DebugDraw(point_light, *transform, glm::vec4(glm::vec3(point_light->get_radiance()), 0.2f));
                     }
 
-                    auto spot_light = registry.try_get<SpotLightComponent>(m_SelectedEntity);
+                    auto spot_light = registry.try_get<SpotLightComponent>(select_ent);
                     if (spot_light && transform)
                     {
                         DebugRenderer::DebugDraw(spot_light, *transform, glm::vec4(glm::vec3(spot_light->get_radiance()), 0.2f));
                     }
 
-                    auto rect_light = registry.try_get<RectLightComponent>(m_SelectedEntity);
+                    auto rect_light = registry.try_get<RectLightComponent>(select_ent);
                     if (rect_light && transform)
                     {
                         DebugRenderer::DebugDraw(rect_light, *transform, glm::vec4(glm::vec3(rect_light->get_radiance()), 0.2f));
                     }
 
                     #define drawdebugBox(T) {                                               \
-                        auto model = registry.try_get<T>(m_SelectedEntity); \
+                        auto model = registry.try_get<T>(select_ent); \
                         if (transform && model && model->ModelRef && model->ModelRef->is_flag_set(AssetFlag::Loaded))                          \
                         {                                                                   \
                             auto& worldTransform = transform->get_world_matrix();           \
@@ -1132,7 +1135,7 @@ namespace diverse
             {
                 save_editor_settings();
                 if (get_current_scene()->serialised())  //only when scene has been rename serialized, we can save again
-                    get_current_scene()->serialise(m_ProjectSettings.m_ProjectRoot + "assets/scenes/", false);
+                    get_current_scene()->serialise(project_settings.ProjectRoot + "assets/scenes/", false);
                 autoSaveTimer = 0;
             }
 
@@ -1142,7 +1145,7 @@ namespace diverse
         selected_entities.erase(std::remove_if(selected_entities.begin(), selected_entities.end(), [&registry](entt::entity entity)
             { return !registry.valid(entity); }),
             selected_entities.end());
-        if(m_EditorState == EditorState::Play)
+        if(editor_state == EditorState::Play)
             autoSaveTimer = 0.0f;
         //add default Environment
         auto scene = get_current_scene();
@@ -1162,7 +1165,7 @@ namespace diverse
             modelEntity.add_component<MeshModelComponent>(load_model_path);
             set_selected(modelEntity.get_handle());
             auto& trans = modelEntity.get_component<maths::Transform>();
-            focus_camera(trans.get_local_position(), 2.0f, 2.0f);
+            focus_camera(trans.get_world_position(), 2.0f, 2.0f);
             auto group = scene->get_entity_manager()->get_entities_with_type<Environment>();
             for (auto ent : group)
             {
@@ -1181,7 +1184,6 @@ namespace diverse
 
             Application::get().set_editor_state(EditorState::Preview);
 
-            // m_SelectedEntity = entt::null;
             selected_entities.clear();
             ImGui::SetWindowFocus("###scene");
             //load cache scene
@@ -1252,22 +1254,22 @@ namespace diverse
                     set_imguizmo_operation(ImGuizmo::OPERATION::BOUNDS);
                 }
 
-                if(Input::get().get_key_pressed(InputCode::Key::W))
+                if(Input::get().get_key_pressed(InputCode::Key::T))
                 {
                     set_imguizmo_operation(ImGuizmo::OPERATION::TRANSLATE);
                 }
 
-                if(Input::get().get_key_pressed(InputCode::Key::E))
+                if(Input::get().get_key_pressed(InputCode::Key::R))
                 {
                     set_imguizmo_operation(ImGuizmo::OPERATION::ROTATE);
                 }
 
-                if(Input::get().get_key_pressed(InputCode::Key::R))
+                if(Input::get().get_key_pressed(InputCode::Key::S))
                 {
                     set_imguizmo_operation(ImGuizmo::OPERATION::SCALE);
                 }
 
-                if(Input::get().get_key_pressed(InputCode::Key::T))
+                if(Input::get().get_key_pressed(InputCode::Key::U))
                 {
                     set_imguizmo_operation(ImGuizmo::OPERATION::UNIVERSAL);
                 }
@@ -1284,11 +1286,12 @@ namespace diverse
                 for (auto entity : selected_entities)
                 {
                     auto cur_ent = Entity(entity, get_current_scene());
-                    auto gs = cur_ent.try_get_component<GaussianComponent>();
                     auto editType = splatEdit.get_edit_type();
                     auto ret = editType == diverse::GaussianEdit::EditType::None;
                     if( !splatEdit.has_select_gaussians() && ret)
                     {
+                        if (entity == current_train_entity) 
+                            current_train_entity = entt::null;
                         cur_ent.destroy();
                         if (entity == current_splat_entity)
                             splatEdit.set_edit_splat(nullptr);
@@ -1300,7 +1303,7 @@ namespace diverse
                 if(Input::get().get_key_pressed(InputCode::Key::S) && Application::get().get_scene_active())
                 {
                     if (get_current_scene()->serialised())  //only when scene has been rename serialized, we can save again
-                        get_current_scene()->serialise(m_ProjectSettings.m_ProjectRoot + "assets/scenes/", false);
+                        get_current_scene()->serialise(project_settings.ProjectRoot + "assets/scenes/", false);
                     else
                         saveScenePopup = true;
                 }
@@ -1311,7 +1314,7 @@ namespace diverse
                     is_open_newgaussian_popup = true;
                 //reload scene
                 if(Input::get().get_key_pressed(InputCode::Key::O))
-                    Application::get().get_scene_manager()->get_current_scene()->deserialise(m_ProjectSettings.m_ProjectRoot + "assets/scenes/", false);
+                    get_current_scene()->deserialise(project_settings.ProjectRoot + "assets/scenes/", false);
                 if(Input::get().get_key_pressed(InputCode::Key::X))
                 {
                     if (splatEdit.has_select_gaussians())
@@ -1340,14 +1343,14 @@ namespace diverse
                 {
                     for(auto entity : copied_entities)
                     {
-                        Application::get().get_current_scene()->duplicate_entity({ entity, Application::get().get_current_scene() });
+                        get_current_scene()->duplicate_entity({ entity, get_current_scene() });
                         if(cut_copy_entity)
                         {
-                            Entity(entity, Application::get().get_current_scene()).destroy();
+                            Entity(entity, get_current_scene()).destroy();
                             if(entity == current_splat_entity)
-                            {
                                 splatEdit.set_edit_splat(nullptr);
-                            }
+                            if (entity == current_train_entity)
+                                current_train_entity = entt::null;
                         }
                     }
                 }
@@ -1361,7 +1364,7 @@ namespace diverse
                     else
                     { 
                         for(auto entity : copied_entities)
-                            Application::get().get_current_scene()->duplicate_entity({ entity, Application::get().get_current_scene() });
+                            get_current_scene()->duplicate_entity({ entity, get_current_scene() });
                     }
                 }
                 if (Input::get().get_key_pressed(InputCode::Key::Z))
@@ -1384,12 +1387,21 @@ namespace diverse
 
         Application::update(ts);
     }
+    void Editor::train_splat_gaussian()
+    {
+        //auto current_splat_ent = get_current_splat_entt();
+        while(true)
+        {
+
+        }
+    }
 
     void Editor::update_gaussian(const TimeStep& ts)
     {
 #ifdef DS_SPLAT_TRAIN
-        auto group = get_current_scene()->get_entity_manager()->get_entities_with_type<GaussianTrainerScene>();
-        for (auto gs_ent : group)
+
+        auto gs_ent = Entity(current_train_entity, get_current_scene());
+        if(!gs_ent.valid()) return;
         {
             auto& gs_train = gs_ent.get_component<GaussianTrainerScene>();
             if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Preprocess_Done)
@@ -1397,14 +1409,13 @@ namespace diverse
                 gs_train.setTrainingStatus(TrainingStatus::Training);
                 auto& gs = gs_ent.get_component<GaussianComponent>();
                 auto& gs_model = gs.ModelRef;
-                auto [means, quats, scales, opacities, shs, degrees] = gs_train.getGaussianAttribute();
+                auto [means, quats, scales, opacities, shs] = gs_train.getGaussianAttribute();
                 gs_model->update_from_cpu(
                     means.data(),
                     shs.data(),
                     opacities.data(),
                     scales.data(),
                     quats.data(),
-                    degrees.data(),
                     gs_train.getNumGaussians()
                 );
                 //set camera from training camera views
@@ -1415,125 +1426,93 @@ namespace diverse
                     //editor_cameraTransform.set_local_orientation(viewR);
                     editor_camera_transform.set_world_matrix(glm::mat4(1.0f));
                     focus_camera(transform->get_world_position(), 1.0f, 1.0f);
-                    auto aabb = gs_model->get_world_bounding_box(transform->get_world_matrix());
+                    auto aabb = gs_model->get_local_bounding_box();
                     auto scale = (aabb.max() - aabb.min()) / 2.0f;
                     auto translate = aabb.center();
-                    focus_region_transform.set_local_scale(scale);
-                    focus_region_transform.set_local_position(translate);
+                    gs_train.focus_region_position = glm::vec3(0.0f);
+                    gs_train.focus_region_scale = glm::vec3(1.0f);
                 }
-                // for(auto i=0;i < gs_train.getNumCameras();i++)
-                // {
-                //     auto viewR = gs_train.getCameraRotation(i);
-                //     glm::vec3 forward = viewR * glm::vec3(0.0f, 0.0f, 1.0f);
-                //     auto camPos = transform->get_world_position() + forward * 1.0f;
-                //     maths::Transform camTrans;
-                //     camTrans.set_local_position(camPos);camTrans.set_local_orientation(viewR);
-                //     camTrans.set_world_matrix(glm::mat4(1.0f));
-                //     camerasPanel->add_camera_view(camTrans.get_world_matrix());
-                // }
             }
             if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Loading_Failed)
             {
                 get_current_scene()->destroy_entity(gs_ent);
+                if (gs_ent.get_handle() == current_train_entity) {
+                    current_train_entity = entt::null;
+                    gs_ent = Entity(current_train_entity, get_current_scene());
+                }
             }
         }
         if (is_train_gaussian)
         {
-            for (auto gs_ent : group)
+            if (!gs_ent.valid() || !gs_ent.active())
+                return;
+            auto& gs_train = gs_ent.get_component<GaussianTrainerScene>();
+            auto& gscom =  gs_ent.get_component<GaussianComponent>();
+            auto& gs_model = gscom.ModelRef;
+            const auto mouse_moved = Input::get().get_mouse_delta().x > 0 || Input::get().get_mouse_delta().y > 0 || Input::get().get_mouse_clicked(InputCode::MouseKey::ButtonLeft);
+            const auto moved = editor_camera_controller.is_moving() | mouse_moved;
+            gscom.skip_render = !moved;
+            if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Colmap_Sfm)
             {
-                if (!gs_ent.active())
-                    continue;
-                auto& gs_train = gs_ent.get_component<GaussianTrainerScene>();
-                //handle mouse move when mouse is move out of the view rect, this means user may do ui operation, so we disable trainning
-                const auto mouse_moved = Input::get().get_mouse_delta().x > 0 || Input::get().get_mouse_delta().y > 0 || Input::get().get_mouse_clicked(InputCode::MouseKey::ButtonLeft);
-                const auto in_view_rect = scene_view_rect.is_inside(Input::get().get_mouse_position());
-                static float move_idle_last_time = 100.0f;
-                move_idle_last_time = (mouse_moved && !in_view_rect) ? 0 : move_idle_last_time + ts.get_seconds();
-                const auto do_ui_op = move_idle_last_time < 3.0f;
-                auto& gs_model = gs_ent.get_component<GaussianComponent>().ModelRef;
-                if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Colmap_Sfm)
+                if (frame_number() % 100 == 0)
                 {
-                    if (frame_number() % 100 == 0)
-                    {
-                        set_gaussian_render_type(GaussianRenderType::Point);
-                        const auto& points3d = gs_train.getPoints3D(0);
-                        gs_model->update_from_pos_color(
-                            (u8*)points3d.data(),
-                            points3d.size()
-                        );
-                    }
+                    set_gaussian_render_type(GaussianRenderType::Point);
+                    const auto& points3d = gs_train.getPoints3D(0);
+                    gs_model->update_from_pos_color(
+                        (u8*)points3d.data(),
+                        points3d.size()
+                    );
                 }
-                if (gs_train.isTrain() && gs_train.getCurrentTrainingStatus() >= TrainingStatus::Preprocess_Done && !editor_camera_controller.is_moving() && !do_ui_op)
+            }
+            if (gs_train.isTrain() && gs_train.getCurrentTrainingStatus() >= TrainingStatus::Preprocess_Done)
+            {
+                if (gs_train.getCurrentIterations() == 0)
                 {
-                    if (gs_train.getCurrentIterations() == 0)
+                    if (!is_device_support_gstrain())
                     {
-                        if (!is_device_support_gstrain())
-                        {
-                            messageBox("warn", "current device compute capability doesn't support train");
-                            gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
-                        }
-                        set_gaussian_render_type(GaussianRenderType::Splat);
+                        messageBox("warn", "current device compute capability doesn't support train");
+                        gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
                     }
-                    if (is_device_support_gstrain())
+                    set_gaussian_render_type(GaussianRenderType::Splat);
+                }
+                if (is_device_support_gstrain())
+                {
+                    if(gs_train.getCurrentTrainingStatus() == TrainingStatus::Loading_Failed){
+                        get_current_scene()->destroy_entity(gs_ent);
+                    }
+                    const bool is_training = gs_train.getCurrentIterations() < gs_train.getTrainConfig().numIters && !gs_train.isPruningSplat();
+                    if (is_update_splat_rendering && is_training )
                     {
-                        try{
-                            gs_train.trainStep();
-                        }
-                        catch(std::exception e){
-                            gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
-                            DS_LOG_ERROR("training failed {}",e.what());
-                            messageBox("error", std::format("training failed {}", e.what()).c_str());
-                            Application::get().get_current_scene()->destroy_entity(gs_ent);
-                        }
-                        const bool is_training = gs_train.getCurrentIterations() < gs_train.getTrainConfig().numIters;
-                        if (gs_train.getCurrentIterations() % 100 == 0 && is_training)
+                        DS_LOG_INFO("Iteraions {}, loss : {}", gs_train.getCurrentIterations(), gs_train.getCurrentLoss());
+                    }
+                    if (is_update_splat_rendering && is_training)
+                    {
+                        gs_model->update_from_cpu(
+                            gs_train.getGaussianPositionCpu().data(),
+                            gs_train.getGaussianSHsCpu().data(),
+                            gs_train.getGaussianOpcaitiesCpu().data(),
+                            gs_train.getGaussianScalingsCpu().data(),
+                            gs_train.getGaussianRotationsCpu().data(),
+                            gs_train.getNumGaussians()
+                        );
+                        gscom.skip_render = false;
+                        gs_model->antialiased() = gs_train.getTrainConfig().mipAntiliased;
+                        if (gs_train.getNumGaussians() > 1000000) 
                         {
-                            DS_LOG_INFO("Iteraions {}, loss : {}", gs_train.getCurrentIterations(), gs_train.getCurrentLoss());
+                            gs_train.getTrainConfig().packLevel |= GSPackLevel::PackTileID | GSPackLevel::PackF32ToU8;
                         }
-                        if (frame_number() % std::max<u32>(10, gs_model->update_feq()) == 0 && is_training)
-                        {
-                            gs_model->update_from_cpu(
-                                gs_train.getGaussianPositionCpu().data(),
-                                gs_train.getGaussianSHsCpu().data(),
-                                gs_train.getGaussianOpcaitiesCpu().data(),
-                                gs_train.getGaussianScalingsCpu().data(),
-                                gs_train.getGaussianRotationsCpu().data(),
-                                gs_train.getGaussianDegreeCpu().data(),
-                                gs_train.getNumGaussians()
-                            );
-                            if (gs_train.getNumGaussians() > 1000000) 
-                            {
-                                gs_train.getTrainConfig().packLevel |= GSPackLevel::PackTileID | GSPackLevel::PackF32ToU8;
-                            }
-                        }
-                        if (gs_train.getCurrentIterations() == gs_train.getTrainConfig().numIters - 1)
-                        {
-                            gs_train.saveGaussianModel();
-                            if(gs_train.getTrainConfig().exportMesh)
-                            {
-                                DS_LOG_INFO("Extracting Gaussian Mesh.... ");
-                                System::JobSystem::Context context;
-                                System::JobSystem::execute(context, [&](JobDispatchArgs args) {
-                                    try{
-                                        auto mesh_path = std::filesystem::path(gs_train.getTrainConfig().modelPath).replace_extension("").string() + "_mesh.obj";
-                                        gs_train.exportMesh(mesh_path);
-                                        DS_LOG_INFO("Gaussian Mesh Exported to {}", mesh_path);
-                                        gs2mesh_load = true;
-                                        load_model_path = mesh_path;
-                                    }
-                                    catch(const std::exception& e)
-                                    {
-                                        messageBox("error", e.what());
-                                        gs_train.setTrainingStatus(TrainingStatus::Training);
-                                        DS_LOG_ERROR(e.what());
-                                    }
-                                });
-                                // System::JobSystem::wait(context);
-                            }
-                        }
+                        is_update_splat_rendering = false;
                     }
                 }
             }
+            
+        }
+        else{
+            if (gs_ent.valid() && gs_ent.active())
+            {
+                auto& gscom = gs_ent.get_component<GaussianComponent>();
+                gscom.skip_render = false;
+            } 
         }
 #endif
     }
@@ -1771,7 +1750,7 @@ namespace diverse
         ImGui::NextColumn();
         ImGui::PushItemWidth(-1);
         const char* format_str[] = { "ply", "splat", "compressed.ply", "spz"};
-        static int cur_format = 3;
+        static int cur_format = 0;
         if (ImGui::BeginCombo("", format_str[cur_format], 0)) // The second parameter is the label previewed before opening the combo.
         {
             for (int n = 0; n < 4; n++)
@@ -1812,6 +1791,7 @@ namespace diverse
             ImGuiHelper::Property("Create Sky Model",trainConfig.enableBg,"whether sky model!");
             ImGuiHelper::Property("Mask", trainConfig.useMask,"whether use mask!");
             ImGuiHelper::Property("ExportMesh", trainConfig.exportMesh,"whether create mesh model!");
+            ImGuiHelper::Property("Anti-Alias", trainConfig.mipAntiliased, "whether enable antialias!");
             ImGui::Unindent();
             ImGui::TreePop();
         }
@@ -1882,21 +1862,59 @@ namespace diverse
             auto rotation = glm::vec3(180.0f, 0.0f, 0.0f);
             transform.set_local_orientation(glm::radians(rotation));
             transform.set_world_matrix(glm::mat4(1.0f));
-
-            System::JobSystem::Context context;
-            System::JobSystem::execute(context, [&](JobDispatchArgs args) {
-                try{
+            current_train_entity = modelEntity.get_handle();
+            std::thread([&](){
+                //try{
                     if(gaussian_train.loadTrainData(datasource_path)){
                         gaussian_train.trainSetup();
                     }
-                }
-                catch(const std::exception& e)
+                    while(true)
+                    {
+                        if(gaussian_train.isTerminate()) break;
+                        if(gaussian_train.isTrain() && is_train_gaussian)
+                        {
+                            if(!is_update_splat_rendering)
+                            {
+                                gaussian_train.trainStep();
+                                auto curStep = gaussian_train.getCurrentIterations();
+                                if(curStep % std::max<int>(10,splat_update_freq) == 0 
+                                && curStep < gaussian_train.getTrainConfig().numIters)
+                                    is_update_splat_rendering = true;
+                                
+                                if (curStep == gaussian_train.getTrainConfig().numIters - 1)
+                                {
+                                    gaussian_train.saveGaussianModel();
+                                    if(gaussian_train.getTrainConfig().exportMesh)
+                                    {
+                                        DS_LOG_INFO("Extracting Gaussian Mesh.... ");
+                                        try{
+                                            auto mesh_path = std::filesystem::path(gaussian_train.getTrainConfig().modelPath).replace_extension("").string() + "_mesh.obj";
+                                            gaussian_train.exportMesh(mesh_path);
+                                            DS_LOG_INFO("Gaussian Mesh Exported to {}", mesh_path);
+                                            //wait 1.5 second
+                                            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                                            gs2mesh_load = true;
+                                            load_model_path = mesh_path;
+                                        }
+                                        catch(const std::exception& e)
+                                        {
+                                            messageBox("error", e.what());
+                                            gaussian_train.setTrainingStatus(TrainingStatus::Training);
+                                            DS_LOG_ERROR(e.what());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                //}
+       /*         catch(const std::exception& e)
                 {
                     messageBox("error", e.what());
                     DS_LOG_ERROR(e.what());
-                    Application::get().get_current_scene()->destroy_entity(modelEntity);
-                }
-            });
+                    gaussian_train.setTrainingStatus(TrainingStatus::Loading_Failed);
+                }*/
+            }).detach();
 
             ImGui::CloseCurrentPopup();
             is_train_gaussian = true;
@@ -2177,6 +2195,10 @@ namespace diverse
                 }
                 pivot->get_transform().set_world_matrix(glm::mat4(1.0f));
             }
+            if(registry.try_get<GaussianTrainerScene>(entity))
+            {
+                current_train_entity = entity;
+            }
         }
 
         selected_entities.push_back(entity);
@@ -2196,7 +2218,7 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
 
-        bool openSaveScenePopup = (m_SceneSaveOnClose && saveSceneShowAgain) || saveScenePopup;
+        bool openSaveScenePopup = (scene_save_on_close && saveSceneShowAgain) || saveScenePopup;
         bool openNewScenePopup = newScenePopup;
         bool openProjectLoadPopup = false;//!m_ProjectLoaded;
         bool saveLayout = false;
@@ -2206,9 +2228,9 @@ namespace diverse
         {
             if (ImGui::BeginMenu("File"))
             {
-                if (ImGuiHelper::BeginMenu("Open Recent Project", resource_path + "svg_icon/open.png",!settings.m_RecentProjects.empty()))
+                if (ImGuiHelper::BeginMenu("Open Recent Project", resource_path + "svg_icon/open.png",!settings.recent_projects.empty()))
                 {
-                    for (auto& recentProject : settings.m_RecentProjects)
+                    for (auto& recentProject : settings.recent_projects)
                     {
                         if (ImGui::MenuItem(recentProject.c_str()))
                         {
@@ -2456,7 +2478,7 @@ namespace diverse
                 ImGui::EndMenu();
             }
 
-            if (m_ProjectLoaded)
+            if (project_loaded)
             {
                 {
                     ImGuiHelper::ScopedFont boldFont(ImGui::GetIO().Fonts->Fonts[1]);
@@ -2465,11 +2487,11 @@ namespace diverse
                     ImGui::SameLine(ImGui::GetCursorPosX() + 40.0f);
                     ImGui::Separator();
                     ImGui::SameLine();
-                    String8 label = PushStr8F(m_FrameArena, "%s ", get_current_scene()->get_scene_name().c_str());
+                    String8 label = PushStr8F(frame_arena, "%s ", get_current_scene()->get_scene_name().c_str());
 
                     ImGui::TextUnformatted((const char*)label.str);
 
-                    String8 projectString = PushStr8F(m_FrameArena, "Current scene (%s.dsn)", get_current_scene()->get_scene_name().c_str());
+                    String8 projectString = PushStr8F(frame_arena, "Current scene (%s.dsn)", get_current_scene()->get_scene_name().c_str());
 
                     ImGuiHelper::Tooltip((const char*)projectString.str);
                     ImGuiHelper::DrawBorder(ImGuiHelper::RectExpanded(ImGuiHelper::GetItemRect(), 24.0f, 68.0f), 1.0f, 3.0f, 0.0f, -60.0f);
@@ -2578,7 +2600,7 @@ namespace diverse
             ImGui::Text("Save Current Scene Changes?\n\n");
             ImGui::Separator();
             
-            if(m_SceneSaveOnClose)
+            if(scene_save_on_close)
             { 
                 static bool notshow = false;
                 ImGui::Checkbox("Not Show Again", &notshow);
@@ -2615,11 +2637,11 @@ namespace diverse
             {
                 const auto path = std::filesystem::path(projectLocation + "/" + current_scene->scene_name());
                 Application::get().open_new_project(projectLocation, current_scene->scene_name());
-                get_current_scene()->serialise(m_ProjectSettings.m_ProjectRoot + "assets/scenes/", false);
+                get_current_scene()->serialise(project_settings.ProjectRoot + "assets/scenes/", false);
                 //screenshot
                 ImGui::CloseCurrentPopup();
                 saveScenePopupCaneceld = false;
-                m_SceneSaveOnClose = false;
+                scene_save_on_close = false;
             }
             ImGui::SetItemDefaultFocus();
 
@@ -2627,7 +2649,7 @@ namespace diverse
             if (ImGui::Button("No", ImVec2(btnSizeX, 0)))
             {
                 ImGui::CloseCurrentPopup();
-                m_SceneSaveOnClose = false;
+                scene_save_on_close = false;
                 saveScenePopupCaneceld = true;
                 saveScenePopup = false;
             }
@@ -2635,19 +2657,19 @@ namespace diverse
             if (ImGui::Button("Cancel", ImVec2(btnSizeX, 0)))
             {
                 ImGui::CloseCurrentPopup();
-                m_SceneSaveOnClose = false;
+                scene_save_on_close = false;
                 saveScenePopupCaneceld = true;
                 saveScenePopup = false;
-                m_CurrentState = AppState::Running;
+                current_state = AppState::Running;
             }
             ImGui::EndPopup();
             sceneSavePoped = true;
         }
-        if (!saveScenePopup && m_SceneSaveOnClose && !sceneSavePoped)
+        if (!saveScenePopup && scene_save_on_close && !sceneSavePoped)
         {
-            m_SceneSaveOnClose = false;
+            scene_save_on_close = false;
             if( !saveScenePopupCaneceld)
-                Application::get().get_scene_manager()->get_current_scene()->serialise(m_ProjectSettings.m_ProjectRoot + "assets/scenes/", false);
+                Application::get().get_scene_manager()->get_current_scene()->serialise(project_settings.ProjectRoot + "assets/scenes/", false);
         }
         //else if (sceneSavePoped) //close
         //{
@@ -2675,7 +2697,7 @@ namespace diverse
         {
             if (ImGui::Button("Save Current Scene Changes"))
             {
-                Application::get().get_scene_manager()->get_current_scene()->serialise(m_ProjectSettings.m_ProjectRoot + "assets/scenes/", false);
+                Application::get().get_scene_manager()->get_current_scene()->serialise(project_settings.ProjectRoot + "assets/scenes/", false);
             }
 
             ImGui::Text("Create New Scene?\n\n");
@@ -2729,9 +2751,9 @@ namespace diverse
                 auto scene = get_current_scene();
                 std::string sceneName = newSceneName;
                 int sameNameCount = 0;
-                auto sceneNames = m_SceneManager->get_scene_names();
+                auto sceneNames = scene_manager->get_scene_names();
 
-                while (FileSystem::file_exists(m_ProjectSettings.m_ProjectRoot + "//assets/scenes/" + sceneName + ".dsn") || m_SceneManager->contains_scene(m_ProjectSettings.m_ProjectRoot + "//assets/scenes/" + sceneName))
+                while (FileSystem::file_exists(project_settings.ProjectRoot + "//assets/scenes/" + sceneName + ".dsn") || scene_manager->contains_scene(project_settings.ProjectRoot + "//assets/scenes/" + sceneName))
                 {
                     sameNameCount++;
                     sceneName = fmt::format("{}{}",newSceneName,sameNameCount);
@@ -2743,7 +2765,7 @@ namespace diverse
                     environment.add_component<Environment>();
                     environment.get_component<Environment>().load();
                     
-                    scene->serialise(m_ProjectSettings.m_ProjectRoot + "assets/scenes/");
+                    scene->serialise(project_settings.ProjectRoot + "assets/scenes/");
                 }
                 // Application::get().get_scene_manager()->enqueue_scene(scene);
                 // Application::get().get_scene_manager()->switch_scene((int)(Application::get().get_scene_manager()->get_scenes().Size()) - 1);
@@ -2910,7 +2932,7 @@ namespace diverse
                             splatEdit.start_transform_op(pivot_transform);
                         }
 
-                        Entity parent = Entity(m_SelectedEntity, m_SceneManager->get_current_scene()).get_parent();
+                        Entity parent = Entity(m_SelectedEntity, scene_manager->get_current_scene()).get_parent();
                         if (parent && parent.has_component<maths::Transform>())
                         {
                             glm::mat4 parentTransform = parent.get_transform().get_world_matrix();
@@ -2960,7 +2982,7 @@ namespace diverse
                 if (!registry.valid(entityID))
                     continue;
 
-                Entity entity = { entityID, m_SceneManager->get_current_scene() };
+                Entity entity = { entityID, scene_manager->get_current_scene() };
 
                 if (!entity.has_component<maths::Transform>())
                     continue;
@@ -3253,12 +3275,7 @@ namespace diverse
             }
         }
     }
-    maths::BoundingBox Editor::get_focus_splat_region()
-    {
-        maths::BoundingBox box(glm::vec3(-1),glm::vec3(1));
-        auto transformed_box = box.transformed(focus_region_transform.get_local_matrix());
-        return transformed_box;
-    }
+
 #ifdef DS_SPLAT_TRAIN
     void Editor::export_cameras()
     {
@@ -3318,8 +3335,12 @@ namespace diverse
             auto gs_com = registry.try_get<GaussianTrainerScene>(gs_ent);
             if (gs_com)
             {
+                if (gs_com->getCurrentIterations() < gs_com->maxIteriaons()) {
+                    messageBox("warn", "please make sure splat training is finished ");
+                    return;
+                }
                 if(!gs_com->getTrainConfig().normalConsistencyLoss){
-                    messageBox("warn", "please enable normal consistency");
+                    messageBox("warn", "please enable exportmesh option when train gaussian splat");
                     return;
                 }
                 is_export_model_popup = true;

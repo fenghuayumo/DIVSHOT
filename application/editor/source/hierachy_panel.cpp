@@ -35,17 +35,17 @@ namespace diverse
 {
     HierarchyPanel::HierarchyPanel(bool active)
         : EditorPanel(active)
-        , m_HadRecentDroppedEntity(entt::null)
-        , m_DoubleClicked(entt::null)
+        , had_recent_dropped_entity(entt::null)
+        , double_clicked_entity(entt::null)
     {
-        m_Name = U8CStr2CStr(ICON_MDI_FILE_TREE " Hierarchy###hierarchy");
-        m_SimpleName = "Hierarchy";
-        m_StringArena = ArenaAlloc(Kilobytes(32));
+        name = U8CStr2CStr(ICON_MDI_FILE_TREE " Hierarchy###hierarchy");
+        simple_name = "Hierarchy";
+        string_arena = ArenaAlloc(Kilobytes(32));
     }
 
     HierarchyPanel::~HierarchyPanel()
     {
-        ArenaRelease(m_StringArena);
+        ArenaRelease(string_arena);
     }
 
 
@@ -61,11 +61,11 @@ namespace diverse
 
         static const char* defaultName = "Entity";
         const NameComponent* nameComponent = registry.try_get<NameComponent>(node);
-        String8 name = PushStr8Copy(m_StringArena, nameComponent ? nameComponent->name.c_str() : defaultName); // StringUtilities::ToString(entt::to_integral(node));
+        String8 name = PushStr8Copy(string_arena, nameComponent ? nameComponent->name.c_str() : defaultName); // StringUtilities::ToString(entt::to_integral(node));
 
-        if (m_HierarchyFilter.IsActive())
+        if (hierarchy_filter.IsActive())
         {
-            if (!m_HierarchyFilter.PassFilter((const char*)name.str))
+            if (!hierarchy_filter.PassFilter((const char*)name.str))
             {
                 show = false;
             }
@@ -80,7 +80,7 @@ namespace diverse
             if (hierarchyComponent != nullptr && hierarchyComponent->first() != entt::null)
                 noChildren = false;
 
-            ImGuiTreeNodeFlags nodeFlags = ((m_Editor->is_selected(node)) ? ImGuiTreeNodeFlags_Selected : 0);
+            ImGuiTreeNodeFlags nodeFlags = ((editor->is_selected(node)) ? ImGuiTreeNodeFlags_Selected : 0);
 
             nodeFlags |= ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_SpanAvailWidth;
 
@@ -89,13 +89,13 @@ namespace diverse
                 nodeFlags |= ImGuiTreeNodeFlags_Leaf;
             }
 
-            bool active = Entity(node, m_Editor->get_current_scene()).active(); 
+            bool active = Entity(node, editor->get_current_scene()).active(); 
 
             if (!active)
                 ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 
             bool doubleClicked = false;
-            if (node == m_DoubleClicked)
+            if (node == double_clicked_entity)
             {
                 doubleClicked = true;
             }
@@ -103,14 +103,14 @@ namespace diverse
             if (doubleClicked)
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 1.0f, 2.0f });
 
-            if (m_HadRecentDroppedEntity == node)
+            if (had_recent_dropped_entity == node)
             {
                 ImGui::SetNextItemOpen(true);
-                m_HadRecentDroppedEntity = entt::null;
+                had_recent_dropped_entity = entt::null;
             }
 
             String8 icon = Str8C((char*)ICON_MDI_CUBE_OUTLINE);
-            auto& iconMap = m_Editor->get_component_iconmap();
+            auto& iconMap = editor->get_component_iconmap();
 
             if (registry.all_of<Camera>(node))
             {
@@ -128,7 +128,7 @@ namespace diverse
             {
                 if (ImGui::BeginDragDropSource())
                 {
-                    if (!m_Editor->is_selected(node))
+                    if (!editor->is_selected(node))
                     {
       /*                  m_Editor->clear_selected();
                         m_Editor->set_selected(node);*/
@@ -138,7 +138,7 @@ namespace diverse
                     }
                     else
                     { 
-                        auto selected = m_Editor->get_selected();
+                        auto selected = editor->get_selected();
                         for (auto e : selected)
                         {
                             ImGui::TextUnformatted(Entity(e, Application::get().get_current_scene()).get_name().c_str());
@@ -154,25 +154,25 @@ namespace diverse
                 {
                     bool ctrlDown = Input::get().get_key_held(diverse::InputCode::Key::LeftControl) || Input::get().get_key_held(diverse::InputCode::Key::RightControl) || Input::get().get_key_held(diverse::InputCode::Key::LeftSuper);
                     if (!ctrlDown)
-                        m_Editor->clear_selected();
+                        editor->clear_selected();
 
-                    if (!m_Editor->is_selected(node))
-                        m_Editor->set_selected(node);
+                    if (!editor->is_selected(node))
+                        editor->set_selected(node);
                     else
-                        m_Editor->un_select(node);
+                        editor->un_select(node);
                 }
-                else if (m_DoubleClicked == node && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsItemHovered(ImGuiHoveredFlags_None))
-                    m_DoubleClicked = entt::null;
+                else if (double_clicked_entity == node && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsItemHovered(ImGuiHoveredFlags_None))
+                    double_clicked_entity = entt::null;
             }
 
             if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && ImGui::IsItemHovered(ImGuiHoveredFlags_None))
             {
-                m_DoubleClicked = node;
+                double_clicked_entity = node;
                 if (Application::get().get_editor_state() == EditorState::Preview)
                 {
                     auto transform = registry.try_get<maths::Transform>(node);
                     if (transform)
-                        m_Editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
+                        editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
                 }
             }
 
@@ -212,7 +212,7 @@ namespace diverse
             if (doubleClicked)
             {
                 String8 nameBuffer = { 0 };
-                nameBuffer.str = PushArray(m_StringArena, uint8_t, INPUT_BUF_SIZE);
+                nameBuffer.str = PushArray(string_arena, uint8_t, INPUT_BUF_SIZE);
                 nameBuffer.size = INPUT_BUF_SIZE;
 
                 MemoryCopy(nameBuffer.str, name.str, name.size);
@@ -232,31 +232,31 @@ namespace diverse
             {
                 if (ImGui::Selectable("Copy"))
                 {
-                    if (!m_Editor->is_selected(node))
+                    if (!editor->is_selected(node))
                     {
-                        m_Editor->set_copied_entity(node);
+                        editor->set_copied_entity(node);
                     }
-                    for (auto entity : m_Editor->get_selected())
-                        m_Editor->set_copied_entity(entity);
+                    for (auto entity : editor->get_selected())
+                        editor->set_copied_entity(entity);
                 }
 
                 if (ImGui::Selectable("Cut"))
                 {
-                    for (auto entity : m_Editor->get_selected())
-                        m_Editor->set_copied_entity(node, true);
+                    for (auto entity : editor->get_selected())
+                        editor->set_copied_entity(node, true);
                 }
 
-                if (m_Editor->get_copied_entity().size() > 0 && registry.valid(m_Editor->get_copied_entity().front()))
+                if (editor->get_copied_entity().size() > 0 && registry.valid(editor->get_copied_entity().front()))
                 {
                     if (ImGui::Selectable("Paste"))
                     {
-                        for (auto entity : m_Editor->get_copied_entity())
+                        for (auto entity : editor->get_copied_entity())
                         {
                             auto scene = Application::get().get_current_scene();
                             Entity copiedEntity = { entity, scene };
                             scene->duplicate_entity(copiedEntity, { node, scene });
 
-                            if (m_Editor->get_cut_copy_entity())
+                            if (editor->get_cut_copy_entity())
                                 deleteEntity = true;
                         }
                     }
@@ -279,7 +279,7 @@ namespace diverse
                 //   m_Editor->UnSelect(node);
                 ImGui::Separator();
                 if (ImGui::Selectable("Rename"))
-                    m_DoubleClicked = node;
+                    double_clicked_entity = node;
                 ImGui::Separator();
 
                 // if (ImGui::Selectable("Add Child"))
@@ -293,7 +293,7 @@ namespace diverse
                 {
                     auto transform = registry.try_get<maths::Transform>(node);
                     if (transform)
-                        m_Editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
+                        editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
                 }
                 ImGui::EndPopup();
             }
@@ -305,7 +305,7 @@ namespace diverse
                 {
                     size_t count = payload->DataSize / sizeof(entt::entity);
 
-                    auto currentScene = m_Editor->get_current_scene();
+                    auto currentScene = editor->get_current_scene();
                     for (size_t i = 0; i < count; i++)
                     {
                         entt::entity droppedEntityID = *(((entt::entity*)payload->Data) + i);
@@ -321,24 +321,24 @@ namespace diverse
                         }
                     }
 
-                    m_HadRecentDroppedEntity = node;
+                    had_recent_dropped_entity = node;
                 }
                 ImGui::EndDragDropTarget();
             }
 
             if (ImGui::IsItemClicked() && !deleteEntity)
-                m_Editor->set_selected(node);
-            else if (m_DoubleClicked == node && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsItemHovered(ImGuiHoveredFlags_None))
-                m_DoubleClicked = entt::null;
+                editor->set_selected(node);
+            else if (double_clicked_entity == node && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsItemHovered(ImGuiHoveredFlags_None))
+                double_clicked_entity = entt::null;
 
             if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && ImGui::IsItemHovered(ImGuiHoveredFlags_None))
             {
-                m_DoubleClicked = node;
+                double_clicked_entity = node;
                 if (Application::get().get_editor_state() == EditorState::Preview)
                 {
                     auto transform = registry.try_get<maths::Transform>(node);
                     if (transform)
-                        m_Editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
+                        editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
                 }
             }
 
@@ -352,25 +352,25 @@ namespace diverse
                 return;
             }
 
-            if (m_SelectUp)
+            if (select_up)
             {
-                if (!m_Editor->get_selected().empty() && m_Editor->get_selected().front() == node && registry.valid(m_CurrentPrevious))
+                if (!editor->get_selected().empty() && editor->get_selected().front() == node && registry.valid(current_previous_entity))
                 {
-                    m_SelectUp = false;
-                    m_Editor->set_selected(m_CurrentPrevious);
+                    select_up = false;
+                    editor->set_selected(current_previous_entity);
                 }
             }
 
-            if (m_SelectDown)
+            if (select_down)
             {
-                if (!m_Editor->get_selected().empty() && registry.valid(m_CurrentPrevious) && m_CurrentPrevious == m_Editor->get_selected().front())
+                if (!editor->get_selected().empty() && registry.valid(current_previous_entity) && current_previous_entity == editor->get_selected().front())
                 {
-                    m_SelectDown = false;
-                    m_Editor->set_selected(node);
+                    select_down = false;
+                    editor->set_selected(node);
                 }
             }
 
-            m_CurrentPrevious = node;
+            current_previous_entity = node;
 
 #if 1
             bool showButton = true; // hovered || !active;
@@ -450,15 +450,15 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
         auto flags = ImGuiWindowFlags_NoCollapse;
-        m_CurrentPrevious = entt::null;
-        m_SelectUp = false;
-        m_SelectDown = false;
+        current_previous_entity = entt::null;
+        select_up = false;
+        select_down = false;
 
-        m_SelectUp = Input::get().get_key_pressed(diverse::InputCode::Key::Up);
-        m_SelectDown = Input::get().get_key_pressed(diverse::InputCode::Key::Down);
-        ArenaClear(m_StringArena);
+        select_up = Input::get().get_key_pressed(diverse::InputCode::Key::Up);
+        select_down = Input::get().get_key_pressed(diverse::InputCode::Key::Down);
+        ArenaClear(string_arena);
 
-        if (ImGui::Begin(m_Name.c_str(), &m_Active, flags))
+        if (ImGui::Begin(name.c_str(), &is_active, flags))
         {
             ImRect windowRect = { ImGui::GetWindowContentRegionMin(), ImGui::GetWindowContentRegionMax() };
 
@@ -470,8 +470,7 @@ namespace diverse
                 return;
             }
             auto& registry = scene->get_registry();
-            auto editor = m_Editor;
-            auto AddEntity = [scene, editor]()
+            auto AddEntity = [scene, this]()
             {
                 if (ImGui::Selectable("Add Empty Entity"))
                 {
@@ -569,11 +568,11 @@ namespace diverse
                 ImGuiHelper::ScopedFont boldFont(ImGui::GetIO().Fonts->Fonts[1]);
                 ImGuiHelper::ScopedStyle frameBorder(ImGuiStyleVar_FrameBorderSize, 0.0f);
                 ImGuiHelper::ScopedColour frameColour(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
-                m_HierarchyFilter.Draw("##HierarchyFilter", ImGui::GetContentRegionAvail().x - ImGui::GetStyle().IndentSpacing);
+                hierarchy_filter.Draw("##HierarchyFilter", ImGui::GetContentRegionAvail().x - ImGui::GetStyle().IndentSpacing);
                 ImGuiHelper::DrawItemActivityOutline(2.0f, false);
             }
 
-            if (!m_HierarchyFilter.IsActive())
+            if (!hierarchy_filter.IsActive())
             {
                 ImGui::SameLine();
                 ImGuiHelper::ScopedFont boldFont(ImGui::GetIO().Fonts->Fonts[1]);
@@ -588,17 +587,17 @@ namespace diverse
             // Right click popup
             if (ImGui::BeginPopupContextWindow())
             {
-                if (!m_Editor->get_copied_entity().empty() && registry.valid(m_Editor->get_copied_entity().front()))
+                if (!editor->get_copied_entity().empty() && registry.valid(editor->get_copied_entity().front()))
                 {
                     if (ImGui::Selectable("Paste"))
                     {
-                        for (auto entity : m_Editor->get_copied_entity())
+                        for (auto entity : editor->get_copied_entity())
                         {
                             auto scene = Application::get().get_scene_manager()->get_current_scene();
                             Entity copiedEntity = { entity, scene };
                             scene->duplicate_entity(copiedEntity);
 
-                            if (m_Editor->get_cut_copy_entity())
+                            if (editor->get_cut_copy_entity())
                             {
                                 copiedEntity.get_scene()->destroy_entity(copiedEntity);
                             }
@@ -650,7 +649,7 @@ namespace diverse
                     {
                         size_t count = payload->DataSize / sizeof(entt::entity);
 
-                        auto currentScene = m_Editor->get_current_scene();
+                        auto currentScene = editor->get_current_scene();
                         for (size_t i = 0; i < count; i++)
                         {
                             entt::entity droppedEntityID = *(((entt::entity*)payload->Data) + i);
@@ -667,7 +666,7 @@ namespace diverse
                 if (ImGui::IsWindowFocused() && Input::get().get_key_pressed(diverse::InputCode::Key::Delete))
                 {
                     auto* scene = Application::get().get_current_scene();
-                    for (auto entity : m_Editor->get_selected())
+                    for (auto entity : editor->get_selected())
                         scene->destroy_entity(Entity(entity, scene));
                 }
                 if (ImGui::IsWindowFocused() && Input::get().get_key_held(diverse::InputCode::Key::LeftControl))
@@ -675,22 +674,22 @@ namespace diverse
                     auto* scene = Application::get().get_current_scene();
                     if(Input::get().get_key_pressed(diverse::InputCode::Key::C))
                     { 
-                        for (auto entity : m_Editor->get_selected())
-                            m_Editor->set_copied_entity(entity);
+                        for (auto entity : editor->get_selected())
+                            editor->set_copied_entity(entity);
                     }
                     if (Input::get().get_key_pressed(diverse::InputCode::Key::X))
                     {
-                        for (auto entity : m_Editor->get_selected())
-                            m_Editor->set_copied_entity(entity,true);
+                        for (auto entity : editor->get_selected())
+                            editor->set_copied_entity(entity,true);
                     }
                     if (Input::get().get_key_pressed(diverse::InputCode::Key::V))
                     {
-                        for (auto entity : m_Editor->get_copied_entity())
+                        for (auto entity : editor->get_copied_entity())
                         {
                             Entity copiedEntity = { entity, scene };
                             scene->duplicate_entity(copiedEntity);
 
-                            if (m_Editor->get_cut_copy_entity())
+                            if (editor->get_cut_copy_entity())
                                 Entity(entity, scene).destroy();
                         }
                     }

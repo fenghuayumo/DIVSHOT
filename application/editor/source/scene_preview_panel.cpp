@@ -21,8 +21,8 @@ namespace diverse
 	ScenePreviewPanel::ScenePreviewPanel(bool active)
 		:EditorPanel(active)
 	{
-		m_Name = U8CStr2CStr(ICON_MDI_VIEW_LIST " ScenePreview###ScenePreview");
-		m_SimpleName = "ScenePreview";
+		name = U8CStr2CStr(ICON_MDI_VIEW_LIST " ScenePreview###ScenePreview");
+		simple_name = "ScenePreview";
 	}
 
 	void ScenePreviewPanel::on_imgui_render()
@@ -34,7 +34,7 @@ namespace diverse
 
 		auto flags = ImGuiWindowFlags_NoCollapse;
 
-		if (!ImGui::Begin(m_Name.c_str(), &m_Active, flags) )
+		if (!ImGui::Begin(name.c_str(), &is_active, flags) )
 		{
 			ImGui::End();
 			return;
@@ -70,15 +70,15 @@ namespace diverse
 		{
 			if (ImGui::Button(U8CStr2CStr(ICON_MDI_PLUS)))
 			{
-				auto renderTarget = m_Editor->get_main_render_texture();
+				auto renderTarget = editor->get_main_render_texture();
 				CamLenPreviewImage node;
-				node.tex = m_Editor->get_imgui_manager()->get_imgui_renderer()->create_texture(256,256);
-				node.name = "view" + std::to_string(m_PreviewSets->previewImages.size());
-				m_Editor->get_imgui_manager()->get_imgui_renderer()->blit_texture(renderTarget.get(), node.tex.get());
+				node.tex = editor->get_imgui_manager()->get_imgui_renderer()->create_texture(256,256);
+				node.name = "view" + std::to_string(preview_sets->previewImages.size());
+				editor->get_imgui_manager()->get_imgui_renderer()->blit_texture(renderTarget.get(), node.tex.get());
 
-				auto viewMat = m_Editor->get_editor_camera_transform().get_local_matrix();
+				auto viewMat = editor->get_editor_camera_transform().get_local_matrix();
 				node.cameraVar = CameraKeyFrameVar(viewMat, 1, 1, 1, 1);
-				m_PreviewSets->previewImages.push_back(node);
+				preview_sets->previewImages.push_back(node);
 			}
 			if (ImGui::IsItemHovered())
 				ImGuiHelper::Tooltip("add a preview");
@@ -93,9 +93,9 @@ namespace diverse
 		ImVec2 imgRowSize = ImVec2(window_size.x, window_size.y * 0.12);
 		ImVec2 imgRowPos = ImVec2(0, HeaderPos.y);
 		CamLenPreviewImage*	deleteItem = nullptr;
-		for (auto node_id = 0;node_id < m_PreviewSets->previewImages.size(); node_id++)
+		for (auto node_id = 0;node_id < preview_sets->previewImages.size(); node_id++)
 		{
-			auto& node = m_PreviewSets->previewImages[node_id];
+			auto& node = preview_sets->previewImages[node_id];
 			unsigned int col = ImColor(4,4,4,255);
 			ImRect itemRect = ImRect(imgRowPos, imgRowPos + imgRowSize);
 			bool overItem = false;
@@ -109,7 +109,7 @@ namespace diverse
 				}
 				if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 				{
-					m_state = CamLenPreviewState::Switching;
+					preview_state = CamLenPreviewState::Switching;
 				}
 
 				overItem = true;
@@ -121,8 +121,8 @@ namespace diverse
 			ImGui::PushID(node_id);
 			if(ImGui::Button(U8CStr2CStr((ICON_MDI_REFRESH))) )
 			{
-				auto renderTarget = m_Editor->get_main_render_texture();
-				m_Editor->get_imgui_manager()->get_imgui_renderer()->blit_texture(renderTarget.get(), node.tex.get());
+				auto renderTarget = editor->get_main_render_texture();
+				editor->get_imgui_manager()->get_imgui_renderer()->blit_texture(renderTarget.get(), node.tex.get());
 			}
 			ImGui::PopID();
 
@@ -166,18 +166,18 @@ namespace diverse
 		static float curPlayTime = 0.0;
 		if (curPlayTime > 1.0f)
 		{
-			m_state = CamLenPreviewState::Normal;
+			preview_state = CamLenPreviewState::Normal;
 			curPlayTime = 0.0;
 		}
-		if (m_state == CamLenPreviewState::Switching)
+		if (preview_state == CamLenPreviewState::Switching)
 		{
 			curPlayTime += 0.02;
-			auto viewMat = m_Editor->get_editor_camera_transform().get_local_matrix();
+			auto viewMat = editor->get_editor_camera_transform().get_local_matrix();
 			auto curVar = CameraKeyFrameVar((viewMat), 1, 1, 1, 1);
 
-			auto k = lerp(curVar, m_SelectNode->cameraVar, curPlayTime, 0.0f, 1.0f);
-			auto& camera_transform = m_Editor->get_editor_camera_transform();
-			m_Editor->get_editor_camera_controller().update_focal_point(camera_transform, k.T);
+			auto k = lerp(curVar, select_node->cameraVar, curPlayTime, 0.0f, 1.0f);
+			auto& camera_transform = editor->get_editor_camera_transform();
+			editor->get_editor_camera_controller().update_focal_point(camera_transform, k.T);
 			camera_transform.set_local_orientation(k.R);
 			camera_transform.set_world_matrix(glm::mat4(1.0f));
 		}
@@ -195,7 +195,7 @@ namespace diverse
 
 	bool ScenePreviewPanel::is_selected(CamLenPreviewImage* node)
 	{
-		if (node == m_SelectNode)
+		if (node == select_node)
 			return true;
 
 		return false;
@@ -203,49 +203,49 @@ namespace diverse
 
 	void ScenePreviewPanel::set_selected(CamLenPreviewImage* node)
 	{
-		m_SelectNode = node;
+		select_node = node;
 	}
 
 	void ScenePreviewPanel::delete_preview(CamLenPreviewImage* node)
 	{
-		auto it = std::find_if(m_PreviewSets->previewImages.begin(), m_PreviewSets->previewImages.end(), [&](const CamLenPreviewImage& other)->bool {return *node == other; });
-		if (it != m_PreviewSets->previewImages.end())
+		auto it = std::find_if(preview_sets->previewImages.begin(), preview_sets->previewImages.end(), [&](const CamLenPreviewImage& other)->bool {return *node == other; });
+		if (it != preview_sets->previewImages.end())
 		{
-			m_PreviewSets->previewImages.erase(it);
+			preview_sets->previewImages.erase(it);
 		}
 	}
 
 	void ScenePreviewPanel::add_camera_view(const glm::mat4& viewMat)
 	{
-		if(m_PreviewSets)
+		if(preview_sets)
 		{
-			auto renderTarget = m_Editor->get_main_render_texture();
+			auto renderTarget = editor->get_main_render_texture();
 			CamLenPreviewImage node;
-			node.tex = m_Editor->get_imgui_manager()->get_imgui_renderer()->create_texture(256,256);
-			node.name = "view" + std::to_string(m_PreviewSets->previewImages.size());
-			m_Editor->get_imgui_manager()->get_imgui_renderer()->blit_texture(renderTarget.get(), node.tex.get());
+			node.tex = editor->get_imgui_manager()->get_imgui_renderer()->create_texture(256,256);
+			node.name = "view" + std::to_string(preview_sets->previewImages.size());
+			editor->get_imgui_manager()->get_imgui_renderer()->blit_texture(renderTarget.get(), node.tex.get());
 
 			node.cameraVar = CameraKeyFrameVar(viewMat, 1, 1, 1, 1);
-			m_PreviewSets->previewImages.push_back(node);
+			preview_sets->previewImages.push_back(node);
 		}
 	}
 
 	void ScenePreviewPanel::on_new_scene(Scene* scene)
 	{
-		m_SelectNode = nullptr;
-		m_state = CamLenPreviewState::Normal;
+		select_node = nullptr;
+		preview_state = CamLenPreviewState::Normal;
 
-		auto ents = m_Editor->get_current_scene()->get_entity_manager()->get_entities_with_type<KeyFrameTimeLine>();
+		auto ents = editor->get_current_scene()->get_entity_manager()->get_entities_with_type<KeyFrameTimeLine>();
 		if (ents.empty() )
 		{
-			auto KeyFrameEnt = m_Editor->get_current_scene()->create_entity("KeyFrameEnt");
+			auto KeyFrameEnt = editor->get_current_scene()->create_entity("KeyFrameEnt");
 			KeyFrameEnt.add_component<KeyFrameTimeLine>();
-			m_PreviewSets = &KeyFrameEnt.get_or_add_component<CamLenPreviewImageSet>();
+			preview_sets = &KeyFrameEnt.get_or_add_component<CamLenPreviewImageSet>();
 		}
 		else
 		{
 			auto ent = ents.front();
-			m_PreviewSets = &ent.get_or_add_component< CamLenPreviewImageSet>();
+			preview_sets = &ent.get_or_add_component< CamLenPreviewImageSet>();
 		}
 	}
 	struct JsonCameraFrame
@@ -334,7 +334,7 @@ namespace diverse
 	auto CamLenPreviewImage::load_image() -> void
 	{
 		int width, height, comp;
-		auto img_data = load_stbi(Application::get().get_project_settings().m_ProjectRoot + "assets/previews/" + name + ".png", &width, &height, &comp, 4);
+		auto img_data = load_stbi(Application::get().get_project_settings().ProjectRoot + "assets/previews/" + name + ".png", &width, &height, &comp, 4);
 		tex = Application::get().get_imgui_manager()->get_imgui_renderer()->create_texture(width, height,img_data);
 		free(img_data);
 	}
@@ -342,7 +342,7 @@ namespace diverse
 	auto CamLenPreviewImage::save_image() const-> void
 	{
 		auto img_data = Application::get().get_imgui_manager()->get_imgui_renderer()->export_texture(tex.get());
-		auto path = Application::get().get_project_settings().m_ProjectRoot + "assets/previews/";
+		auto path = Application::get().get_project_settings().ProjectRoot + "assets/previews/";
 		write_stbi(path + name + ".png", 256, 256, 4, (uint8_t*)img_data.data(), 100);
 	}
 }

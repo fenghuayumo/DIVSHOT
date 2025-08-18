@@ -416,7 +416,7 @@ namespace diverse
 				};
 			}
 			if( g_render_settings.gs_vis_type == (int)(GaussianRenderType::Splat) && g_render_settings.splat_edit_render_mode != 1)
-				defines.push_back({"GSPLAT_AA", "1"});
+				defines.push_back({"GSPLAT_AA", cmd.model->antialiased() ? "1" : "0"});
 			if(g_render_settings.gs_vis_type == (int)(GaussianRenderType::Splat))
 				defines.push_back({"SH_DEGREE", std::to_string(cmd.sh_degree)});
 			else

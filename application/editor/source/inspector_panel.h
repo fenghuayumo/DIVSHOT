@@ -14,10 +14,10 @@ namespace diverse
         void on_new_scene(Scene* scene) override;
         void on_imgui_render() override;
         void set_debug_mode(bool mode);
-        bool is_debug_mode() const { return m_DebugMode; };
+        bool is_debug_mode() const { return debug_mode; };
 
     private:
-        MM::ImGuiEntityEditor<entt::entity> m_EnttEditor;
-        bool m_DebugMode = false;
+        MM::ImGuiEntityEditor<entt::entity> entt_editor;
+        bool debug_mode = false;
     };
 }

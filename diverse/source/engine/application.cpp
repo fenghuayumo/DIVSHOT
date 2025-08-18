@@ -34,10 +34,10 @@ namespace diverse
     Application* Application::s_Instance = nullptr;
 
     Application::Application()
-        : m_Frames(0)
-        , m_Updates(0)
-        , m_SceneViewWidth(800)
-        , m_SceneViewHeight(600)
+        : frame_cnts(0)
+        , update_cnts(0)
+        , scene_view_width(800)
+        , scene_view_height(600)
     {
         DS_PROFILE_FUNCTION();
         DS_ASSERT(!s_Instance, "Application already exists!");
@@ -57,11 +57,11 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
 
-        m_FrameArena = ArenaAlloc(Kilobytes(64));
-        m_Arena = ArenaAlloc(Kilobytes(64));
+        frame_arena = ArenaAlloc(Kilobytes(64));
+        arena = ArenaAlloc(Kilobytes(64));
 
         set_max_image_dimensions(2048,2048);
-        m_SceneManager = createUniquePtr<SceneManager>();
+        scene_manager = createUniquePtr<SceneManager>();
         create_default_project();
 
         //CommandLine* cmdline = CoreSystem::GetCmdLine();
@@ -71,47 +71,47 @@ namespace diverse
         //}
 
         Engine::get();
-        m_Timer = createUniquePtr<Timer>();
+        timer = createUniquePtr<Timer>();
         //PythonManager::get().on_init();
-        //PythonManager::get().on_new_project(m_ProjectSettings.m_ProjectRoot);
+        //PythonManager::get().on_new_project(project_settings.m_ProjectRoot);
 
         WindowDesc windowDesc;
-        windowDesc.Width = m_ProjectSettings.Width;
-        windowDesc.Height = m_ProjectSettings.Height;
-        windowDesc.RenderAPI = m_ProjectSettings.RenderAPI;
-        windowDesc.Fullscreen = m_ProjectSettings.Fullscreen;
-        windowDesc.Borderless = m_ProjectSettings.Borderless;
-        windowDesc.ShowConsole = m_ProjectSettings.ShowConsole;
-        windowDesc.Title = m_ProjectSettings.Title;
-        windowDesc.VSync = m_ProjectSettings.VSync;
-        if (m_ProjectSettings.DefaultIcon)
+        windowDesc.Width = project_settings.Width;
+        windowDesc.Height = project_settings.Height;
+        windowDesc.RenderAPI = project_settings.RenderAPI;
+        windowDesc.Fullscreen = project_settings.Fullscreen;
+        windowDesc.Borderless = project_settings.Borderless;
+        windowDesc.ShowConsole = project_settings.ShowConsole;
+        windowDesc.Title = project_settings.Title;
+        windowDesc.VSync = project_settings.VSync;
+        if (project_settings.DefaultIcon)
         {
-    #ifdef DS_PLATFORM_WINDOWS
+        #ifdef DS_PLATFORM_WINDOWS
             windowDesc.IconPaths = { "../resource/app_icons/icon.png", "../resource/app_icons/icon32.png" };
-    #elif defined(DS_PLATFORM_MACOS)
+        #elif defined(DS_PLATFORM_MACOS)
             windowDesc.IconPaths = { stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../Resources/icon.png",stringutility::get_file_location(OS::instance()->getExecutablePath()) +  "../Resources/icon32.png"};
-    #endif
+        #endif
         }
 
-        m_Window = UniquePtr<Window>(Window::create(windowDesc));
-        if (!m_Window->has_initialised())
+        window = UniquePtr<Window>(Window::create(windowDesc));
+        if (!window->has_initialised())
             quit();
 
-        m_Window->set_event_callback(BIND_EVENT_FN(Application::handle_event));
+        window->set_event_callback(BIND_EVENT_FN(Application::handle_event));
 
         ImGui::CreateContext();
         ImPlot::CreateContext();
         ImGui::StyleColorsDark();
 
-        uint32_t screenWidth = m_Window->get_width();
-        uint32_t screenHeight = m_Window->get_height();
+        uint32_t screenWidth = window->get_width();
+        uint32_t screenHeight = window->get_height();
 
-        auto swapchain_extent = m_Window->get_frame_buffer_size();
-//#ifdef DS_PLATFORM_MACOS
-//       auto device = rhi::create_device(-1, RenderAPI::METAL);
-//#else
+        auto swapchain_extent = window->get_frame_buffer_size();
+        //#ifdef DS_PLATFORM_MACOS
+        //       auto device = rhi::create_device(-1, RenderAPI::METAL);
+        //#else
         auto device = rhi::create_device(-1, RenderAPI::VULKAN);
-//#endif
+        //#endif
         auto swap_chain = device->create_swapchain(rhi::SwapchainDesc{ swapchain_extent, false }, Application::get().get_window());
 
         System::JobSystem::Context context;
@@ -120,18 +120,18 @@ namespace diverse
             { diverse::Input::get(); });
 
         System::JobSystem::execute(context, [this](JobDispatchArgs args)
-            {  m_SceneManager->load_current_list(); });
+            {  scene_manager->load_current_list(); });
         System::JobSystem::wait(context);
 
 
-        m_Renderer = createUniquePtr<DeferedRenderer>(device,swap_chain.get());
-        m_Renderer->init();
-        
-       m_ImGuiManager = createUniquePtr<ImGuiManager>(device,swap_chain.get(), m_Renderer->get_ui_renderer());
-       m_ImGuiManager->init();
-       DS_LOG_INFO("Initialised ImGui Manager");
+        main_renderer = createUniquePtr<DeferedRenderer>(device,swap_chain.get());
+        main_renderer->init();
 
-        m_CurrentState = AppState::Running;
+        imgui_manager = createUniquePtr<ImGuiManager>(device,swap_chain.get(), main_renderer->get_ui_renderer());
+        imgui_manager->init();
+        DS_LOG_INFO("Initialised ImGui Manager");
+
+        current_state = AppState::Running;
     }
 
     void Application::quit()
@@ -139,60 +139,60 @@ namespace diverse
         DS_PROFILE_FUNCTION();
         serialise();
 
-        ArenaRelease(m_FrameArena);
+        ArenaRelease(frame_arena);
 
         Engine::release();
         Input::release();
 
-        m_Renderer.reset();
-        m_ImGuiManager.reset();
-        m_Window.reset();
-        m_SceneManager.reset();
+        main_renderer.reset();
+        imgui_manager.reset();
+        window.reset();
+        scene_manager.reset();
     }
 
     std::array<u32,2> Application::get_window_size() const
     {
-        if (!m_Window)
+        if (!window)
             return {0, 0};
-        return std::array<u32, 2>{m_Window->get_width(), m_Window->get_height()};
+        return std::array<u32, 2>{window->get_width(), window->get_height()};
     }
 
     float Application::get_window_dpi() const
     {
-        if (!m_Window)
+        if (!window)
             return 1.0f;
 
-        return m_Window->get_dpi_scale();
+        return window->get_dpi_scale();
     }
 
 
     Scene* Application::get_current_scene() const
     {
         DS_PROFILE_FUNCTION_LOW();
-        return m_SceneManager->get_current_scene();
+        return scene_manager->get_current_scene();
     }
 
     void Application::handle_new_scene(Scene * scene)
     {
         DS_PROFILE_FUNCTION();
-        m_Renderer->handle_new_scene(scene);
+        main_renderer->handle_new_scene(scene);
     }
 
     bool Application::frame()
     {
         DS_PROFILE_FUNCTION();
         DS_PROFILE_FRAMEMARKER();
-        ArenaClear(m_FrameArena);
+        ArenaClear(frame_arena);
 
-        if (m_SceneManager->get_switching_scene())
+        if (scene_manager->get_switching_scene())
         {
             DS_PROFILE_SCOPE("Application::SceneSwitch");
             //wait idle
-            m_SceneManager->apply_scene_switch();
-            return m_CurrentState != AppState::Closing;
+            scene_manager->apply_scene_switch();
+            return current_state != AppState::Closing;
         }
 
-        double now = m_Timer->GetElapsedSD();
+        double now = timer->GetElapsedSD();
         auto& stats = Engine::get().statistics();
         auto& ts = Engine::get_time_step();
 
@@ -216,7 +216,7 @@ namespace diverse
         }
 
         Input::get().reset_pressed();
-        m_Window->process_input();
+        window->process_input();
 
         {
             DS_PROFILE_SCOPE("ImGui::NewFrame");
@@ -231,26 +231,26 @@ namespace diverse
             System::JobSystem::execute(context, [](JobDispatchArgs args)
                 { Application::update_systems(); });
 
-            m_Updates++;
+            update_cnts++;
         }
 
         // Exit frame early if escape or close button clicked
         // Prevents a crash with vulkan/moltenvk
-        if (m_CurrentState == AppState::Closing && !m_SceneSaveOnClose)
+        if (current_state == AppState::Closing && !scene_save_on_close)
         {
             System::JobSystem::wait(context);
             return false;
         }
 
-        if (!m_Minimized)
+        if (!is_minimized)
         {
             DS_PROFILE_SCOPE("Application::Render");
             
-            m_ImGuiManager->render([&](){imgui_render();});
+            imgui_manager->render([&](){imgui_render();});
             DebugRenderer::Reset();
             debug_draw();
             render();
-            m_Frames++;
+            frame_cnts++;
         }
         else
         {
@@ -263,30 +263,30 @@ namespace diverse
 
         {
             DS_PROFILE_SCOPE("Application::WindowUpdate");
-            m_Window->update_cursor_imgui();
-            m_Window->on_update();
+            window->update_cursor_imgui();
+            window->on_update();
         }
 
         {
             System::JobSystem::wait(context);
         }
 
-        if (now - m_SecondTimer > 1.0f)
+        if (now - second_timer > 1.0f)
         {
             DS_PROFILE_SCOPE("Application::FrameRateCalc");
-            m_SecondTimer += 1.0f;
+            second_timer += 1.0f;
 
-            stats.FramesPerSecond = m_Frames;
-            stats.UpdatesPerSecond = m_Updates;
+            stats.FramesPerSecond = frame_cnts;
+            stats.UpdatesPerSecond = update_cnts;
 
-            m_Frames = 0;
-            m_Updates = 0;
+            frame_cnts = 0;
+            update_cnts = 0;
         }
-        if (!m_Minimized)
+        if (!is_minimized)
         {
             //present
         }
-        return m_CurrentState != AppState::Closing || m_SceneSaveOnClose;
+        return current_state != AppState::Closing || scene_save_on_close;
     }
 
 
@@ -298,7 +298,7 @@ namespace diverse
     void Application::render()
     {
         DS_PROFILE_FUNCTION();
-        m_Renderer->render();
+        main_renderer->render();
     }
 
     void Application::imgui_render()
@@ -315,14 +315,14 @@ namespace diverse
     void Application::update(const TimeStep& dt)
     {
         DS_PROFILE_FUNCTION();
-        if (!m_SceneManager->get_current_scene())
+        if (!scene_manager->get_current_scene())
             return;
 
 
         if (Application::get().get_editor_state() != EditorState::Paused
             && Application::get().get_editor_state() != EditorState::Preview)
         {
-            m_SceneManager->get_current_scene()->on_update(dt);
+            scene_manager->get_current_scene()->on_update(dt);
         }
     }
 
@@ -333,8 +333,8 @@ namespace diverse
         dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FN(Application::handle_window_close));
         dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FN(Application::handle_window_resize));
 
-       if (m_ImGuiManager)
-           m_ImGuiManager->handle_event(e);
+        if (imgui_manager)
+            imgui_manager->handle_event(e);
         if (e.Handled())
             return;
 
@@ -352,27 +352,27 @@ namespace diverse
 
         if (width == 0 || height == 0)
         {
-            m_Minimized = true;
+            is_minimized = true;
             return false;
         }
-        m_Minimized = false;
+        is_minimized = false;
         
-        if (m_Renderer)
-            m_Renderer->handle_window_resize(width, height);
+        if (main_renderer)
+            main_renderer->handle_window_resize(width, height);
 
         return false;
     }
 
     bool Application::handle_renderer_resize(u32 width, u32 height)
     {
-        m_Renderer->handle_resize(width, height);
+        main_renderer->handle_resize(width, height);
         return true;
     }
 
     bool Application::handle_window_close(WindowCloseEvent& e)
     {
-        m_CurrentState = AppState::Closing;
-        m_SceneSaveOnClose = true;
+        current_state = AppState::Closing;
+        scene_save_on_close = true;
         return true;
     }
 
@@ -387,131 +387,119 @@ namespace diverse
 
     std::shared_ptr<rhi::GpuTexture> Application::get_main_render_texture()
     {
-        return m_Renderer->get_main_render_image();
+        return main_renderer->get_main_render_image();
     }
 
     void Application::set_main_render_texture(std::shared_ptr<rhi::GpuTexture> texture)
     {
-        m_Renderer->set_main_render_image(texture);
+        main_renderer->set_main_render_image(texture);
     }
 
     void Application::set_override_camera(Camera* camera, maths::Transform* overrideCameraTransform)
     {
-        m_Renderer->set_override_camera(camera, overrideCameraTransform);
+        main_renderer->set_override_camera(camera, overrideCameraTransform);
     }
 
     int Application::frame_number() const
     {
-        return m_Renderer->frame_idx;
+        return main_renderer->frame_idx;
     }
 
     void Application::refresh_shaders()
     {
-        m_Renderer->refresh_shaders();
+        main_renderer->refresh_shaders();
     }
 
     void Application::invalidate_pt_state()
     {
-        m_Renderer->invalidate_pt_state();
+        main_renderer->invalidate_pt_state();
     }
 
     void Application::open_project(const std::string& filePath)
     {
         DS_PROFILE_FUNCTION();
-        m_ProjectSettings.m_ProjectName = stringutility::get_file_name(filePath);
-        m_ProjectSettings.m_ProjectName = stringutility::remove_file_extension(m_ProjectSettings.m_ProjectName);
+        project_settings.ProjectName = stringutility::get_file_name(filePath);
+        project_settings.ProjectName = stringutility::remove_file_extension(project_settings.ProjectName);
 
 #ifndef DS_PLATFORM_IOS
         auto projectRoot = stringutility::get_file_location(filePath);
-        m_ProjectSettings.m_ProjectRoot = projectRoot;
+        project_settings.ProjectRoot = projectRoot;
 #endif
 
-        m_SceneManager = createUniquePtr<SceneManager>();
+        scene_manager = createUniquePtr<SceneManager>();
 
         deserialise();
 
-        m_SceneManager->load_current_list();
-        m_SceneManager->apply_scene_switch();
+        scene_manager->load_current_list();
+        scene_manager->apply_scene_switch();
     }
 
     void Application::open_new_project(const std::string& path, const std::string& name,bool create_scene)
     {
         DS_PROFILE_FUNCTION();
-        m_ProjectSettings.m_ProjectRoot = path + "/" + name + "/";
-        m_ProjectSettings.m_ProjectName = name;
+        project_settings.ProjectRoot = path + "/" + name + "/";
+        project_settings.ProjectName = name;
         if (!FileSystem::folder_exists(path))
 			std::filesystem::create_directory(path);
 
-        std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot);
+        std::filesystem::create_directory(project_settings.ProjectRoot);
 
         mount_file_system_paths();
         // Set Default values
-        m_ProjectSettings.RenderAPI = 1;
-        m_ProjectSettings.Width = 1200;
-        m_ProjectSettings.Height = 800;
-        m_ProjectSettings.Borderless = false;
-        m_ProjectSettings.VSync = true;
-        m_ProjectSettings.Title = "SplatX";
-        m_ProjectSettings.ShowConsole = false;
-        m_ProjectSettings.Fullscreen = false;
+        project_settings.RenderAPI = 1;
+        project_settings.Width = 1200;
+        project_settings.Height = 800;
+        project_settings.Borderless = false;
+        project_settings.VSync = false;
+        project_settings.Title = "SplatX";
+        project_settings.ShowConsole = false;
+        project_settings.Fullscreen = false;
 
 #ifdef DS_PLATFORM_MACOS
         // This is assuming Application in bin/Release-macos-x86_64/diverseEditor.app
         DS_LOG_INFO(stringutility::get_file_location(OS::instance()->getExecutablePath()));
-        m_ProjectSettings.m_EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../../../../diverse/assets/";
+        project_settings.EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../../../../diverse/assets/";
 #else
-        m_ProjectSettings.m_EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../diverse/assets/";
+        project_settings.EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../diverse/assets/";
 #endif
 
-        if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets"))
-            std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets");
+        if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets"))
+            std::filesystem::create_directory(project_settings.ProjectRoot + "assets");
+            
+        if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets/scenes"))
+            std::filesystem::create_directory(project_settings.ProjectRoot + "assets/scenes");
 
-        //if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/scripts"))
-        //    std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/scripts");
+        if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets/textures"))
+            std::filesystem::create_directory(project_settings.ProjectRoot + "assets/textures");
 
-        if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/scenes"))
-            std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/scenes");
+        if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets/meshes"))
+            std::filesystem::create_directory(project_settings.ProjectRoot + "assets/meshes");
 
-        if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/textures"))
-            std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/textures");
-
-        if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/meshes"))
-            std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/meshes");
-
-        if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/previews"))
-            std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/previews");
-        //if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/sounds"))
-        //    std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/sounds");
-
-        //if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/prefabs"))
-        //    std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/prefabs");
-
-        //if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/materials"))
-        //    std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/materials");
+        if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets/previews"))
+            std::filesystem::create_directory(project_settings.ProjectRoot + "assets/previews");
 
         mount_file_system_paths();
 
         // Set Default values
-        m_ProjectSettings.Title = "SplatX";
-        m_ProjectSettings.Fullscreen = false;
+        project_settings.Title = "SplatX";
+        project_settings.Fullscreen = false;
         if (create_scene)
         {
-            m_SceneManager = createUniquePtr<SceneManager>();
-            m_SceneManager->enqueue_scene(new Scene(name));
-            m_SceneManager->switch_scene(0);
-            m_SceneManager->apply_scene_switch();
+            scene_manager = createUniquePtr<SceneManager>();
+            scene_manager->enqueue_scene(new Scene(name));
+            scene_manager->switch_scene(0);
+            scene_manager->apply_scene_switch();
         }
    
-        m_ProjectLoaded = true;
+        project_loaded = true;
 
         serialise();
 
-        //LuaManager::Get().OnNewProject(m_ProjectSettings.m_ProjectRoot);
     }
 
     void Application::mount_file_system_paths()
     {
-        FileSystem::get().set_asset_root(PushStr8Copy(m_Arena, (m_ProjectSettings.m_ProjectRoot + std::string("assets")).c_str()));
+        FileSystem::get().set_asset_root(PushStr8Copy(arena, (project_settings.ProjectRoot + std::string("assets")).c_str()));
     }
 
     void Application::serialise()
@@ -524,7 +512,7 @@ namespace diverse
                 cereal::JSONOutputArchive output{ storage };
                 output(*this);
             }
-            auto fullPath = m_ProjectSettings.m_ProjectRoot + m_ProjectSettings.m_ProjectName + std::string(".dvs");
+            auto fullPath = project_settings.ProjectRoot + project_settings.ProjectName + std::string(".dvs");
             DS_LOG_INFO("Serialising Application {0}", fullPath);
             FileSystem::write_text_file(fullPath, storage.str());
         }
@@ -534,7 +522,7 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
         {
-            auto filePath = m_ProjectSettings.m_ProjectRoot + m_ProjectSettings.m_ProjectName + std::string(".dvs");
+            auto filePath = project_settings.ProjectRoot + project_settings.ProjectName + std::string(".dvs");
 
             mount_file_system_paths();
 
@@ -547,34 +535,25 @@ namespace diverse
                 return;
             }
 
-            if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets"))
-                std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets");
+            if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets"))
+                std::filesystem::create_directory(project_settings.ProjectRoot + "assets");
 
-            //if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/scripts"))
-            //    std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/scripts");
+            //if (!FileSystem::folder_exists(project_settings.m_ProjectRoot + "assets/scripts"))
+            //    std::filesystem::create_directory(project_settings.m_ProjectRoot + "assets/scripts");
 
-            if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/scenes"))
-                std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/scenes");
+            if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets/scenes"))
+                std::filesystem::create_directory(project_settings.ProjectRoot + "assets/scenes");
 
-            if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/textures"))
-                std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/textures");
+            if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets/textures"))
+                std::filesystem::create_directory(project_settings.ProjectRoot + "assets/textures");
 
-            if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/meshes"))
-                std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/meshes");
+            if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets/meshes"))
+                std::filesystem::create_directory(project_settings.ProjectRoot + "assets/meshes");
 
-            if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/previews"))
-                std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/previews");
+            if (!FileSystem::folder_exists(project_settings.ProjectRoot + "assets/previews"))
+                std::filesystem::create_directory(project_settings.ProjectRoot + "assets/previews");
 
-            //if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/sounds"))
-            //    std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/sounds");
-
-            //if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/prefabs"))
-            //    std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/prefabs");
-
-            //if (!FileSystem::folder_exists(m_ProjectSettings.m_ProjectRoot + "assets/materials"))
-            //    std::filesystem::create_directory(m_ProjectSettings.m_ProjectRoot + "assets/materials");
-
-            m_ProjectLoaded = true;
+            project_loaded = true;
 
             std::string data = FileSystem::read_text_file(filePath);
             std::istringstream istr;
@@ -587,23 +566,23 @@ namespace diverse
             catch (...)
             {
                 // Set Default values
-                m_ProjectSettings.RenderAPI = 1;
-                m_ProjectSettings.Width = 1200;
-                m_ProjectSettings.Height = 800;
-                m_ProjectSettings.Borderless = false;
-                m_ProjectSettings.VSync = true;
-                m_ProjectSettings.Title = "SplatX";
-                m_ProjectSettings.ShowConsole = false;
-                m_ProjectSettings.Fullscreen = false;
+                project_settings.RenderAPI = 1;
+                project_settings.Width = 1200;
+                project_settings.Height = 800;
+                project_settings.Borderless = false;
+                project_settings.VSync = false;
+                project_settings.Title = "SplatX";
+                project_settings.ShowConsole = false;
+                project_settings.Fullscreen = false;
 
 #ifdef DS_PLATFORM_MACOS
-                m_ProjectSettings.m_EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../../../../diverse/assets/";
+                project_settings.EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../../../../diverse/assets/";
 #else
-                m_ProjectSettings.m_EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../diverse/assets/";
+                project_settings.EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../diverse/assets/";
 #endif
 
-                m_SceneManager->enqueue_scene(new Scene("Empty Scene"));
-                m_SceneManager->switch_scene(0);
+                scene_manager->enqueue_scene(new Scene("Empty Scene"));
+                scene_manager->switch_scene(0);
 
                 DS_LOG_ERROR("Failed to load project - {0}", filePath);
             }
@@ -612,42 +591,42 @@ namespace diverse
 
     void Application::create_default_project()
     {
-        m_SceneManager = createUniquePtr<SceneManager>();
+        scene_manager = createUniquePtr<SceneManager>();
 
         // Set Default values
-        m_ProjectSettings.RenderAPI = 1;
-        m_ProjectSettings.Width = 1200;
-        m_ProjectSettings.Height = 800;
-        m_ProjectSettings.Borderless = false;
-        m_ProjectSettings.VSync = true;
-        m_ProjectSettings.Title = "SplatX";
-        m_ProjectSettings.ShowConsole = false;
-        m_ProjectSettings.Fullscreen = false;
+        project_settings.RenderAPI = 1;
+        project_settings.Width = 1200;
+        project_settings.Height = 800;
+        project_settings.Borderless = false;
+        project_settings.VSync = false;
+        project_settings.Title = "SplatX";
+        project_settings.ShowConsole = false;
+        project_settings.Fullscreen = false;
 
-        m_ProjectLoaded = false;
+        project_loaded = false;
 
 #ifdef DS_PLATFORM_MACOS
         // This is assuming Application in bin/Release-macos-x86_64/diverse_editor.app
         DS_LOG_INFO(stringutility::get_file_location(OS::instance()->getExecutablePath()));
-        m_ProjectSettings.m_EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../../../../diverse/assets/";
+        project_settings.EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../../../../diverse/assets/";
 
-        if (!FileSystem::folder_exists(m_ProjectSettings.m_EngineAssetPath))
+        if (!FileSystem::folder_exists(project_settings.EngineAssetPath))
         {
-            m_ProjectSettings.m_EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../diverse/assets/";
+            project_settings.EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../diverse/assets/";
         }
 #else
-        m_ProjectSettings.m_EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../diverse/assets/";
+        project_settings.EngineAssetPath = stringutility::get_file_location(OS::instance()->getExecutablePath()) + "../../diverse/assets/";
 #endif
-        m_SceneManager->enqueue_scene(new Scene("Empty Scene"));
-        m_SceneManager->switch_scene(0);
+        scene_manager->enqueue_scene(new Scene("Empty Scene"));
+        scene_manager->switch_scene(0);
     }
 
     void Application::add_default_scene()
     {
-        if (m_SceneManager->get_scenes().Size() == 0)
+        if (scene_manager->get_scenes().Size() == 0)
         {
-            m_SceneManager->enqueue_scene(new Scene("Empty Scene"));
-            m_SceneManager->switch_scene(0);
+            scene_manager->enqueue_scene(new Scene("Empty Scene"));
+            scene_manager->switch_scene(0);
         }
     }
 }
