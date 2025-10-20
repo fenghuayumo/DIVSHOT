@@ -1,14 +1,14 @@
-PackageIdentifier: hby.splatx
-PackageVersion: @SPLATX_VERSION@
+PackageIdentifier: hby.diverseshot
+PackageVersion: @DIVERSESHOT_VERSION@
 PackageLocale: en-US
 Publisher: hby (Thomas Müller)
-PackageName: splatx
+PackageName: diverseshot
 License: BSD-3
 ShortDescription: @CPACK_PACKAGE_DESCRIPTION_SUMMARY@
 Installers:
 - Architecture: x64
   InstallerType: wix
-  InstallerSha256: @SPLATX_INSTALLER_SHA256@
+  InstallerSha256: @DIVERSESHOT_INSTALLER_SHA256@
 #   InstallerSwitches:
 #     Silent: /q
 #     SilentWithProgress: /q

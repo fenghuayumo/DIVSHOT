@@ -139,19 +139,42 @@ float3 computeCov2D_ortho(float3 p_view, float focal_x, float focal_y,float3x3 c
     return float3(float(cov[0][0]), float(cov[1][1]), float(cov[0][1]));
 }
 
+float3x3 computeCov2D(float3 center_view, float3 covA, float3 covB, float4x4 viewmatrix,float focal_x,bool is_ortho)
+{
+    float3x3 Vrk = float3x3(
+        covA.x, covA.y, covA.z, 
+        covA.y, covB.x, covB.y,
+        covA.z, covB.y, covB.z
+    );
+    float3 v = is_ortho ? float3(0.0, 0.0, 1.0) : center_view.xyz;
+    float J1 = focal_x / v.z;
+    float2 J2 = -J1 / v.z * v.xy;
+    float3x3 J = float3x3(
+        J1, 0.0, J2.x,
+        0.0, J1, J2.y,
+        0.0, 0.0, 0.0
+    );
+    // T = W * J;
+    // cov = transpose(T) * Vrk * T;
+    float3x3 W = float3x3(
+        viewmatrix[0][0], viewmatrix[1][0], viewmatrix[2][0],
+        viewmatrix[0][1], viewmatrix[1][1], viewmatrix[2][1],
+        viewmatrix[0][2], viewmatrix[1][2], viewmatrix[2][2]);
+    float3x3 T = mul(J, W);
+    float3x3 cov = mul(T, mul(transpose(Vrk), transpose(T)));
+    return cov;
+}
+
 #if VISUALIZE_NORMAL
-void computeCov3D(float3 scale, float mod, float4 rot, out float3x3 cov3D, out float3 normal)
+void computeCov3D(float3 scale, float4 rot, out float3 covA, out float3 covB, out float3 normal)
 #else
-void computeCov3D(float3 scale, float mod, float4 rot, out float3x3 cov3D)
+void computeCov3D(float3 scale, float4 rot, out float3 covA, out float3 covB)
 #endif
 {
     // Create scaling matrix
-    float3x3 S = float3x3(1.0f, 0.0, 0.0,
-                          0.0, 1.0, 0.0,
-                          0.0, 0.0, 1.0);
-    S[0][0] = mod * scale.x;
-    S[1][1] = mod * scale.y;
-    S[2][2] = mod * scale.z;
+    float3x3 S = float3x3(scale.x, 0.0, 0.0,
+                          0.0, scale.y, 0.0,
+                          0.0, 0.0, scale.z);
 #if VISUALIZE_NORMAL
     float3 scale_axis = float3(0, 1, 0);
     if (scale.x < scale.y && scale.x < scale.z) {
@@ -180,16 +203,9 @@ void computeCov3D(float3 scale, float mod, float4 rot, out float3x3 cov3D)
 #endif
     // float3x3 M = S * R;
     float3x3 M = mul(R, S);
-    // Compute 3D world covariance matrix Sigma
-    // float3x3 Sigma = transpose(M) * M;
-    float3x3 Sigma = mul(M, transpose(M));
-    // Covariance is symmetric, only store upper right
-    cov3D[0][0] = Sigma[0][0];
-    cov3D[0][1] = Sigma[0][1];
-    cov3D[0][2] = Sigma[0][2];
-    cov3D[1][1] = Sigma[1][1];
-    cov3D[1][2] = Sigma[1][2];
-    cov3D[2][2] = Sigma[2][2];
+
+    covA = float3(dot(M[0], M[0]), dot(M[0], M[1]), dot(M[0], M[2]));
+    covB = float3(dot(M[1], M[1]), dot(M[1], M[2]), dot(M[2], M[2]));
 }
 
 float ndc2Pix(float v, int S)
@@ -197,32 +213,20 @@ float ndc2Pix(float v, int S)
     return ((v + 1.0) * S - 1.0) * 0.5;
 }
 
-float2 computeNDCOffset(float2 basisVector0, float2 basisVector1, float2 vPosition)
-{
-    float2 screen_pixel_size = 1.0 / float2(surface_width, surface_height);
-    return (vPosition.x * basisVector0 + vPosition.y * basisVector1) * screen_pixel_size * 2.0;
-}
-
-float4 get_bounding_box(float2 direction, float radius_px)
-{
-    float2 screen_size = float2(surface_width, surface_height);
-    float2 screen_pixel_size = 1.0 / screen_size;
-    float2 radius_ndc = screen_pixel_size * radius_px * 2;
-    return float4(
-        radius_ndc * direction,
-        radius_px * direction
-    );
-}
-
 VS_OUTPUT main(uint vertexID : SV_VertexID,uint instanceID : SV_InstanceID)
 {
+    VS_OUTPUT output;
     uint global_id = point_list_value_buffer[instanceID];
+    if(global_id >= num_gaussians)
+    {
+        output.colour.w = 0.0;
+        return output;
+    }
     Gaussian gaussian = bindless_gaussians(buf_id).Load<Gaussian>(global_id * sizeof(Gaussian));
     uint state = bindless_splat_state[buf_id].Load<uint>(global_id * sizeof(uint));
     float4 gs_position = float4(gaussian.position.xyz,asfloat(state));
     uint gs_state = asuint(gs_position.w);
     uint op_state = getOpState(gs_state);
-    VS_OUTPUT output;
     if (op_state & DELETE_STATE) 
     {
         output.colour.w = 0.0;
@@ -236,25 +240,20 @@ VS_OUTPUT main(uint vertexID : SV_VertexID,uint instanceID : SV_InstanceID)
     float4x4 transform = model_matrix;
 #endif
     float4 world_pos = mul(float4(gs_position.xyz, 1.0), transform);
-
     float4x4 view = frame_constants.view_constants.world_to_view;
     float4x4 model_view = mul(transform, view);
     float4x4 proj = frame_constants.view_constants.view_to_clip;
-    float3 p_view = mul(world_pos, view).xyz;
-    if(p_view.z > 0)
+    float4 p_view = mul(world_pos, view);
+    if(p_view.z >= 0.0f)
     {
         output.colour.w = 0.0;
         return output;
     }
     // perspective projection
-    float4 p_hom = mul(float4(p_view, 1.0), proj);
+    float4 p_hom = mul(p_view, proj);
     float p_w = 1.0f / (p_hom.w + 0.0000001f);
     float4 p_proj = p_hom * p_w;
-    if (p_proj.z <= 0.0 || p_proj.z >= 1.0 ) 
-    {
-        output.colour.w = 0.0;
-        return output;
-    }
+    float3 center_view = p_view.xyz / p_view.w;
 #if OUTLINE_PASS
     if (op_state != SELECT_STATE)
     {
@@ -264,37 +263,47 @@ VS_OUTPUT main(uint vertexID : SV_VertexID,uint instanceID : SV_InstanceID)
 #endif
 
     // Gaussian rotation, scale, and opacity
-    float4 rotation_scale = gaussian.rotation_scale;
-    float4 scale_opacity = unpack_half4(rotation_scale.zw);
-    float4 q = unpack_half4(rotation_scale.xy);
-
+    uint4 rotation_scale = gaussian.rotation_scale;
+    float4 scale_opacity = unpack_uint2(rotation_scale.zw);
+    float opac = scale_opacity.w;
+    if(opac <= 1.0 / 255.0) 
+    {
+        output.colour.w = 0.0;
+        return output;
+    }
+    float4 q = unpack_uint2(rotation_scale.xy);
+    float quat_norm_sqr = dot(q, q);
+    if (quat_norm_sqr < 1e-6) 
+    {
+        output.colour.w = 0.0;
+        return output;
+    }
     float3 s = scale_opacity.xyz * saturate(color_offset.w);
 
-    float3x3 cov3D;
+    float3 covA, covB;
 #if VISUALIZE_NORMAL
     float3 normal;
-    computeCov3D(s, 1.0, q, cov3D, normal);
+    computeCov3D(s, q, covA, covB, normal);
 #else
-    computeCov3D(s, 1.0, q, cov3D);
+    computeCov3D(s, q, covA, covB);
 #endif
-    const float tan_fovy = 1.0 / abs(proj[1][1]);
-    const float tan_fovx = 1.0 / abs(proj[0][0]);
-    const float focal_y = surface_height / (2.0f * tan_fovy);
+    //const float tan_fovy = 1.0 / abs(proj[1][1]);
+    //const float focal_y = surface_height / (2.0f * tan_fovy);
+    const float tan_fovx = 1.0 / proj[0][0];
     const float focal_x = surface_width / (2.0f * tan_fovx);
     const bool is_ortho = proj[2][3] == 0.0f;
-    float3 covariance = is_ortho ? computeCov2D_ortho(p_view.xyz, abs(proj[0][0]) * surface_width / 2.0, abs(proj[1][1]) * surface_height / 2.0f, cov3D, model_view) :
-                                computeCov2D_persp(p_view.xyz, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, model_view);
+    float3x3 cov2D = computeCov2D(center_view, covA, covB, model_view, focal_x, is_ortho);
 #if GSPLAT_AA
     // calculate AA factor
-    float detOrig = covariance.x * covariance.y - covariance.z * covariance.z;
-    float detBlur = (covariance.x + 0.3) * (covariance.y + 0.3) - covariance.z * covariance.z;
+    float detOrig = cov2D[0][0] * cov2D[1][1] - cov2D[0][1] * cov2D[0][1];
+    float detBlur = (cov2D[0][0] + 0.3) * (cov2D[1][1] + 0.3) - cov2D[0][1] * cov2D[0][1];
     float corner_aaFactor = sqrt(max(detOrig / detBlur, 0.0));
 #endif
 
     // Gaussian region
-    float diagonal1 = covariance.x + 0.3;
-    float offDiagonal = covariance.z;
-    float diagonal2 = covariance.y + 0.3;
+    float diagonal1 = cov2D[0][0] + 0.3;
+    float offDiagonal = cov2D[0][1];
+    float diagonal2 = cov2D[1][1] + 0.3;
 
     float mid = 0.5 * (diagonal1 + diagonal2);
     float radius = length(float2((diagonal1 - diagonal2) / 2.0, offDiagonal));
@@ -306,22 +315,33 @@ VS_OUTPUT main(uint vertexID : SV_VertexID,uint instanceID : SV_InstanceID)
 
     float l1 = 2.0 * min(sqrt(2.0 * lambda1), vmin);
     float l2 = 2.0 * min(sqrt(2.0 * lambda2), vmin);
-    if (l1 < 2.0 || l2 < 2.0) {
+    if (l1 < 0.1f || l2 < 0.1f) {
         output.colour.a = 0.0; // will not emit things
         return output;
     }
+    float2 c = 2.0f / float2(surface_width, surface_height);
+    // cull against frustum x/y axes
+    float l = max(l1, l2);
+    if (any((abs(p_proj.xy) - float2(l,l) * c - float2(1,1)) > 0.0)) {
+        output.colour.a = 0.0; // will not emit things
+        return output;
+    }
+    
     float2 diagonalVector = normalize(float2(offDiagonal, lambda1 - diagonal1));
     float2 v1 = l1 * diagonalVector;
     float2 v2 = l2 * float2(diagonalVector.y, -diagonalVector.x);
 
     int vi = vertexID % 4;
     float2 corner_uv = vPosition[vi];
-    float2 c = 2.0 / float2(surface_width, surface_height);
     float2 corner_offset = (corner_uv.x * v1 + corner_uv.y * v2) * c;
-    float3 direction = normalize(world_pos.xyz - get_eye_position());
+    // float3 direction = normalize(world_pos.xyz - get_eye_position());
+    float3x3 model_view_3x3 = float3x3(model_view[0][0],model_view[0][1],model_view[0][2],
+                                    model_view[1][0],model_view[1][1],model_view[1][2],
+                                    model_view[2][0],model_view[2][1],model_view[2][2]);
+    float3 direction = normalize(mul(model_view_3x3,center_view));
 
 #if VISUALIZE_NORMAL
-    output.colour = float4( normalize(normal) * 0.5 + 0.5, scale_opacity.w);
+    output.colour = float4( normalize(normal) * 0.5 + 0.5, opac);
 #elif VISUALIZE_DEPTH
 
     float3 first_pos = bindless_gaussians(buf_id).Load<Gaussian>(point_list_value_buffer[0] * sizeof(Gaussian)).position.xyz;
@@ -335,18 +355,18 @@ VS_OUTPUT main(uint vertexID : SV_VertexID,uint instanceID : SV_InstanceID)
     float r = smoothstep(0.5, 1.0, normalized_depth);
     float g = 1.0 - abs(normalized_depth - 0.5) * 2.0;
     float b = 1.0 - smoothstep(0.0, 0.5, normalized_depth);
-    output.colour = float4(float3(r, g, b), scale_opacity.w);
+    output.colour = float4(float3(r, g, b), opac);
 #elif VISUALIZE_OPACITY
-    output.colour = float4(float3(1,1,1), scale_opacity.w);
+    output.colour = float4(float3(1,1,1), opac);
 #else
     if (op_state & DELETE_STATE)
         output.colour = float4(0, 0, 0, 0);
     else if (op_state & HIDE_STATE)
-        output.colour = float4(get_color(global_id, direction) * locked_color.xyz, scale_opacity.w);
+        output.colour = float4(get_color(global_id, direction) * locked_color.xyz, opac);
     else if (op_state & SELECT_STATE)
-        output.colour = float4(lerp(get_color(global_id, direction), select_color.xyz * 0.8, select_color.w), scale_opacity.w);
+        output.colour = float4(lerp(get_color(global_id, direction), select_color.xyz * 0.8, select_color.w), opac);
     else
-        output.colour = float4(get_color(global_id, direction) * tintColor.xyz + color_offset.xyz, tintColor.w * scale_opacity.w);
+        output.colour = float4(get_color(global_id, direction) * tintColor.xyz + color_offset.xyz, tintColor.w * opac);
 #endif
 #if GSPLAT_AA
     // apply AA compensation

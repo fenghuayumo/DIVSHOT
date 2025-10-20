@@ -2,7 +2,7 @@
 
 cd "$(dirname ${BASH_SOURCE[0]})"
 
-echo "Building splatx..."
+echo "Building diverseshot..."
 
 BUILD_DIR="build-dmg"
 
@@ -18,33 +18,33 @@ cmake \
     ../.. || exit 1
 make -j8 || exit 1
 cd ..
-sudo mkdir -p $BUILD_DIR/bin/splatx.app/Contents/Frameworks
-# sudo mkdir -p $BUILD_DIR/bin/splatx.app/Contents/Resources/app_icons
-sudo mkdir -p $BUILD_DIR/bin/splatx.app/Contents/Resources/fonts
-sudo mkdir -p $BUILD_DIR/bin/splatx.app/Contents/Resources/vulkan/icd.d
-sudo mkdir -p $BUILD_DIR/bin/splatx.app/Contents/layouts
+sudo mkdir -p $BUILD_DIR/bin/diverseshot.app/Contents/Frameworks
+# sudo mkdir -p $BUILD_DIR/bin/diverseshot.app/Contents/Resources/app_icons
+sudo mkdir -p $BUILD_DIR/bin/diverseshot.app/Contents/Resources/fonts
+sudo mkdir -p $BUILD_DIR/bin/diverseshot.app/Contents/Resources/vulkan/icd.d
+sudo mkdir -p $BUILD_DIR/bin/diverseshot.app/Contents/layouts
 
-sudo cp ../application/resource/fonts/simkai.ttf $BUILD_DIR/bin/splatx.app/Contents/Resources/fonts/simkai.ttf
-sudo cp ../layouts/dvui.ini $BUILD_DIR/bin/splatx.app/Contents/layouts/dvui.ini
-sudo cp /usr/local/lib/libvulkan.1.dylib $BUILD_DIR/bin/splatx.app/Contents/Frameworks
+sudo cp ../application/resource/fonts/simkai.ttf $BUILD_DIR/bin/diverseshot.app/Contents/Resources/fonts/simkai.ttf
+sudo cp ../layouts/dvui.ini $BUILD_DIR/bin/diverseshot.app/Contents/layouts/dvui.ini
+sudo cp /usr/local/lib/libvulkan.1.dylib $BUILD_DIR/bin/diverseshot.app/Contents/Frameworks
 real_dep=$(realpath "/usr/local/lib/libvulkan.1.dylib")
 dep_name=$(basename "$real_dep")
-sudo cp "$real_dep" "$BUILD_DIR/bin/splatx.app/Contents/Frameworks/$dep_name"
+sudo cp "$real_dep" "$BUILD_DIR/bin/diverseshot.app/Contents/Frameworks/$dep_name"
 
-sudo cp /usr/local/lib/libMoltenVK.dylib $BUILD_DIR/bin/splatx.app/Contents/Frameworks
-# sudo cp $BUILD_DIR/bin/libgstrain.dylib $BUILD_DIR/bin/splatx.app/Contents/Frameworks
-# sudo cp $BUILD_DIR/bin/libtinygsplat.dylib $BUILD_DIR/bin/splatx.app/Contents/Frameworks
-# sudo cp $BUILD_DIR/bin/libcolmap_dvs.dylib $BUILD_DIR/bin/splatx.app/Contents/Frameworks
-# sudo cp $BUILD_DIR/bin/default.metallib $BUILD_DIR/bin/splatx.app/Contents/Resources/default.metallib
-sudo cp $BUILD_DIR/bin/splatx-cli $BUILD_DIR/bin/splatx.app/Contents/MacOS/splatx-cli
+sudo cp /usr/local/lib/libMoltenVK.dylib $BUILD_DIR/bin/diverseshot.app/Contents/Frameworks
+# sudo cp $BUILD_DIR/bin/libgstrain.dylib $BUILD_DIR/bin/diverseshot.app/Contents/Frameworks
+# sudo cp $BUILD_DIR/bin/libtinygsplat.dylib $BUILD_DIR/bin/diverseshot.app/Contents/Frameworks
+# sudo cp $BUILD_DIR/bin/libcolmap_dvs.dylib $BUILD_DIR/bin/diverseshot.app/Contents/Frameworks
+# sudo cp $BUILD_DIR/bin/default.metallib $BUILD_DIR/bin/diverseshot.app/Contents/Resources/default.metallib
+sudo cp $BUILD_DIR/bin/diverseshot-cli $BUILD_DIR/bin/diverseshot.app/Contents/MacOS/diverseshot-cli
 
-sudo python3 modify_dylib.py --appPath $BUILD_DIR/bin/splatx.app
+sudo python3 modify_dylib.py --appPath $BUILD_DIR/bin/diverseshot.app
 # # 检查参数
 
-APP_PATH= "$BUILD_DIR/bin/splatx.app"
-APP_BINARY="$BUILD_DIR/bin/splatx.app/Contents/MacOS/$(basename "$BUILD_DIR/bin/splatx.app" .app)"
-FRAMEWORKS_DIR="$BUILD_DIR/bin/splatx.app/Contents/Frameworks"
-APP_CLI_BINARY="$BUILD_DIR/bin/splatx.app/Contents/MacOS/splatx-cli"
+APP_PATH= "$BUILD_DIR/bin/diverseshot.app"
+APP_BINARY="$BUILD_DIR/bin/diverseshot.app/Contents/MacOS/$(basename "$BUILD_DIR/bin/diverseshot.app" .app)"
+FRAMEWORKS_DIR="$BUILD_DIR/bin/diverseshot.app/Contents/Frameworks"
+APP_CLI_BINARY="$BUILD_DIR/bin/diverseshot.app/Contents/MacOS/diverseshot-cli"
 
 OPENCV_PATH=$(brew --prefix opencv)  # 自动获取 OpenCV 路径
 
@@ -103,12 +103,27 @@ done
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BINARY"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_CLI_BINARY"
 
+# 签名（替换为你的证书）
+find "$FRAMEWORKS_DIR" -name "*.dylib" | while read -r lib; do
+codesign --force --verbose=4 --sign "Developer ID Application: yu liu (7358DS45R4)" --timestamp "$lib"
+done
+find "$FRAMEWORKS_DIR" -name "*.metallib" | while read -r lib; do
+sudo codesign --force --verbose=4 --sign "Developer ID Application: yu liu (7358DS45R4)" --timestamp "$lib" 
+done
+
+codesign --force --verbose=4 --sign "Developer ID Application: yu liu (7358DS45R4)"  --timestamp "$APP_CLI_BINARY"
+codesign --force --verbose=4 --sign "Developer ID Application: yu liu (7358DS45R4)" --options runtime --entitlements diverseshot.entitlements --timestamp "$APP_BINARY"
+
+# echo "公证....."
+# ditto -c -k --keepParent $BUILD_DIR/bin/diverseshot.app $BUILD_DIR/bin/diverseshot.zip
+# xcrun notarytool submit $BUILD_DIR/bin/diverseshot.zip --apple-id "liuyu233@icloud.com" --team-id "7358DS45R4" --password "vmpy-wauw-ymop-wfac" --wait
+# xcrun stapler staple -v --force $BUILD_DIR/bin/diverseshot.app
 
 echo "Creating dmg..."
-RESULT="../splatx.dmg"
+RESULT="../diverseshot.dmg"
 test -f $RESULT
 rm $RESULT
-./create-dmg/create-dmg --window-size 500 300 --icon-size 96 --volname "splatx Installer" --app-drop-link 360 105 --icon splatx.app 130 105 $RESULT $BUILD_DIR/bin/splatx.app
+./create-dmg/create-dmg --window-size 500 300 --icon-size 96 --volname "diverseshot Installer" --app-drop-link 360 105 --icon diverseshot.app 130 105 $RESULT $BUILD_DIR/bin/diverseshot.app
 
 # echo "Removing temporary build dir..."
 # rm -rf $BUILD_DIR

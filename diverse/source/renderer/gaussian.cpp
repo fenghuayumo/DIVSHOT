@@ -1,6 +1,7 @@
 #include "gaussian.h"
 #include "defered_renderer.h"
 #include "drs_rg/image_op.h"
+#include "drs_rg/buffer_op.h"
 #include "scene/component/gaussian_component.h"
 #include "scene/component/gaussian_crop.h"
 #include "utility/pack_utils.h"
@@ -312,6 +313,11 @@ namespace diverse
 			gs_constants.color_offset = glm::vec4(cmd.color_offset,cmd.model->splat_size);
 			auto point_list_key_buffer = rg.import_res(gs_model->points_key_buf, rhi::AccessType::Nothing);
 			auto point_list_value_buffer = rg.import_res(gs_model->points_value_buf, rhi::AccessType::Nothing);
+			// auto count_buffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(sizeof(u32) * 4, 
+			// 	rhi::BufferUsageFlags::STORAGE_BUFFER | 
+			// 	rhi::BufferUsageFlags::TRANSFER_SRC | 
+			// 	rhi::BufferUsageFlags::TRANSFER_DST), "count_buffer");
+			// rg::clear_buffer(rg,count_buffer,0);
 			rg::RenderPass::new_compute(
 				rg.add_pass("clear_points"), "/shaders/gaussian/clear_points.hlsl")
 				.write(point_list_key_buffer)

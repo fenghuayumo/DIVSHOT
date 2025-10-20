@@ -18,7 +18,7 @@ namespace diverse
         mouse_sensitivity      = 0.00001f;
         zoom_dampening_factor   = 0.00001f;
         dampening_factor       = 0.00001f;
-        rotate_dampening_factor = 0.0000001f;
+        rotate_dampening_factor = 0.000001f;
         camera_mode            = EditorCameraMode::ARCBALL;
         distance = 10.0f;
     }
@@ -287,7 +287,7 @@ namespace diverse
         const float y       = glm::min(float(1080) / 1000.0f, 2.4f); // max = 2.4f
         const float yFactor = 0.0366f * (y * y) - 0.1778f * y + 0.3021f;
 
-        return { xFactor * camera_speed / 20.0f, yFactor * camera_speed / 20.0f};
+        return { xFactor * camera_speed / 40.0f, yFactor * camera_speed / 40.0f};
     }
 
     float EditorCameraController::get_rotation_speed() const

@@ -9,6 +9,7 @@
 
 namespace diverse
 {
+    std::vector<std::string> read_text_file(const std::filesystem::path& file_path);
     bool        loadText(const std::filesystem::path& path, std::string& text);
     bool        readByteData(const std::string& fileName, std::vector<uint8_t>& data, size_t& dataSize);
     bool	    readByteData(const std::string& fileName, uint8_t* dst, size_t size);

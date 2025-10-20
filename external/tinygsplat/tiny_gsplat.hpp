@@ -604,7 +604,8 @@ namespace tinygsplat
 		const std::vector<glm::vec3>& scales,
 		const std::vector<std::array<f32, 48>>& shs,
 		const std::vector<glm::vec4>& rot,
-		const std::vector<f32>& opacities);
+		const std::vector<f32>& opacities,
+		bool antialiased = false);
 
 	GS_EXPORT bool	save_splat(const std::string& file_path,
 		const std::vector<glm::vec3>& pos, 
@@ -618,7 +619,8 @@ namespace tinygsplat
 		const std::vector<glm::vec3>& scales,
 		const std::vector<std::array<f32, 48>>& shs,
 		const std::vector<glm::vec4>& rot,
-		const std::vector<f32>& opacities);
+		const std::vector<f32>& opacities,
+		bool antialiased = false);
 
 	GS_EXPORT  bool	save_reduced_ply(
 		const std::string& file_path,
@@ -635,13 +637,15 @@ namespace tinygsplat
 
 	//read
 	GS_EXPORT bool load_ply(const std::string& file_path,
-		std::vector<RichPoint>& points);
+		std::vector<RichPoint>& points,
+		bool& antialiased);
 
 	GS_EXPORT bool load_splat(const std::string& file_path,
 		std::vector<RichPoint>& points);
 
 	GS_EXPORT bool load_compress_ply(const std::string& file_path,
-		std::vector<RichPoint>& points);
+		std::vector<RichPoint>& points,
+		bool& antialiased);
 
 	GS_EXPORT bool load_reduced_ply(const std::string& file_path,
 		std::vector<RichPoint>& points);
@@ -669,7 +673,8 @@ namespace tinygsplat
 
 	GS_EXPORT	bool load_spz_splats(
 		const std::string& file_path,
-		std::vector<RichPoint>& points);
+		std::vector<RichPoint>& points,
+		bool& antialiased);
 
 	GS_EXPORT bool save_spz_splats(
 		const std::string& file_path,
@@ -677,6 +682,7 @@ namespace tinygsplat
 		const std::vector<glm::vec3>& scales,
 		const std::vector<std::array<f32, 48>>& shs,
 		const std::vector<glm::vec4>& rot,
-		const std::vector<f32>& opacities
+		const std::vector<f32>& opacities,
+		bool antialiased = false
 	);
 }

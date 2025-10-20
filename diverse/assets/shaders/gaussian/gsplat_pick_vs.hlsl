@@ -204,13 +204,18 @@ float4 get_bounding_box(float2 direction, float radius_px)
 
 VS_OUTPUT main(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
 {
+    VS_OUTPUT output;
     uint global_id = point_list_value_buffer[instanceID];
+    if(global_id >= num_gaussians)
+    {
+        output.colour.w = 0.0;
+        return output;
+    }
     Gaussian gaussian = bindless_gaussians(buf_id).Load<Gaussian>(global_id * sizeof(Gaussian));
     uint state = bindless_splat_state[buf_id].Load<uint>(global_id * sizeof(uint));
     float4 gs_position = float4(gaussian.position.xyz, asfloat(state));
     uint gs_state = asuint(gs_position.w);
     uint op_state = getOpState(gs_state);
-    VS_OUTPUT output;
     if (op_state & DELETE_STATE)
     {
         output.colour.w = 0.0;
@@ -229,7 +234,7 @@ VS_OUTPUT main(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
     float4x4 model_view = mul(transform, view);
     float4x4 proj = frame_constants.view_constants.view_to_clip;
     float3 p_view = mul(world_pos, view).xyz;
-    if (p_view.z > 0)
+    if (p_view.z >= 0)
     {
         output.colour.w = 0.0;
         return output;
@@ -238,11 +243,6 @@ VS_OUTPUT main(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
     float4 p_hom = mul(float4(p_view, 1.0), proj);
     float p_w = 1.0f / (p_hom.w + 0.0000001f);
     float4 p_proj = p_hom * p_w;
-    if (p_proj.z <= 0.0 || p_proj.z >= 1.0)
-    {
-        output.colour.w = 0.0;
-        return output;
-    }
 #if OUTLINE_PASS
     if (op_state != SELECT_STATE)
     {
@@ -252,10 +252,19 @@ VS_OUTPUT main(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
 #endif
 
     // Gaussian rotation, scale, and opacity
-    float4 rotation_scale = gaussian.rotation_scale;
-    float4 scale_opacity = unpack_half4(rotation_scale.zw);
-    float4 q = unpack_half4(rotation_scale.xy);
-
+    uint4 rotation_scale = gaussian.rotation_scale;
+    float4 scale_opacity = unpack_uint2(rotation_scale.zw);
+    float opac = scale_opacity.w;
+    if(opac <= 1.0 / 255.0) {
+        output.colour.w = 0.0;
+        return output;
+    }
+    float4 q = unpack_uint2(rotation_scale.xy);
+    float quat_norm_sqr = dot(q, q);
+    if (quat_norm_sqr < 1e-6) {
+        output.colour.w = 0.0;
+        return output;
+    }
     float3 s = scale_opacity.xyz * saturate(color_offset.w);
 
     float3x3 cov3D;
@@ -294,7 +303,14 @@ VS_OUTPUT main(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
 
     float l1 = 2.0 * min(sqrt(2.0 * lambda1), vmin);
     float l2 = 2.0 * min(sqrt(2.0 * lambda2), vmin);
-    if (l1 < 2.0 || l2 < 2.0) {
+    if (l1 < 0.1 || l2 < 0.1) {
+        output.colour.a = 0.0; // will not emit things
+        return output;
+    }
+    float2 c = 2.0f / float2(surface_width, surface_height);
+    // cull against frustum x/y axes
+    float l = max(l1, l2);
+    if (any((abs(p_proj.xy) - float2(l,l) * c - float2(1,1)) > 0.0)) {
         output.colour.a = 0.0; // will not emit things
         return output;
     }
@@ -304,7 +320,6 @@ VS_OUTPUT main(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
 
     int vi = vertexID % 4;
     float2 corner_uv = vPosition[vi];
-    float2 c = 2.0 / float2(surface_width, surface_height);
     float2 corner_offset = (corner_uv.x * v1 + corner_uv.y * v2) * c;
     // float3 direction = normalize(world_pos.xyz - get_eye_position());
     output.colour = float4(float3(1,1,1), 1);

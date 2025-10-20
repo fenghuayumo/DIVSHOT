@@ -15,7 +15,7 @@
 struct Gaussian
 {
     float4 position;         // Gaussian position
-    float4 rotation_scale;   // rotation, scale, and opacity
+    uint4 rotation_scale;   // rotation, scale, and opacity
 };
 
 struct PackedVertexSH
@@ -81,6 +81,10 @@ float4 unpack_half4(float2 v) {
     float z = f16tof32(u.y);
     float w = f16tof32(u.y >> 16);
     return float4(x, y, z, w);
+}
+
+float4 unpack_uint2(uint2 u) {
+    return float4(f16tof32(u.x), f16tof32(u.x >> 16), f16tof32(u.y), f16tof32(u.y >> 16));
 }
 
 uint setOpState(uint value, uint op_state) {

@@ -48,7 +48,7 @@ project "tinygsplat"
 	defines { "GS_DYNAMIC", "GS_ENGINE",}
   libdirs
   {
-      "%{LibraryDir.spz}",
+      -- "%{LibraryDir.spz}",
       "%{LibraryDir.pkg}/"
   }
 

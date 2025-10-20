@@ -60,7 +60,7 @@ PsOut main(PsIn ps)
     float A = dot(ps.pix_direction, ps.pix_direction);
     if (A > 1) discard;
     float power = -4 * A;
-    float alpha = ps.colour.w * exp(power);
+    float alpha =  min(0.999f,ps.colour.w * exp(power));
 
     if (alpha < minAlpha)
         discard;

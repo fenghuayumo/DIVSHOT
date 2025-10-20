@@ -12,7 +12,7 @@ void main(uint2 px: SV_DispatchThreadID) {
 
     if (px.x < max_gaussians) {
         point_list_key_buffer[px.x] = 0xffffffffu;
-        point_list_value_buffer[px.x] = 0u;
+        point_list_value_buffer[px.x] = 0xffffffffu;
     }
 }
 

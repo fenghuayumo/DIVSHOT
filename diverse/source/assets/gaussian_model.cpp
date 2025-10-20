@@ -11,8 +11,14 @@
 #include "utility/thread_pool.h"
 namespace diverse
 {
-	auto sigmoid = [](const float m1) {
-		return 1.0f / (1.0f + exp(-m1));
+	auto sigmoid = [](const float v) {
+		//return 1.0f / (1.0f + exp(-v));
+		if (v > 0) {
+			return 1 / (1 + exp(-v));
+		}
+
+		const float t = exp(v);
+		return t / (1 + t);
 	};
 
 	GaussianModel::GaussianModel(int max_splats)
@@ -120,7 +126,7 @@ namespace diverse
 			glm::vec4 harmonics[16];
 
 			Gaussian& gaussian = gaussians[k];
-			glm::vec2& gs_color = gaussians_color[k];
+			glm::uvec2& gs_color = gaussians_color[k];
 			// copy position
 			gaussian.position.xyz = pos[k];
 			//normalize 
@@ -132,21 +138,21 @@ namespace diverse
 			for (int j = 0; j < 4; j++)
 				rot_t[j] = rot[k][j] / length;
 
-			auto rotation0 = u32_to_f32(glm::packHalf2x16(glm::vec2(rot_t[0], rot_t[1])));
-			auto rotation1 = u32_to_f32(glm::packHalf2x16(glm::vec2(rot_t[2], rot_t[3])));
+			auto rotation0 = glm::packHalf2x16(glm::vec2(rot_t[0], rot_t[1]));
+			auto rotation1 = glm::packHalf2x16(glm::vec2(rot_t[2], rot_t[3]));
 
 			glm::vec3 scale_t;
 			for (int j = 0; j < 3; j++)
 				scale_t[j] = exp(scales[k][j]);
-			auto scale0 = u32_to_f32(glm::packHalf2x16(glm::vec2(scale_t[0], scale_t[1])));
-			auto scale1 = u32_to_f32(glm::packHalf2x16(glm::vec2(scale_t[2], sigmoid(opacities[k]))));
+			auto scale0 = glm::packHalf2x16(glm::vec2(scale_t[0], scale_t[1]));
+			auto scale1 = glm::packHalf2x16(glm::vec2(scale_t[2], sigmoid(opacities[k])));
 
-			gaussian.rotation_scale = glm::vec4(glm::vec2(rotation0, rotation1), glm::vec2(scale0, scale1));
-			const auto r = (shs[k][0] * SH_C0 + 0.5);
-            const auto g = (shs[k][1] * SH_C0 + 0.5);
-            const auto b = (shs[k][2] * SH_C0 + 0.5);
-			gs_color.x = u32_to_f32(glm::packHalf2x16(glm::vec2(r, g)));
-			gs_color.y = u32_to_f32(glm::packHalf2x16(glm::vec2(b, 0)));
+			gaussian.rotation_scale = glm::uvec4(rotation0, rotation1, scale0, scale1);
+			const float r = (shs[k][0] * SH_C0 + 0.5);
+            const float g = (shs[k][1] * SH_C0 + 0.5);
+            const float b = (shs[k][2] * SH_C0 + 0.5);
+			gs_color.x = glm::packHalf2x16(glm::vec2(r, g));
+			gs_color.y = glm::packHalf2x16(glm::vec2(b, 0));
 
 			// extract coefficients
 			std::array<float,45> c = {0};

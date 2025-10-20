@@ -185,6 +185,7 @@ namespace diverse
             auto defer_release(std::function<void()> f) -> void override;
             auto export_image(rhi::GpuTexture* image) -> std::vector<u8> override;
             auto blit_image(rhi::GpuTexture* src, rhi::GpuTexture* dst, CommandBuffer* cmd_buf = nullptr) -> void override;
+            auto fill_buffer(CommandBuffer* cb, GpuBuffer* buffer, uint32_t value) -> void override;
         protected:
             auto initialize()->void;
             void set_label(u64 vkHandle, VkObjectType objType, const char* name);

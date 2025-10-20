@@ -1,4 +1,4 @@
-project "SplatX"
+project "divshot"
 	kind "WindowedApp"
 	language "C++"
 	editandcontinue "Off"
@@ -25,6 +25,8 @@ project "SplatX"
 		"%{IncludeDir.stb}",
 		"%{IncludeDir.tinyply}",
 		"%{IncludeDir.ImGui}",
+		"%{IncludeDir.OpenAL}",
+		"%{IncludeDir.Box2D}",
 		"%{IncludeDir.vulkan}",
 		"%{IncludeDir.external}",
 		"%{IncludeDir.spdlog}",
@@ -36,6 +38,8 @@ project "SplatX"
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.diverse}",
 		"%{IncludeDir.diverse_base}",
+		"%{IncludeDir.gstrain}",
+		"%{IncludeDir.gstrain_utils}",
 		"%{IncludeDir.CUDA_PATH}",
 		"%{IncludeDir.opencv}",
 		"%{IncludeDir.nanobind}",
@@ -102,6 +106,7 @@ project "SplatX"
 			"_DISABLE_EXTENDED_ALIGNED_STORAGE",
 			"_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING",
 			"DS_VOLK",
+			"DS_SPLAT_TRAIN"
 		}
 
 		libdirs
@@ -114,6 +119,8 @@ project "SplatX"
 		{
 			"glfw",
 			"OpenGL32",
+			"OpenAL32",
+			"gstrain",
 			"opencv_world490.lib"
 		}
 
@@ -130,6 +137,20 @@ project "SplatX"
 		xcodebuildresources 
 		{ 
 			"assets.xcassets", 
+			-- "libMoltenVK.dylib",
+			-- "libmetalirconverter.dylib",
+			-- "gstrain",
+			-- "%{targetdir}/libgstrain.dylib",
+			-- "%{LibraryDir.opencv}/libopencv_videoio.dylib",
+			-- "%{LibraryDir.opencv}/libopencv_core.dylib",
+			-- "%{LibraryDir.opencv}/libopencv_imgproc.dylib",
+			-- "%{LibraryDir.opencv}/libopencv_highgui.dylib",
+			-- "%{LibraryDir.opencv}/libopencv_calib3d.dylib",
+			-- "%{LibraryDir.opencv}/libopencv_imgcodecs.dylib",
+			-- "%{targetdir}/libtorch_cpu.dylib",
+			-- "%{targetdir}/libtorch.dylib",
+			-- "%{targetdir}/libc10.dylib",
+			-- "%{targetdir}/libcolmap_dll.dylib"
 		}
 
 		xcodebuildsettings
@@ -194,6 +215,8 @@ project "SplatX"
 			"OpenAL.framework",
 			"SystemConfiguration.framework",
 			"glfw",
+			-- "libmetalirconverter.dylib",
+			-- "gstrain",
 			"libopencv_videoio.dylib",
 			"libopencv_core.dylib",
 			"libopencv_imgproc.dylib",

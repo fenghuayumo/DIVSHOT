@@ -14,22 +14,25 @@ project "spz"
 
 	includedirs
 	{
-		"src/",
+		"include/",
 	}
 
 	externalincludedirs
 	{
-		"%{IncludeDir.Package}",
+		"%{IncludeDir.pkg}",
 	}
 
     libdirs
     {
-        "%{LibraryDir.Package}",
+        "%{LibraryDir.pkg}",
     }
-
-
+	links
+	{
+		"zlib"
+	}
 	filter "system:windows"
 		systemversion "latest"
+
 
 	filter "system:linux"
 		pic "On"

@@ -199,6 +199,7 @@ namespace diverse
             virtual auto defer_release(std::function<void()> f)->void = 0;
             virtual auto export_image(rhi::GpuTexture* image)->std::vector<u8> = 0;
             virtual auto blit_image(rhi::GpuTexture* src,rhi::GpuTexture* dst,CommandBuffer* cmd_buf = nullptr) ->void = 0;
+            virtual auto fill_buffer(CommandBuffer* cb, GpuBuffer* buffer, uint32_t value) -> void = 0;
         public:
             virtual auto get_graphics_cmd_buffer()->CommandBuffer* {return nullptr;};
         public:

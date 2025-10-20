@@ -45,7 +45,6 @@ namespace diverse
         std::string demangle(const std::string& string);
 
         bool is_hidden_file(const std::string& path);
-
         std::vector<std::string> DS_EXPORT split_string(const std::string& string, const std::string& delimiters);
         std::vector<std::string> DS_EXPORT split_string(const std::string& string, const char delimiter);
         std::vector<std::string> DS_EXPORT tokenize(const std::string& string);

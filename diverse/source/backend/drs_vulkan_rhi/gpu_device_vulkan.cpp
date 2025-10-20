@@ -2310,6 +2310,13 @@ namespace diverse
             vkCmdCopyBuffer(vk_cb, src_buf, dst_buf, 1,  &region);
         }
 
+        auto GpuDeviceVulkan::fill_buffer(CommandBuffer* cb, GpuBuffer* buffer, uint32_t value) -> void
+        {
+            auto vk_cb = static_cast<GpuCommandBufferVulkan*>(cb)->handle;
+            auto buf = static_cast<GpuBufferVulkan*>(buffer)->handle;
+            vkCmdFillBuffer(vk_cb, buf, 0, buffer->desc.size, value);
+        }
+
         auto GpuDeviceVulkan::rebuild_ray_tracing_acceleration(VkCommandBuffer cmd,
             VkAccelerationStructureBuildGeometryInfoKHR& geometry_info,
             const std::vector<VkAccelerationStructureBuildRangeInfoKHR>& build_range_infos,

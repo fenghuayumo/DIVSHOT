@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=diverseshot
+GenericName=3dgs shot
+Comment=a lightweight radiance field tool.
+Exec=diverseshot %F
+Icon=diverseshot
+Terminal=false
+MimeType=image/*;
+Categories=Graphics;

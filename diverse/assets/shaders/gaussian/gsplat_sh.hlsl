@@ -23,8 +23,8 @@ void fetch_sh_0(in uint t, out float3 a) {
 }
 
 float3 read_splat_color(uint buf_id, uint index) {
-    float2 sh0 = bindless_gaussians_color(buf_id).Load<float2>(index * sizeof(float2));
-    float4 color = unpack_half4(sh0);
+    uint2 sh0 = bindless_gaussians_color(buf_id).Load<uint2>(index * sizeof(uint2));
+    float4 color = unpack_uint2(sh0);
     return color.xyz;
 }
 
@@ -121,5 +121,6 @@ float3 read_splat_sh_color(uint buf_id, uint index, float3 direction) {
 #if SH_DEGREE > 0
     color = evalSH(sh, direction);
 #endif
+    color = max(color, 0);
     return color * scale;
 }

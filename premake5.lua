@@ -43,7 +43,7 @@ else
 end
 
 workspace( settings.workspace_name )
-	startproject "SplatX"
+	startproject "diverseshot"
 	flags 'MultiProcessorCompile'
 	outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 	targetdir ("bin/%{outputdir}/")
@@ -74,6 +74,8 @@ workspace( settings.workspace_name )
 	}
 	
 	group "external"
+		require("external/box2dpremake5")
+			SetRecommendedSettings()
 		require("external/lua/premake5")
 			SetRecommendedSettings()
 		require("external/imguipremake5")
@@ -111,7 +113,11 @@ workspace( settings.workspace_name )
 		end
 		require("external/tinygsplatpremake5")
 			SetRecommendedSettings()
+		require("external/xatlas/premake5")
+			SetRecommendedSettings()
 		require("external/json/premake5")
+			SetRecommendedSettings()
+		require("external/spz/premake5")
 			SetRecommendedSettings()
 	filter {}
 	group ""
@@ -119,6 +125,13 @@ workspace( settings.workspace_name )
 	include "diverse/diverse_base/premake5"
 	include "diverse/premake5"
 
+	group "diverse_utils"
+	-- include "diverse_utils/gsplatrast/premake5"
+	-- include "diverse_utils/gsplat_tracer/premake5"
+	-- include "diverse_utils/gstrain_utils/premake5"
+	-- include "diverse_utils/gstrain/premake5"
+
 	group ""
+	include "application/runtime/premake5"
 	include "application/editor/premake5"
-	include "application/splatx-cli/premake5"
+	include "application/diverseshot-cli/premake5"

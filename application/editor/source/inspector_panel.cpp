@@ -774,10 +774,10 @@ namespace MM
                 ImGui::TextUnformatted("DensifyStrategy");
                 ImGui::NextColumn();
                 ImGui::PushItemWidth(-1);
-                const char* densify_str[] = { "SplatADC", "SplatMCMC" };
+                const char* densify_str[] = { "SplatADC", "SplatMCMC","SplatADC+" };
                 if (ImGui::BeginCombo("densify", densify_str[gsTrain->getTrainConfig().densifyStrategy], 0)) // The second parameter is the label previewed before opening the combo.
                 {
-                    for (int n = 0; n < 2; n++) //now not support sparse grad
+                    for (int n = 0; n < 3; n++) //now not support sparse grad
                     {
                         bool is_selected = (n == gsTrain->getTrainConfig().densifyStrategy);
                         if (ImGui::Selectable(densify_str[n]))
@@ -922,10 +922,10 @@ namespace MM
             ImGui::Unindent();
             ImGui::Text("%s", gsTrain->getCurrentTrainingPhaseName().c_str());
             ImGui::SameLine();
-            auto size = ImGui::CalcTextSize("ET: %.2f s ");
+            auto size = ImGui::CalcTextSize("Elpased %.2f s Remaining: %.2f s ");
             auto sizeOfGfxAPIDropDown = ImGui::GetFontSize() * 8;
             ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - size.x - ImGui::GetStyle().ItemSpacing.x * 2);
-            ImGui::Text("ET: %.2f s", gsTrain->getEstimateTrainingTime());
+            ImGui::Text("Elpased: %.2f s Remaining: %.2f s ", gsTrain->getTrainingElpasedTime(), gsTrain->getEstimateTrainingTime());
             float progress = gsTrain->getProgressOnCurrentPhase();
             ImGui::ProgressBar(progress);
             ImGui::Separator();

@@ -53,13 +53,13 @@ void main(uint2 px: SV_DispatchThreadID) {
 #endif
         world_pos.xyz = mul(world_pos, transform).xyz;
         float3 p_view = mul(world_pos, view).xyz;
+        if(p_view.z >= 0.0f)
+            return;
         float4 p_hom = mul(float4(p_view, 1.0), proj);
         float p_w = 1.0f / (p_hom.w + 0.0000001f);
         float4 p_proj = p_hom * p_w;
-        // if (p_proj.z <= 0.0 || p_proj.z >= 1.0)
-        // {
-        //     return;
-        // }
+        if (p_proj.z <= 1e-6f || p_proj.z >= 1.0f)
+            return;
         float view_z = p_view.z;
 
         point_list_key_buffer[global_id] = FloatToSortableUint(view_z);

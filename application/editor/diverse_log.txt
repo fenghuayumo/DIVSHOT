@@ -1,0 +1,246 @@
+[15:05:00] Diverse Engine - Version 1.1.0
+[15:05:00] Initialised JobSystem with [32 cores] [30 threads]
+[15:05:00] Initialising System
+--------------------
+ System Information 
+--------------------
+Power - Outlet
+Memory Info:
+	Physical Memory : 13.83 gb / 31.93 gb
+	Virtual Memory : 131063.91 gb / 131072.00 gb: 
+Loaded Editor Ini file D:/Code/diverse/bin/Release-windows-x86_64/editor.ini
+Enqueued scene : Empty Scene
+VSync : False
+Creating window - Title : divshot, Width : 1200, Height : 800
+Initialised GLFW version : 3.3.4 Win32 WGL EGL OSMesa VisualC
+Availiable Device: NVIDIA GeForce RTX 5090
+Selected physical device: 0
+All ray tracing extensions are supported
+Swapchain image count: 3
+Presentation mode:  1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1200,800,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::D32_Float, externt:[1200,800,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R16G16B16A16_Float, externt:[64,64,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[256,256,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R16G16_Float, externt:[64,1,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R32G32B32A32_Float, externt:[1,1,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1,1,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1,1,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1,1,1], mip_levels:1, array_elements:1
+Acceleration structure size: 640, scratch size: 1792
+ImGui Version : 1.89.7
+ImConfig File : imgui/ImUserConfig.h
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1200,800,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1200,800,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1200,800,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: TextureUsageFlags::SAMPLED, flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[2048,4096,1], mip_levels:1, array_elements:1
+Initialised ImGui Manager
+Scene switched to : Empty Scene
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[200,54,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::D32_Float, externt:[200,54,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R32G32B32A32_Float, externt:[200,54,1], mip_levels:1, array_elements:1
+loading cached shader D:\Code\diverse\bin/cache/shaders\blur.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/post\luminance_histogram_clear.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/post\luminance_histogram_copy.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/shaders\rev_blur.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/lut\brdf_fg.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/lut\bezold_brucke.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/shaders\copy_blit.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/post\luminance_histogram_calculate.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/shaders\final_blit.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/sky\comp_cube.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/shaders\post_combine.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/rt\reference_path_trace.rgen.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/rt\gbuffer.rmiss.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/rt\shadow.rmiss.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/rt\gbuffer.rchit.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/rt\gbuffer.ahit.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/rt\shadow.ahit.hlsl.cached 
+Creating ray tracing shader table: RayTracingShaderTableDesc raygen_entry_count: 1, hit_entry_count: 2, miss_entry_count: 2
+creating an image: GpuTextureDesc image_type: TextureType: Cube, usage: , flags :TextureCreateFlags::CUBE_COMPATIBLE, format: PixelFormat::R16G16B16A16_Float, externt:[512,512,1], mip_levels:1, array_elements:6
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R32_Float, externt:[200,54,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R11G11B10_Float, externt:[100,27,1], mip_levels:6, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R11G11B10_Float, externt:[100,27,1], mip_levels:6, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R11G11B10_Float, externt:[200,54,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1006,630,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::D32_Float, externt:[1006,630,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R32G32B32A32_Float, externt:[1006,630,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Cube, usage: , flags :TextureCreateFlags::CUBE_COMPATIBLE, format: PixelFormat::R16G16B16A16_Float, externt:[512,512,1], mip_levels:1, array_elements:6
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R32_Float, externt:[1006,630,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R11G11B10_Float, externt:[503,315,1], mip_levels:8, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R11G11B10_Float, externt:[503,315,1], mip_levels:8, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R11G11B10_Float, externt:[1006,630,1], mip_levels:1, array_elements:1
+Iteraions 0, loss : 0.31408927
+loading cached shader D:\Code\diverse\bin/cache/shaders\clear_alpha.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/gpu_sort\init_radix_sort.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/gpu_sort\scan.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/gpu_sort\unsweep.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/gpu_sort\down_sweep.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/debug_draw\batch2d_line_vs.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\clear_points.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_viewz_cs.hlslSPLAT_EDIT1.cached 
+loading cached shader D:\Code\diverse\bin/cache/debug_draw\batch2d_line_ps.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_vs.hlslGSPLAT_AA0SH_DEGREE3SPLAT_EDIT1.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_ps.hlslGSPLAT_AA0SH_DEGREE3SPLAT_EDIT1.cached 
+Iteraions 100, loss : 0.23777683
+Iteraions 200, loss : 0.20756955
+Iteraions 300, loss : 0.18398
+Iteraions 400, loss : 0.15732017
+Iteraions 500, loss : 0.14168994
+Iteraions 600, loss : 0.1405529
+Iteraions 700, loss : 0.13031617
+Iteraions 800, loss : 0.12267301
+Iteraions 900, loss : 0.121233806
+Iteraions 1000, loss : 0.11690591
+Iteraions 1100, loss : 0.10492418
+Iteraions 1200, loss : 0.103360444
+Iteraions 1300, loss : 0.1018169
+Iteraions 1400, loss : 0.09122726
+Iteraions 1500, loss : 0.09494493
+Iteraions 1600, loss : 0.087921955
+Iteraions 1700, loss : 0.08295545
+Iteraions 1800, loss : 0.08476989
+Iteraions 1900, loss : 0.09712513
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[38,38,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[16,16,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[38,38,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[38,38,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[38,38,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[1006,630,1], mip_levels:1, array_elements:1
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gs_point_vs.hlslSPLAT_EDIT1.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gs_point_ps.hlslSPLAT_EDIT1.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_intersect.hlslMODE_CENTERS1SPLAT_EDIT1.cached 
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R32_UInt, externt:[1006,630,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: TextureUsageFlags::INPUT_ATTACHMENT, flags :TextureCreateFlags::Empty, format: PixelFormat::D32_Float, externt:[1006,630,1], mip_levels:1, array_elements:1
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_vs.hlslVISUALIZE_RINGS1SH_DEGREE3SPLAT_EDIT1.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_ps.hlslVISUALIZE_RINGS1SH_DEGREE3SPLAT_EDIT1.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_viewz_cs.hlsl.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_intersect.hlslMODE_RINGS1SPLAT_EDIT1.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_pick_vs.hlslGSPLAT_AA0PICK_PASS1SPLAT_EDIT1.cached 
+loading cached shader D:\Code\diverse\bin/cache/gaussian\gsplat_pick_ps.hlslGSPLAT_AA0PICK_PASS1SPLAT_EDIT1.cached 
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R32_UInt, externt:[1006,630,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::D32_Float, externt:[1006,630,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[16,16,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[16,16,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[16,16,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[16,16,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[16,16,1], mip_levels:1, array_elements:1
+creating an image: GpuTextureDesc image_type: TextureType: Tex2d, usage: , flags :TextureCreateFlags::Empty, format: PixelFormat::R8G8B8A8_UNorm, externt:[16,16,1], mip_levels:1, array_elements:1
+generate Shader debug_draw\batch2d_line_ps.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader debug_draw\batch2d_line_vs.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\clear_points.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_intersect.hlslMODE_CENTERS1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_intersect.hlslMODE_RINGS1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_outline.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_pick_ps.hlslGSPLAT_AA0PICK_PASS1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_pick_ps.hlslGSPLAT_AA1PICK_PASS1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_pick_vs.hlslGSPLAT_AA0PICK_PASS1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_pick_vs.hlslGSPLAT_AA1PICK_PASS1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA0SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA0SH_DEGREE1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA0SH_DEGREE2SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA0SH_DEGREE2SPLAT_EDIT1OUTLINE_PASS1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA0SH_DEGREE3SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA1SH_DEGREE1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA1SH_DEGREE2SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA1SH_DEGREE3SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslGSPLAT_AA1SH_DEGREE3SPLAT_EDIT1OUTLINE_PASS1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslVISUALIZE_DEPTH1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslVISUALIZE_ELLIPSOIDS1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslVISUALIZE_NORMAL1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslVISUALIZE_RINGS1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslVISUALIZE_RINGS1SH_DEGREE2SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslVISUALIZE_RINGS1SH_DEGREE2SPLAT_EDIT1OUTLINE_PASS1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslVISUALIZE_RINGS1SH_DEGREE3SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_ps.hlslVISUALIZE_RINGS1SH_DEGREE3SPLAT_EDIT1OUTLINE_PASS1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_viewz_cs.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_viewz_cs.hlslSPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA0SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA0SH_DEGREE1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA0SH_DEGREE2SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA0SH_DEGREE2SPLAT_EDIT1OUTLINE_PASS1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA0SH_DEGREE3SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA1SH_DEGREE1SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA1SH_DEGREE2SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA1SH_DEGREE3SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslGSPLAT_AA1SH_DEGREE3SPLAT_EDIT1OUTLINE_PASS1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslVISUALIZE_DEPTH1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslVISUALIZE_ELLIPSOIDS1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslVISUALIZE_NORMAL1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslVISUALIZE_RINGS1SH_DEGREE0SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslVISUALIZE_RINGS1SH_DEGREE2SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslVISUALIZE_RINGS1SH_DEGREE2SPLAT_EDIT1OUTLINE_PASS1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslVISUALIZE_RINGS1SH_DEGREE3SPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gsplat_vs.hlslVISUALIZE_RINGS1SH_DEGREE3SPLAT_EDIT1OUTLINE_PASS1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gs_color_point_vs.hlslSPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gs_point_ps.hlslSPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gaussian\gs_point_vs.hlslSPLAT_EDIT1.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gpu_sort\down_sweep.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gpu_sort\init_radix_sort.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gpu_sort\scan.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader gpu_sort\unsweep.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\age_ircache_entries.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\clear_ircache_pool.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\ircache_compact_entries.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\ircache_validate.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\prepare_age_dispatch_args.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\prepare_trace_dispatch_args.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\reset_entry.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\scroll_cascades.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\sum_up_irradiance.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\trace_accessibility.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader ircache\trace_irradiance.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader lut\bezold_brucke.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader lut\brdf_fg.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader motion_blur\motion_blur.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader motion_blur\velocity_dilate.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader motion_blur\velocity_reduce_x.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader motion_blur\velocity_reduce_y.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader post\luminance_histogram_calculate.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader post\luminance_histogram_clear.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader post\luminance_histogram_copy.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader prefix_scan\inclusive_prefix_scan.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader prefix_scan\inclusive_prefix_scan_merge.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader prefix_scan\inclusive_prefix_scan_segments.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rt\gbuffer.ahit.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rt\gbuffer.rchit.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rt\gbuffer.rmiss.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rt\reference_path_trace.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rt\shadow.ahit.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rt\shadow.rmiss.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rt\trace_sun_shadow_mask.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\diffuse_validate.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\fullres_reproject.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\restir_check.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\restir_resolve.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\restir_spatial.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\restir_temporal.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\spatial_filter.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\temporal_filter.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\temporal_validity_integrate.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtdgi\trace_diffuse.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtr\reflection.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtr\reflection_validate.rgen.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtr\resolve.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtr\rtr_restir_temporal.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtr\spatial_cleanup.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtr\temporal_filter.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtxdi\generate_initial_sampling_kernel.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtxdi\shade_samples_kenerl.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtxdi\spatial_resampling_kernel.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader rtxdi\temporal_resampling_kernel.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\blit_color_alpha_mask.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\blur.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\build_sky_env_map.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\calculate_reprojection_map.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\clear_alpha.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\convolve_cube.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\copy_blit.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\copy_depth_to_r.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\extract_half_res_depth.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\extract_half_res_gbuffer_view_normal_rgba8.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\extract_half_res_ssao.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shaders\final_blit.hlsl.cached to ../../diverse/source/assets/embeded/embeded_shaders.hpp
+generate Shader shade

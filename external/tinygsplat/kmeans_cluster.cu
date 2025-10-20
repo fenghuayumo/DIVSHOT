@@ -204,6 +204,11 @@ std::tuple<std::vector<int>, std::vector<float>>  kmeans_cluster(
 		n_centers);
 	cudaMemcpy(new_centers.data(), d_centers, sizeof(float) * n_centers, cudaMemcpyDeviceToHost);
 	cudaMemcpy(ids.data(), d_ids, sizeof(int) * n_values, cudaMemcpyDeviceToHost);
+	cudaFree(d_centers);
+	cudaFree(d_old_centers);
+	cudaFree(d_center_sizes);
+	cudaFree(d_values);
+	cudaFree(d_ids);
 	return std::make_tuple(ids, new_centers);
 }
 

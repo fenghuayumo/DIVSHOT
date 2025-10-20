@@ -50,9 +50,16 @@ VS_OUTPUT main(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
 #endif
     
     float4 world_pos = mul(float4(gaussian.position.xyz, 1.0), transform);
-    float4 position = mul(world_pos, frame_constants.view_constants.world_to_clip);
+    // float4 position = mul(world_pos, frame_constants.view_constants.world_to_clip);
     // output.positionVS = input.position;
-
+    float4x4 view = frame_constants.view_constants.world_to_view;
+    float4x4 proj = frame_constants.view_constants.view_to_clip;
+    float3 p_view = mul(world_pos, view).xyz;
+    if(p_view.z > 0)
+    {
+        output.colour = float4(0, 0, 0, 0);
+        return output;
+    }
     // if (op_state == NORMAL_STATE)
     //     output.colour = float4(0, 0, 1, 1);
     // else if (op_state == SELECT_STATE)
@@ -69,8 +76,14 @@ VS_OUTPUT main(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
         output.colour = float4(0, 0, 1, 1);
     const uint vi = vertexID % 4;
     float2 bb = get_bounding_box(vPosition[vi], point_size);
-    float p_w = 1.0f / (position.w + 0.0000001f);
-    float4 p_proj = position * p_w;
+    float4 p_hom = mul(float4(p_view, 1.0), proj);
+    float p_w = 1.0f / (p_hom.w + 0.0000001f);
+    float4 p_proj = p_hom * p_w;
+    if (p_proj.z <= 0.0 || p_proj.z >= 1.0 ) 
+    {
+        output.colour = float4(0, 0, 0, 0);
+        return output;
+    }
     float2 quad = p_proj.xy + bb.xy;
     output.position = float4(quad, p_proj.zw);
     return output;

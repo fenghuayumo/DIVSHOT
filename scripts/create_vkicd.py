@@ -16,7 +16,7 @@ def main():
     parser.add_argument("--version", help="Project version")
 
     args = parser.parse_args()
-    # resource_path = "/Users/d5/Documents/github/diverse/scripts/build-dmg/bin/splatx.app/Contents/Resources"
+    # resource_path = "/Users/d5/Documents/github/diverse/scripts/build-dmg/bin/diverseshot.app/Contents/Resources"
 
     if args.verbose:
         print(f"Verbose mode enabled")

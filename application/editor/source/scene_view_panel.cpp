@@ -206,32 +206,32 @@ namespace diverse
             glm::uvec2 view_size = { int(sceneViewSize.x), int(sceneViewSize.y) };
             maths::Ray ray = editor->get_screen_ray(int(clickPos.x), int(clickPos.y), camera, view_size.x, view_size.y);
             editor->select_object(ray);
-
-             auto splat_ent = Entity(editor->get_current_splat_entt(), editor->get_current_scene());
-             if (splat_ent.valid() && splat_ent.active() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-             {
-                 auto splat_model = splat_ent.get_component<GaussianComponent>().ModelRef;
-                 auto& transform = splat_ent.get_component<maths::Transform>();
-                 maths::Transform& cameraTransform = editor->get_editor_camera_transform();
-                 auto project = camera->get_projection_matrix();
-                 glm::vec3 isect_point;
-                 if (pick_splat(splat_model,
-                     clickPos,
-                     ray,
-                     transform.get_world_matrix(),
-                     cameraTransform,
-                     project,
-                     view_size.x,
-                     view_size.y,
-                     isect_point))
-                 {
-                     auto& pivot_transform = editor->get_pivot()->get_transform();
-                     pivot_transform = transform;
-                     pivot_transform.set_local_position(isect_point);
-                     pivot_transform.set_world_matrix(glm::mat4(1.0f));
-                     GaussianEdit::get().add_place_pivot_op(old_pivot_transform, pivot_transform, editor->get_pivot());
-                 }
-             }
+            auto splat_ent = Entity(editor->get_current_splat_entt(), editor->get_current_scene());
+            if (splat_ent.valid() && splat_ent.active() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+            {
+                auto splat_model = splat_ent.get_component<GaussianComponent>().ModelRef;
+                auto& transform = splat_ent.get_component<maths::Transform>();
+                maths::Transform& cameraTransform = editor->get_editor_camera_transform();
+                auto project = camera->get_projection_matrix();
+                glm::vec3 isect_point;
+                if (pick_splat(splat_model,
+                    clickPos,
+                    ray,
+                    transform.get_world_matrix(),
+                    cameraTransform,
+                    project,
+                    view_size.x,
+                    view_size.y,
+                    isect_point))
+                {
+                    auto& pivot_transform = editor->get_pivot()->get_transform();
+                    pivot_transform = transform;
+                    pivot_transform.set_local_position(isect_point);
+                    pivot_transform.set_world_matrix(glm::mat4(1.0f));
+                    editor->focus_camera(pivot_transform.get_world_position(), 2.0f, 2.0f);
+                    GaussianEdit::get().add_place_pivot_op(old_pivot_transform, pivot_transform, editor->get_pivot());
+                }
+            }
         }
         if (ImGui::IsWindowFocused() && updateCamera && !ImGuizmo::IsUsing() && ImGui::IsItemHovered() && Input::get().get_mouse_mode() == MouseMode::Visible)
         {
@@ -1668,32 +1668,32 @@ namespace diverse
 
         const int toolbarHeight = 40; // 调整toolbar高度以适应更多UI元素
         const int toolbarWidth = 60 * (selectedSplats > 100 ? 6 : 5);
-        auto posX = sceneViewPosition.x + sceneViewSize.x /2.0f - (toolbarWidth / 2.0f);
-        ImGui::SetNextWindowPos(ImVec2(posX,sceneViewPosition.y + 10), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(toolbarWidth, toolbarHeight), ImGuiCond_Always);
+        // auto posX = sceneViewPosition.x + sceneViewSize.x /2.0f - (toolbarWidth / 2.0f);
+        // ImGui::SetNextWindowPos(ImVec2(posX,sceneViewPosition.y + 10), ImGuiCond_Always);
+        // ImGui::SetNextWindowSize(ImVec2(toolbarWidth, toolbarHeight), ImGuiCond_Always);
 
-        ImGui::Begin("Toolbar UI", nullptr,
-            ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoCollapse |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoTitleBar |
-            ImGuiWindowFlags_NoScrollbar);
+        // ImGui::Begin("Toolbar UI", nullptr,
+        //     ImGuiWindowFlags_NoResize |
+        //     ImGuiWindowFlags_NoCollapse |
+        //     ImGuiWindowFlags_NoMove |
+        //     ImGuiWindowFlags_NoTitleBar |
+        //     ImGuiWindowFlags_NoScrollbar);
 
-        if (ImGui::Button("Clear", ImVec2(60, 30))) {
-            splat_edit.add_select_none_op();
-        }
+        // if (ImGui::Button("Clear", ImVec2(60, 30))) {
+        //     splat_edit.add_select_none_op();
+        // }
 
-        ImGui::SameLine();
-        if (ImGui::Button("Invert", ImVec2(60, 30))) {
-            splat_edit.add_select_inverse_op();
-        }
+        // ImGui::SameLine();
+        // if (ImGui::Button("Invert", ImVec2(60, 30))) {
+        //     splat_edit.add_select_inverse_op();
+        // }
 
-        ImGui::SameLine();
-        if (ImGui::Button("All", ImVec2(60, 30))) {
-            splat_edit.add_select_all_op();
-        }
+        // ImGui::SameLine();
+        // if (ImGui::Button("All", ImVec2(60, 30))) {
+        //     splat_edit.add_select_all_op();
+        // }
 
-        ImGui::SameLine();
+        // ImGui::SameLine();
 
         // // 3. Min Radius输入框
         // ImGui::AlignTextToFramePadding();
@@ -1715,12 +1715,12 @@ namespace diverse
         // ImGui::DragFloat("##maxOpacity", &max_opacity, 0.01f);
         // ImGui::PopItemWidth();
 
-        ImGui::SameLine();
-        ImGui::Spacing();
-        ImGui::SameLine();
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(splatText.c_str());
-        ImGui::End();
+        // ImGui::SameLine();
+        // ImGui::Spacing();
+        // ImGui::SameLine();
+        // ImGui::AlignTextToFramePadding();
+        // ImGui::TextUnformatted(splatText.c_str());
+        // ImGui::End();
 
         auto editType = splat_edit.get_edit_type();
         if(editType == GaussianEdit::EditType::Sphere || editType == GaussianEdit::EditType::Box)

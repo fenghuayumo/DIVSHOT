@@ -1,3 +1,3 @@
 
 add_subdirectory(editor)
-add_subdirectory(splatx-cli)
+add_subdirectory(diverseshot-cli)

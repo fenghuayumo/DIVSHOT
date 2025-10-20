@@ -23,6 +23,34 @@
 
 namespace diverse
 {
+	
+	std::vector<std::string> read_text_file(const std::filesystem::path& file_path) {
+		std::ifstream file(file_path);
+		if (!file.is_open()) {
+			throw std::runtime_error("Failed to open " + file_path.string());
+		}
+		std::vector<std::string> lines;
+		std::string line;
+		while (std::getline(file, line)) {
+			if (line.starts_with("#")) {
+				continue; // Skip comment lines
+			}
+			if (!line.empty() && line.back() == '\r') {
+				line.pop_back(); // Remove trailing carriage return
+			}
+			lines.push_back(line);
+		}
+		file.close();
+		if (lines.empty()) {
+			throw std::runtime_error("File " + file_path.string() + " is empty or contains no valid lines");
+		}
+		// Ensure the last line is not empty
+		if (lines.back().empty()) {
+			lines.pop_back(); // Remove last empty line if it exists
+		}
+		return lines;
+	}
+
 	bool loadText(const std::filesystem::path& path, std::string& text)
 	{
 		std::ifstream	input(path.string());

@@ -451,7 +451,7 @@ namespace diverse
         project_settings.Height = 800;
         project_settings.Borderless = false;
         project_settings.VSync = false;
-        project_settings.Title = "SplatX";
+        project_settings.Title = "divshot";
         project_settings.ShowConsole = false;
         project_settings.Fullscreen = false;
 
@@ -481,7 +481,7 @@ namespace diverse
         mount_file_system_paths();
 
         // Set Default values
-        project_settings.Title = "SplatX";
+        project_settings.Title = "divshot";
         project_settings.Fullscreen = false;
         if (create_scene)
         {
@@ -571,7 +571,7 @@ namespace diverse
                 project_settings.Height = 800;
                 project_settings.Borderless = false;
                 project_settings.VSync = false;
-                project_settings.Title = "SplatX";
+                project_settings.Title = "divshot";
                 project_settings.ShowConsole = false;
                 project_settings.Fullscreen = false;
 
@@ -599,7 +599,7 @@ namespace diverse
         project_settings.Height = 800;
         project_settings.Borderless = false;
         project_settings.VSync = false;
-        project_settings.Title = "SplatX";
+        project_settings.Title = "divshot";
         project_settings.ShowConsole = false;
         project_settings.Fullscreen = false;
 

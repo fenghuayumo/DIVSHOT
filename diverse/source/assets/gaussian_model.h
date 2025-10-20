@@ -46,7 +46,7 @@ namespace diverse
     struct Gaussian
     {
         glm::vec4 position;				// Gaussian position
-        glm::vec4 rotation_scale;		// rotation, scale, and opacity
+        glm::uvec4 rotation_scale;		// rotation, scale, and opacity
     };
 
     struct PackedVertexSH
@@ -61,7 +61,7 @@ namespace diverse
     // {
     //     glm::vec2 sh0;
     // };
-    using PackedVertexColor = glm::vec2;
+    using PackedVertexColor = glm::uvec2;
 	struct GaussianModel : public Asset
 	{
 	public:

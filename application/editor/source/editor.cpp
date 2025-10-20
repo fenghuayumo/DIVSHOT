@@ -83,6 +83,7 @@ namespace diverse
     static bool saveScenePopup = false;
     static int  exportType = 0;
     static bool gs2mesh_load = false;
+    static bool modifyNumIters = false;
     std::string get_resource_path()
     {
         return FileSystem::get_working_directory() + "/../resource/";
@@ -269,7 +270,7 @@ namespace diverse
         ImGuiHelper::SetTheme(settings.theme);
         OS::instance()->setTitleBarColour(ImGui::GetStyle().Colors[ImGuiCol_MenuBarBg]);
         auto version_str = std::to_string(DiverseVersion.major) + "." + std::to_string(DiverseVersion.minor) + "." + std::to_string(DiverseVersion.patch);
-        Application::get().get_window()->set_window_title("SplatX v" + version_str);
+        Application::get().get_window()->set_window_title("divshot v" + version_str);
 
         ImGuizmo::SetGizmoSizeClipSpace(settings.imguizmo_scale);
         if( std::filesystem::exists(layoutFolder + "dvui.ini"))
@@ -823,7 +824,7 @@ namespace diverse
             {
                 const auto& [gstrain, transform] = gsGroup.get<GaussianTrainerScene, maths::Transform>(entity);
                 auto cur_status = gstrain.getCurrentTrainingStatus();
-                if (gstrain.ShowTrainView && cur_status == TrainingStatus::Training)
+                if (gstrain.ShowTrainView && cur_status >= TrainingStatus::Training)
                 {
                     auto model = registry.get<GaussianComponent>(entity).ModelRef;
                     for(auto i=0;i < gstrain.getNumCameras();i++)
@@ -911,7 +912,8 @@ namespace diverse
                     {
                         // auto& trans = registry.get<maths::Transform>(currentClosestEntity);
                         auto& pivot_transform = get_pivot()->get_transform();
-                        if(!is_editing_splat())
+                        auto gaussian = registry.try_get<GaussianComponent>(currentClosestEntity);
+                        if(!gaussian)
                             focus_camera(pivot_transform.get_world_position(), 2.0f, 2.0f);
                     }
                     else
@@ -1449,8 +1451,14 @@ namespace diverse
             auto& gs_train = gs_ent.get_component<GaussianTrainerScene>();
             auto& gscom =  gs_ent.get_component<GaussianComponent>();
             auto& gs_model = gscom.ModelRef;
-            const auto mouse_moved = Input::get().get_mouse_delta().x > 0 || Input::get().get_mouse_delta().y > 0 || Input::get().get_mouse_clicked(InputCode::MouseKey::ButtonLeft);
-            const auto moved = editor_camera_controller.is_moving() | mouse_moved;
+            auto moved = Input::get().get_mouse_delta().x > 0 || Input::get().get_mouse_delta().y > 0 || Input::get().get_mouse_clicked(InputCode::MouseKey::ButtonLeft);
+            static glm::mat4 prev_view = editor_camera_transform.get_world_matrix();
+            const auto view = editor_camera_transform.get_world_matrix();
+            if(view != prev_view)
+            {
+                prev_view = view;
+                moved = true;
+            }
             gscom.skip_render = !moved;
             if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Colmap_Sfm)
             {
@@ -1473,9 +1481,14 @@ namespace diverse
                         messageBox("warn", "current device compute capability doesn't support train");
                         gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
                     }
+                    if(!is_driver_support())
+                    {
+                        messageBox("warn", "current driver doesn't support train, please update latest driver");
+                        gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
+                    }
                     set_gaussian_render_type(GaussianRenderType::Splat);
                 }
-                if (is_device_support_gstrain())
+                if (is_device_support_gstrain() && is_driver_support())
                 {
                     if(gs_train.getCurrentTrainingStatus() == TrainingStatus::Loading_Failed){
                         get_current_scene()->destroy_entity(gs_ent);
@@ -1497,7 +1510,9 @@ namespace diverse
                         );
                         gscom.skip_render = false;
                         gs_model->antialiased() = gs_train.getTrainConfig().mipAntiliased;
-                        if (gs_train.getNumGaussians() > 1000000) 
+                        auto total_vram_size = g_device->gpu_limits.vram_size;
+                        auto allocated_vram_size = gs_train.getNumGaussians() * 236 * 10;
+                        if (allocated_vram_size > total_vram_size * 0.5) 
                         {
                             gs_train.getTrainConfig().packLevel |= GSPackLevel::PackTileID | GSPackLevel::PackF32ToU8;
                         }
@@ -1728,10 +1743,10 @@ namespace diverse
             ImGui::TextUnformatted("Densify Type");
             ImGui::NextColumn();
             ImGui::PushItemWidth(-1);
-            const char* densify_str[] = { "SplatADC", "SplatMCMC" };
+            const char* densify_str[] = { "SplatADC", "SplatMCMC","SplatADC+" };
             if (ImGui::BeginCombo("densify", densify_str[trainConfig.densifyStrategy], 0)) // The second parameter is the label previewed before opening the combo.
             {
-                for (int n = 0; n < 2; n++) //now not support sparse grad
+                for (int n = 0; n < 3; n++) //now not support sparse grad
                 {
                     bool is_selected = (n == trainConfig.densifyStrategy);
                     if (ImGui::Selectable(densify_str[n]))
@@ -1769,21 +1784,32 @@ namespace diverse
         ImGui::NextColumn();
         //ImGui::Checkbox("Default Setup", &defaultSetup);
         ImGuiHelper::Property("MaxSplats",trainConfig.capMax);
-        ImGuiHelper::Property("MaxImgNums", trainConfig.maxImageCount);
-        ImGuiHelper::Property("MaxImgWidth", trainConfig.maxImageWidth);
-        ImGuiHelper::Property("MaxImgHeight", trainConfig.maxImageHeight);
-        if (is_video_file(file_path))
-        {
-            ImGuiHelper::Property("Fps", trainConfig.videoFps);
-        }
-  
+        ImGuiHelper::Property("RefineEverySteps",trainConfig.refineEvery,100,3000,"how many every step do refine operation");
+        ImGuiHelper::Property("MaxSteps",trainConfig.numIters,1000,300000,"how many steps to train");
+            modifyNumIters = true;
+            
         ImGui::Columns(1);
         ImGui::Separator();
         ImGui::PopStyleVar();
         diverse::ImGuiHelper::PopID();
 
         ImGui::Separator();
-
+        if (ImGui::TreeNodeEx("DataSet", ImGuiTreeNodeFlags_Framed))
+        {
+            ImGui::Indent();
+            ImGui::Columns(2);
+            ImGuiHelper::Property("MaxImgNums", trainConfig.maxImageCount);
+            ImGuiHelper::Property("MaxImgWidth", trainConfig.maxImageWidth);
+            ImGuiHelper::Property("MaxImgHeight", trainConfig.maxImageHeight);
+            if (is_video_file(file_path))
+            {
+                ImGuiHelper::Property("Fps", trainConfig.videoFps);
+            }
+            ImGui::Unindent();
+            ImGui::TreePop();
+        }
+        ImGui::Columns(1);
+        ImGui::Separator();
         if (ImGui::TreeNodeEx("Advance", ImGuiTreeNodeFlags_Framed))
         {
             ImGui::Indent();
@@ -1792,6 +1818,7 @@ namespace diverse
             ImGuiHelper::Property("Mask", trainConfig.useMask,"whether use mask!");
             ImGuiHelper::Property("ExportMesh", trainConfig.exportMesh,"whether create mesh model!");
             ImGuiHelper::Property("Anti-Alias", trainConfig.mipAntiliased, "whether enable antialias!");
+            ImGuiHelper::Property("QualityMode", trainConfig.bestQuality, "whether use quality or performance mode!");
             ImGui::Unindent();
             ImGui::TreePop();
         }
@@ -1832,18 +1859,17 @@ namespace diverse
                     }
                     auto req_mem_size = file_count * sizeof(float) * 4 * (trainConfig.maxImageWidth * trainConfig.maxImageHeight);
                     auto total_vram_size = g_device->gpu_limits.vram_size;
-                    if (req_mem_size >= total_vram_size * 0.33 && req_mem_size < 0.5 * total_vram_size) 
+                    if (req_mem_size >= total_vram_size * 0.33 && req_mem_size < 0.66 * total_vram_size) 
                         trainConfig.packLevel = GSPackLevel::PackF32ToU8;
-                    else if(req_mem_size >= 0.5 * total_vram_size)
+                    else if(req_mem_size >= 0.66 * total_vram_size)
                         trainConfig.packLevel = GSPackLevel::PackF32ToU8 | GSPackLevel::PackTileID;
                     else
                         trainConfig.packLevel = 0;
-                    if (req_mem_size >= total_vram_size * 0.66 ) 
-                        trainConfig.img2gpuOnfly = true;
-                    int times = (int)std::ceil(file_count / 500.0f);
+                    int times = (file_count + 600 - 1)/ 600;
                     trainConfig.pruneInterval = 700000 * times;
                     trainConfig.warmupLength = 500 * times;
-                    trainConfig.numIters = 30000 * times;
+                    if(!modifyNumIters)
+                        trainConfig.numIters = 30000 + 10000 * (times - 1);
                     trainConfig.resetAlphaEvery = trainConfig.refineEvery * 30;
                     trainConfig.refineStopIter = trainConfig.numIters / 2;
                     trainConfig.refineScale2dStopIter = trainConfig.refineStopIter / 3;
@@ -1864,7 +1890,7 @@ namespace diverse
             transform.set_world_matrix(glm::mat4(1.0f));
             current_train_entity = modelEntity.get_handle();
             std::thread([&](){
-                //try{
+                try{
                     if(gaussian_train.loadTrainData(datasource_path)){
                         gaussian_train.trainSetup();
                     }
@@ -1881,9 +1907,11 @@ namespace diverse
                                 && curStep < gaussian_train.getTrainConfig().numIters)
                                     is_update_splat_rendering = true;
                                 
-                                if (curStep == gaussian_train.getTrainConfig().numIters - 1)
+                                if (curStep == (gaussian_train.getTrainConfig().numIters +1)
+                                    && gaussian_train.getCurrentTrainingStatus() != TrainingStatus::Training_Done)
                                 {
                                     gaussian_train.saveGaussianModel();
+                                    DS_LOG_INFO("save splat to file : {}", gaussian_train.getTrainConfig().modelPath);
                                     if(gaussian_train.getTrainConfig().exportMesh)
                                     {
                                         DS_LOG_INFO("Extracting Gaussian Mesh.... ");
@@ -1899,21 +1927,21 @@ namespace diverse
                                         catch(const std::exception& e)
                                         {
                                             messageBox("error", e.what());
-                                            gaussian_train.setTrainingStatus(TrainingStatus::Training);
                                             DS_LOG_ERROR(e.what());
                                         }
                                     }
+                                    gaussian_train.setTrainingStatus(TrainingStatus::Training_Done);
                                 }
                             }
                         }
                     }
-                //}
-       /*         catch(const std::exception& e)
+                }
+                catch(const std::exception& e)
                 {
                     messageBox("error", e.what());
                     DS_LOG_ERROR(e.what());
                     gaussian_train.setTrainingStatus(TrainingStatus::Loading_Failed);
-                }*/
+                }
             }).detach();
 
             ImGui::CloseCurrentPopup();
@@ -2047,7 +2075,7 @@ namespace diverse
         if (ImGuiHelper::Button("..")) //open file dialog
         {
             if(!is_export_mesh)
-                filepath = diverse::FileDialogs::saveFile({ "ply", "splat", "compressed.ply", "dvsplat","spz"});
+                filepath = diverse::FileDialogs::saveFile({ "ply", "splat", "compressed.ply","spz"});
             else
                 filepath = diverse::FileDialogs::saveFile({ "obj", "ply"});
         }
@@ -2783,7 +2811,10 @@ namespace diverse
         }
 #ifdef DS_SPLAT_TRAIN
         if(is_open_newgaussian_popup)
+        {
             ImGui::OpenPopup("New GaussianSplat");
+            modifyNumIters = false;
+        }
         if (ImGui::BeginPopupModal("New GaussianSplat", NULL, ImGuiWindowFlags_AlwaysAutoResize))
         {
             create_gaussian_dialog(splat_source_path);
@@ -2794,7 +2825,7 @@ namespace diverse
         is_open_newgaussian_popup = false;
         if(importModelPopup)
         {
-            auto [gs_path,_] = FileDialogs::openFile({"ply", "splat", "compressed.ply","dvsplat","spz","obj","gltf","glb"});
+            auto [gs_path,_] = FileDialogs::openFile({"ply", "splat", "compressed.ply","spz","obj","gltf","glb"});
             if (is_gaussian_file(gs_path) || is_mesh_model_file(gs_path))
             {
                 load_model_path = gs_path;
@@ -2846,7 +2877,8 @@ namespace diverse
         //     editor_camera_transform.set_local_orientation(glm::vec3(elev,azim,0));
         // }
         ImOGuizmo::SetRect(canvasSize.x + windowPos.x - 96, windowPos.y + 32, 64.0f);
-        if(ImOGuizmo::DrawGizmo(glm::value_ptr(view), glm::value_ptr(proj), 1.0f))
+        static glm::mat4 gizmo_proj = glm::perspective(glm::radians(60.0f), 4/3.0f, 0.01f, 1000.0f);
+        if(ImOGuizmo::DrawGizmo(glm::value_ptr(view), glm::value_ptr(gizmo_proj), 1.0f))
         {
             editor_camera_transform.set_local_orientation(glm::quat_cast(glm::inverse(view)));
         }
@@ -3147,12 +3179,12 @@ namespace diverse
             ImGui::DockBuilderDockWindow("###Inspector", DockRight);
             ImGui::DockBuilderDockWindow("###Console", DockBottomMiddle);
 
-            ImGui::DockBuilderDockWindow("###resources", DockingBottomLeftChild);
+            // ImGui::DockBuilderDockWindow("###resources", DockingBottomLeftChild);
             ImGui::DockBuilderDockWindow("###KeyFrame", DockBottomMiddle);
             // ImGui::DockBuilderDockWindow("###Histogram", DockBottomMiddle);
             ImGui::DockBuilderDockWindow("###Hierarchy", DockRight);
             ImGui::DockBuilderDockWindow("###ScenePreview", DockLeft);
-            ImGui::DockBuilderDockWindow("###SplatEdit", DockLeft);
+            // ImGui::DockBuilderDockWindow("###SplatEdit", DockLeft);
 
             ImGui::DockBuilderFinish(DockspaceID);
         }
@@ -3335,10 +3367,10 @@ namespace diverse
             auto gs_com = registry.try_get<GaussianTrainerScene>(gs_ent);
             if (gs_com)
             {
-                if (gs_com->getCurrentIterations() < gs_com->maxIteriaons()) {
-                    messageBox("warn", "please make sure splat training is finished ");
-                    return;
-                }
+                // if (gs_com->getCurrentIterations() < gs_com->maxIteriaons()) {
+                //     messageBox("warn", "please make sure splat training is finished ");
+                //     return;
+                // }
                 if(!gs_com->getTrainConfig().normalConsistencyLoss){
                     messageBox("warn", "please enable exportmesh option when train gaussian splat");
                     return;

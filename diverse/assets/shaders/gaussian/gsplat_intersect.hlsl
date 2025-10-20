@@ -236,9 +236,9 @@ void main(uint2 px: SV_DispatchThreadID)
                       p.y >= region_min.y && p.y <= region_max.y;
         }
 #elif defined(MODE_RINGS)
-        float4 rotation_scale = gs.rotation_scale;
-        float4 scale_opacity = unpack_half4(rotation_scale.zw);
-        float4 q = unpack_half4(rotation_scale.xy);
+        uint4 rotation_scale = gs.rotation_scale;
+        float4 scale_opacity = unpack_uint2(rotation_scale.zw);
+        float4 q = unpack_uint2(rotation_scale.xy);
         float3 s = scale_opacity.xyz * gs_splat_size;
 
         float3x3 cov3D;

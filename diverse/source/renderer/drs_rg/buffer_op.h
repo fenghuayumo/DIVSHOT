@@ -28,5 +28,25 @@ namespace diverse
             });
             pass.rg->record_pass(std::move(pass.pass));
         }
+
+        inline auto clear_buffer(RenderGraph& rg, Handle<rhi::GpuBuffer>& buf,const uint value)
+        {
+            auto pass = rg.add_pass("clear buffer");
+            auto output_ref = pass.write(buf, rhi::AccessType::TransferWrite);
+
+            pass.render([output_ref = std::move(output_ref), value](RenderPassApi& api) {
+                auto device = api.device();
+                auto cb = api.cb;
+
+                auto buffer = api.resources.buffer(output_ref);
+
+                device->fill_buffer(
+                    cb,
+                    buffer,
+                    value
+                );
+            });
+            pass.rg->record_pass(std::move(pass.pass));
+        }
     }
 }
