@@ -17,8 +17,6 @@ project "divshot-cli"
 		"%{IncludeDir.external}",
 		"%{IncludeDir.spdlog}",
 		"%{IncludeDir.glm}",
-		"%{IncludeDir.gstrain}",
-		"%{IncludeDir.gstrain_utils}",
 		"%{IncludeDir.CUDA_PATH}",
 		"%{IncludeDir.cli11}",
 		"%{IncludeDir.cereal}",

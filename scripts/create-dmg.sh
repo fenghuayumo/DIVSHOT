@@ -103,21 +103,6 @@ done
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BINARY"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_CLI_BINARY"
 
-# 签名（替换为你的证书）
-find "$FRAMEWORKS_DIR" -name "*.dylib" | while read -r lib; do
-codesign --force --verbose=4 --sign "Developer ID Application: yu liu (7358DS45R4)" --timestamp "$lib"
-done
-find "$FRAMEWORKS_DIR" -name "*.metallib" | while read -r lib; do
-sudo codesign --force --verbose=4 --sign "Developer ID Application: yu liu (7358DS45R4)" --timestamp "$lib" 
-done
-
-codesign --force --verbose=4 --sign "Developer ID Application: yu liu (7358DS45R4)"  --timestamp "$APP_CLI_BINARY"
-codesign --force --verbose=4 --sign "Developer ID Application: yu liu (7358DS45R4)" --options runtime --entitlements diverseshot.entitlements --timestamp "$APP_BINARY"
-
-# echo "公证....."
-# ditto -c -k --keepParent $BUILD_DIR/bin/diverseshot.app $BUILD_DIR/bin/diverseshot.zip
-# xcrun notarytool submit $BUILD_DIR/bin/diverseshot.zip --apple-id "liuyu233@icloud.com" --team-id "7358DS45R4" --password "vmpy-wauw-ymop-wfac" --wait
-# xcrun stapler staple -v --force $BUILD_DIR/bin/diverseshot.app
 
 echo "Creating dmg..."
 RESULT="../diverseshot.dmg"

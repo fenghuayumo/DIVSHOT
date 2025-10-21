@@ -38,8 +38,8 @@ project "divshot"
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.diverse}",
 		"%{IncludeDir.diverse_base}",
-		"%{IncludeDir.gstrain}",
-		"%{IncludeDir.gstrain_utils}",
+		-- "%{IncludeDir.gstrain}",
+		-- "%{IncludeDir.gstrain_utils}",
 		"%{IncludeDir.CUDA_PATH}",
 		"%{IncludeDir.opencv}",
 		"%{IncludeDir.nanobind}",
@@ -106,7 +106,7 @@ project "divshot"
 			"_DISABLE_EXTENDED_ALIGNED_STORAGE",
 			"_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING",
 			"DS_VOLK",
-			"DS_SPLAT_TRAIN"
+			-- "DS_SPLAT_TRAIN"
 		}
 
 		libdirs
@@ -120,7 +120,7 @@ project "divshot"
 			"glfw",
 			"OpenGL32",
 			"OpenAL32",
-			"gstrain",
+			-- "gstrain",
 			"opencv_world490.lib"
 		}
 

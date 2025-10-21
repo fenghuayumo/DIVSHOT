@@ -1,7 +1,7 @@
 <div align="center">
 
 # diverse 
-**a lightweight radiance field renderer, which will combine traditional rennder and neural renderer to render beatiful images**
+**a lightweight radiance field renderer**
 
 </div>
 
@@ -30,29 +30,15 @@ Operating systems:
 * Linux (Will be in future)
 
 ## Project structure
-<!-- *  gsplatrast
-   *  the core gsplat rasterizer forward and backward training lib
+<!-- 
 *  diverse
    *  the core rendering lib
 *  diverseshot
    *  the editor exe
-*  gstrain
-   *  the core gsplat training lib which use gsplatrast lib to forward and backward render, contains data loader process
-*  gstrain_utils
-   *  the gstrain utils lib which will be used in gstrain project.
-*  pygstrain_utils
-   *  the python binding for gstrain_utils
-*  hybrid_gstrain
-   *  Similar to gstrain, but trained using a mixture of Python and C++ code so that the editor will not depend on torch dll directly.
-   *   -->
+   *   
+* -->
 |Directory                                  |Details                                                                    |
 |-------------------------------------------|---------------------------------------------                              |
-|[/docs][docs]                              |_Documentation for showcased tech_                                         |
-|[/diverse_utils/gsplatrast][gsplatrast]                  |the core gsplat rasterizer forward and backward training lib               |
-|[/diverse_utils/gstrain][gstrain]                        |the core gsplat training lib which use gsplatrast lib to forward and backward render, contains data loader process                                   |
-|[/diverse_utils/gstrain_utils][gstrain_utils]            |the gstrain utils lib which will be used in gstrain project.               |
-|[/diverse_utils/pygstrain_utils][pygstrain_utils]        |the python binding for gstrain_utils            |
-|[/diverse_utils/hybrid_gstrain][hybrid_gstrain]          |Similar to gstrain, but trained using a mixture of Python and C++ code so that the editor will not depend on torch dll directly.              |
 |[/diverse][diverse]                        |the core rendering lib including render lib an other useful function       |
 |[/application/diverseshot][diverseshot]                |the editor exe, main  program                                               |
 |[/python][python]                          |python code interface             |
@@ -66,59 +52,8 @@ git submodule update --init --recursive
 
 To build `diverse` you should open the scripts folder, Then, doing the following operations
 
-0. install the SDK package mentioned earlier.
-1. make sure you have set CUDA_PATH and PY3_PATH enviroment variable.
-2. install pytorch (the corresponding cuda version)
-3. select corrsponding platform folder, double click the .bat file. this will make the projects
-4. you should select the diverseshot as startup project, then build this project.
-5. copy the corresponding dll file to bin folder. Here is the install package which contains sfm dll file(https://github.com/fenghuayumo/diverse/releases), you should copy sfm and torch related dll file to bin folder(you can download from pytorch official website).
-### Note:
-    if you only want to build a gsplat/mesh render viewer, you can disable gstrain compile by remove DS_SPLAT_TRAIN macro and remove gstrain lib dependencies in premake5.lua config in the editor folder.
-
 #### Windows 
 * Run Scripts/GenerateVS.bat to generate a visual studio project.
-* Build with Python (optional if you want to use python interface)
-  * fisrt build gsplatrast, then build gstrain_utils with Production version, you can binding these lib to python using "python setup.py install" cmd.
-  * run with "python main.py configs/nerf.yaml --gpu 0 --train sourcePath="xxxx" modelPath="xxxx" 
-
-##### Python Run Mode
-- [tiny-cuda-nn](https://github.com/NVlabs/tiny-cuda-nn)
-- [nvdiffrast](https://nvlabs.github.io/nvdiffrast/)
-- [largestep](https://github.com/rgl-epfl/large-steps-pytorch.git)
-- generate depth images (optional)
-```
-cd diverse/python
-cd depth_anything
-python run.py --encoder vitl --pred-only --grayscale --img-path <path to input images> --outdir <output path> (option)  
-```
-
-```
-cd diverse
-cd diverse_utils/gsplatrast
-python setup.py install
-
-cd diverse_utils/pygstrain_utils
-python setup.py install
-
-pip3 install trimesh \
-            open3d \
-            nerfacc \
-            omegaconf \
-            xatlas \
-            loguru \
-            omegaconf \
-            PyMCubes \
-
-python main.py --config configs/gsplat.yaml --gpu 0 --train sourcePath="xxxx" modelPath="xxxx" 
-```
-
-#### Linux
-```
-sudo apt-get install -y g++-11 libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libopenal-dev mesa-common-dev
-cd diverse
-tools/linux/premake5 gmake2
-make -j8 # config=release
-```
 
 #### Mac
 Ony support arm arch.
