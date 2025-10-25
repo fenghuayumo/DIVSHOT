@@ -10,7 +10,7 @@
 ![diverse](/screenshots/screenshot2.png?raw=true)
 ![diverse](/screenshots/screenshot3.png?raw=true)
 ## 🎥 Videos
-![diverse](/screenshots/video1.mp4?)
+![diverse](/screenshots/video.mp4?)
 
 ## User Guide
 - [UserGuide][UserGuide] user documentation
@@ -40,13 +40,12 @@ Operating systems:
 |Directory                                  |Details                                                                    |
 |-------------------------------------------|---------------------------------------------                              |
 |[/diverse][diverse]                        |the core rendering lib including render lib an other useful function       |
-|[/application/diverseshot][diverseshot]                |the editor exe, main  program                                               |
-|[/python][python]                          |python code interface             |
+|[/application/editor][diverseshot]                |the editor exe, main  program                                       
 |[/application/diverseshot-cli][diverseshot-cli]                |gsplat training console exe             |
 |[/external][external]                      |external lib                            |
 ## Building and running
 ```
-git clone https://github.com/fenghuayumo/diverse.git
+git clone https://github.com/fenghuayumo/DIVSHOT.git
 git submodule update --init --recursive
 ```
 
@@ -54,70 +53,6 @@ To build `diverse` you should open the scripts folder, Then, doing the following
 
 #### Windows 
 * Run Scripts/GenerateVS.bat to generate a visual studio project.
-
-#### Mac
-Ony support arm arch.
-If you're using [Homebrew](https://brew.sh), you can install Cmake/OpenCV/Pytorch by running:
-
-```bash
-brew install cmake
-brew install opencv
-brew install pytorch
-```
-Note: first compile colmap
-
-```bash
-brew install \
-    cmake \
-    ninja \
-    boost \
-    eigen \
-    flann \
-    freeimage \
-    metis \
-    glog \
-    googletest \
-    ceres-solver \
-    qt5 \
-    glew \
-    cgal \
-    sqlite3
-
-git clone https://github.com/fenghuayumo/colmap.git
-cd colmap
-mkdir build
-cd build
-cmake .. -GNinja -DCMAKE_PREFIX_PATH="$(brew --prefix qt@5)"
-ninja
-sudo ninja install
-
-sudo cp src/colmap/dvscolmap/libcolmap_dvs.dylib diverse/external/colmap/liblink/mac/libcolmap_dvs.dylib
-```
-
-You will also need to install Xcode and the Xcode command line tools to compile with metal support (otherwise, gstrain will build with CPU acceleration only):
-1. Install Xcode from the Apple App Store.
-2. Install the command line tools with `xcode-select --install`. This might do nothing on your machine.
-3. If `xcode-select --print-path` prints `/Library/Developer/CommandLineTools`,then run `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`.
-
-
-M1/M2/M3 Macs: using cmake to compile, just execute the following command.
-using cmake generate xcode
-```
-mkdir build
-cd build
-cmake -G Xcode \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 \
-    -DDIVERSE_DEPLOY=1 \
-    -DCMAKE_BUILD_TYPE="Production" \
-    -DCMAKE_OSX_ARCHITECTURES="arm64;" \
-    -DGPU_RUNTIME=MPS \
-    ..
-```
-or using bash scripts to compile
-```
-scripts/create-dmg.sh
-```
-#### iOS
 
 
 # Credits
