@@ -1,7 +1,9 @@
 <div align="center">
 
 # DIVSHOT 
-**a lightweight radiance field renderer and trainng platform client**
+**A lightweight radiance field renderer and training platform client that supports flexible editing tools for editing and cropping trained Gaussian splats for export, as well as rendering them to images or videos.**
+
+It originated from a 2023 paper [gaussian-splatting](https://github.com/graphdeco-inria/gaussian-splatting). Initially, it was created for learning purposes to implement this paper in C++, aiming to build a real-time visualization training tool similar to [instantngp](https://github.com/NVlabs/instant-ngp). After the emergence of SuperSplat, I was inspired to expand its functionality. After 2 years of spare time development, it has now become a comprehensive and practical tool.
 
 </div>
 
@@ -29,6 +31,8 @@ Operating systems:
 * Mac (Will be in future)
 * Linux (Will be in future)
 
+**Note:** Currently refactoring a new framework to support multi-platform training, planned to be named RadField Studio. It will become a professional scanning tool for CG workflows. Stay tuned!
+
 ## Project structure
 <!-- 
 *  diverse
@@ -40,7 +44,7 @@ Operating systems:
 |Directory                                  |Details                                                                    |
 |-------------------------------------------|---------------------------------------------                              |
 |[/diverse][diverse]                        |the core rendering lib including render lib an other useful function       |
-|[/application/editor][diverseshot]                |the editor exe, main  program                                       
+|[/application/editor][editor]                |the editor exe, main  program                                       
 |[/application/diverseshot-cli][diverseshot-cli]                |gsplat training console exe             |
 |[/external][external]                      |external lib                            |
 ## Building and running
@@ -95,6 +99,7 @@ To build `divshot` you should open the scripts folder, Then, doing the following
  * [gaustudio](https://github.com/GAP-LAB-CUHK-SZ/gaustudio)
  * [gs2mesh](https://gs2mesh.github.io/)
  * [nep](https://www.whyy.site/paper/nep)
+ * [instantngp](https://github.com/NVlabs/instant-ngp)
 
 [UserGuide]: docs/userGuide.md    
 [DevGuide]:  docs/devGuide.md

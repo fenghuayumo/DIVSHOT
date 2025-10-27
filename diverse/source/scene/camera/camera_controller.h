@@ -11,7 +11,7 @@ namespace diverse
     }
     class Camera;
 
-    class DS_EXPORT CameraController
+    class CameraController
     {
     public:
         CameraController()          = default;

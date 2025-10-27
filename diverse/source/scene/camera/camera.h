@@ -10,7 +10,7 @@
 namespace diverse
 {
    
-    class DS_EXPORT Camera
+    class Camera
     {
     public:
         enum class CameraViewMode

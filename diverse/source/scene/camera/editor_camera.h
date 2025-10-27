@@ -11,7 +11,7 @@ namespace diverse
         TWODIM
     };
 
-    class DS_EXPORT EditorCameraController : public CameraController
+    class EditorCameraController : public CameraController
     {
     public:
         EditorCameraController();
