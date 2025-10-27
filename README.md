@@ -1,7 +1,7 @@
 <div align="center">
 
-# diverse 
-**a lightweight radiance field renderer**
+# DIVSHOT 
+**a lightweight radiance field renderer and trainng platform client**
 
 </div>
 
@@ -9,8 +9,8 @@
 ![diverse](/screenshots/screenshot.png?raw=true)
 ![diverse](/screenshots/screenshot2.png?raw=true)
 ![diverse](/screenshots/screenshot3.png?raw=true)
-## 🎥 Videos
-![diverse](/screenshots/video.mp4?)
+<!-- ## 🎥 Videos
+![diverse](/screenshots/video.mp4?) -->
 
 ## User Guide
 - [UserGuide][UserGuide] user documentation
@@ -49,10 +49,10 @@ git clone https://github.com/fenghuayumo/DIVSHOT.git
 git submodule update --init --recursive
 ```
 
-To build `diverse` you should open the scripts folder, Then, doing the following operations
+To build `divshot` you should open the scripts folder, Then, doing the following operations
 
 #### Windows 
-* Run Scripts/GenerateVS.bat to generate a visual studio project.
+* Run Scripts/GenerateVS.bat to generate a visual studio project, you can select divshot as startup project.
 
 
 # Credits
