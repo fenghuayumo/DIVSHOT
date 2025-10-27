@@ -46,19 +46,29 @@ To save the currently loaded scene, select the `File` > `Export` or `Export Sele
 
 ## Controlling the Camera
 
-The camera controls in SplatX are as follows:
+The camera controls in DIVSHOT are as follows:
+
+### Mouse Controls
 
 | Control                                         | Description                     |
 | ----------------------------------------------- | ------------------------------- |
-| Right Mouse Button                              | Orbit camera                    |
-| Middle Mouse Button                             | Dolly camera                    |
-| Middle Mouse Button + Right Mouse Button        | Pan camera                      |
-| A/D Arrow Keys                                  | Strafe camera left/right        |
-| W/S Arrow Keys                                  | Dolly camera forwards/backwards |
-| F Key                                           | Focus Object                    |
-| Q Key                                           | Upward                          |
-| E Key                                           | Downward                        |
-| Shift Key                                       | Accerlate Move                  |
+| Right Mouse Button                              | Orbit camera around focal point |
+| Middle Mouse Button                             | Pan camera (translate view)     |
+| Middle Mouse Button + Right Mouse Button        | Pan camera (alternative)        |
+| Mouse Scroll Wheel                              | Dolly/Zoom camera               |
+
+### Keyboard Controls
+
+| Control                                         | Description                     |
+| ----------------------------------------------- | ------------------------------- |
+| W/S Keys                                        | Dolly camera forwards/backwards |
+| A/D Keys                                        | Strafe camera left/right        |
+| Q Key                                           | Move camera downward            |
+| E Key                                           | Move camera upward              |
+| F Key                                           | Focus on selected object        |
+| Shift Key                                       | Accelerate movement (3x speed)  |
+
+**Note:** The Q/E keys move the camera up and down in world space, making it easy to adjust the camera height. The Shift key works with all camera operations including keyboard movement, mouse panning, and mouse zoom for faster navigation.
 
 ## Editing Splats
 You can select the sceneview toolbar "Splat", then select the "Edit" submenu item, and the sceneview will display the splat edit toolbar as shown in the figure. ![DIVSHOT](/screenshots/splat_edit.png?raw=true)
