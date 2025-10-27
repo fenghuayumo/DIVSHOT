@@ -15,10 +15,10 @@ DIVSHOT is a desktop app so you need to install it.
 
 https://github.com/fenghuayumo/DIVSHOT/releases
 
-When you have downloaded the installation package, double-click to run it, and you will see the installation interface as shown in the image. ![diverse](/screenshots/install_div.png?raw=true) 
+When you have downloaded the installation package, double-click to run it, and you will see the installation interface as shown in the image. ![DIVSHOT](/screenshots/install_div.png?raw=true) 
 Then simply click Next through the installation process. During the installation, you can choose the installation path. 
 
-**Note:** After installation is complete, a desktop shortcut icon will appear on your desktop. Double-click it to launch the application. However, on some computers, you may encounter permission access issues that cause the application to crash immediately. In this case, you can run it as administrator, or you can launch it using the command line. Simply navigate to the installation directory and find `diverse_launch.exe`, then type `diverse_launch` in the command line and press Enter to run it. This will open the editor viewer interface. You can also add parameters after `diverse_launch` to run training directly via command line, allowing you to train splats in batch mode. For more details, you can use `diverse_launch --help` to view available options as shown in the image. ![diverse](/screenshots/lauch.png?raw=true) 
+**Note:** After installation is complete, a desktop shortcut icon will appear on your desktop. Double-click it to launch the application. However, on some computers, you may encounter permission access issues that cause the application to crash immediately. In this case, you can run it as administrator, or you can launch it using the command line. Simply navigate to the installation directory and find `diverse_launch.exe`, then type `diverse_launch` in the command line and press Enter to run it. This will open the editor viewer interface. You can also add parameters after `diverse_launch` to run training directly via command line, allowing you to train splats in batch mode. For more details, you can use `diverse_launch --help` to view available options as shown in the image. ![DIVSHOT](/screenshots/lauch.png?raw=true) 
 ## Training Splats
 
 DIVSHOT can training 3d gaussian splats from multiview images.
@@ -60,12 +60,12 @@ The camera controls in SplatX are as follows:
 | Shift Key                                       | Accerlate Move                  |
 
 ## Editing Splats
-You can select the sceneview toolbar "Splat", then select the "Edit" submenu item, and the sceneview will display the splat edit toolbar as shown in the figure. ![diverse](/screenshots/splat_edit.png?raw=true)
+You can select the sceneview toolbar "Splat", then select the "Edit" submenu item, and the sceneview will display the splat edit toolbar as shown in the figure. ![DIVSHOT](/screenshots/splat_edit.png?raw=true)
 
-You can select the corresponding selection tool, such as rectangle selection, then use the mouse to select splats. The selected Splats will be displayed in yellow. You can then use the Delete key to remove these Splats. You can also use the invert selection tool (in the Edit toolbar menu item), which will invert the selection so that unselected Splats will be shown in yellow, as shown in the figure: ![diverse](/screenshots/splat_edit1.png?raw=true) This way you can quickly clean up unwanted Splats and achieve very clean results.
+You can select the corresponding selection tool, such as rectangle selection, then use the mouse to select splats. The selected Splats will be displayed in yellow. You can then use the Delete key to remove these Splats. You can also use the invert selection tool (in the Edit toolbar menu item), which will invert the selection so that unselected Splats will be shown in yellow, as shown in the figure: ![DIVSHOT](/screenshots/splat_edit1.png?raw=true) This way you can quickly clean up unwanted Splats and achieve very clean results.
 ## KeyFrame
 
-You can double-click the left mouse button on the KeyFrame timeline to add a keyframe at that time mark. A yellow circle will appear to indicate this is a keyframe. You can also drag the keyframe cursor (blue vertical line) to a specific time mark, then click the "+" or "-" buttons above to add or delete keyframes. Alternatively, you can right-click to open a context menu to add or delete keyframes. You can then use the play and fast-forward controls to preview the keyframe animation. Finally, you can click the Export button at the top to export the keyframe video, as shown in the figure: ![diverse](/screenshots/keyframe_panel.png?raw=true) 
+You can double-click the left mouse button on the KeyFrame timeline to add a keyframe at that time mark. A yellow circle will appear to indicate this is a keyframe. You can also drag the keyframe cursor (blue vertical line) to a specific time mark, then click the "+" or "-" buttons above to add or delete keyframes. Alternatively, you can right-click to open a context menu to add or delete keyframes. You can then use the play and fast-forward controls to preview the keyframe animation. Finally, you can click the Export button at the top to export the keyframe video, as shown in the figure: ![DIVSHOT](/screenshots/keyframe_panel.png?raw=true) 
 
 ## Inspector
 

@@ -6,17 +6,17 @@
 </div>
 
 ## Screenshots
-![diverse](/screenshots/screenshot.png?raw=true)
-![diverse](/screenshots/screenshot2.png?raw=true)
-![diverse](/screenshots/screenshot3.png?raw=true)
+![DIVSHOT](/screenshots/screenshot.png?raw=true)
+![DIVSHOT](/screenshots/screenshot2.png?raw=true)
+![DIVSHOT](/screenshots/screenshot3.png?raw=true)
 <!-- ## 🎥 Videos
-![diverse](/screenshots/video.mp4?) -->
+![DIVSHOT](/screenshots/video.mp4?) -->
 
 ## User Guide
 - [UserGuide][UserGuide] user documentation
-- [DevGuide][DevGuide] develop extend docs
 ## Video Examples
-
+- [DIVSHOT Demo on Bilibili](https://www.bilibili.com/video/BV1KEsZzXEPd/?spm_id_from=333.1387.homepage.video_card.click)
+   
 ## Install On Windows
 * 1. VS2022
 * 2. Cuda SDK
@@ -101,11 +101,5 @@ To build `divshot` you should open the scripts folder, Then, doing the following
 [docs]: docs
 [diverse]: diverse
 [external]: external
-[diverseshot]: application/diverseshot
-[gstrain]: diverse_utils/gstrain
-[gstrain_utils]: diverse_utils/gstrain_utils
-[pygstrain_utils]: diverse_utils/pygstrain_utils
-[gsplatrast]: diverse_utils/gsplatrast
-[python]: python
-[hybrid_gstrain]: diverse_utils/hybrid_gstrain
+[editor]: application/editor
 [diverseshot-cli]: application/diverseshot-cli
