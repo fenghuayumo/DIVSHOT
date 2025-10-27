@@ -24,6 +24,7 @@ Then simply click Next through the installation process. During the installation
 DIVSHOT can training 3d gaussian splats from multiview images.
 1. Darg a video file/image folder to windows, Then it will create a GaussianTraining Component
 2. Select the `File` > `New GaussianSplat`, then select image file location and camerapose location 
+as the image shown: ![DIVSHOT](/screenshots/new_splats.png?raw=true) 
 
 ## Loading Splats
 

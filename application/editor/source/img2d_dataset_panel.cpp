@@ -106,6 +106,7 @@ namespace diverse
         {
             return train_view_texture[id];
         }
+#ifdef DS_SPLAT_TRAIN
         auto& reg = editor->get_current_scene()->get_registry();
         auto gsTrain = reg.try_get<GaussianTrainerScene>(editor->get_current_splat_entt());
         if(!gsTrain) return nullptr;
@@ -114,5 +115,6 @@ namespace diverse
         tex->file_path = splat_imge.name;
         train_view_texture[id] = tex;
         return tex;
+#endif
     }
 }

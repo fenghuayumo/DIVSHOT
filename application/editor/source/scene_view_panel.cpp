@@ -26,7 +26,6 @@
 #include <imgui/imgui_renderer.h>
 #include <events/application_event.h>
 #include <renderer/debug_renderer.h>
-//#include <box2d/box2d.h>
 #include <imgui/imgui_internal.h>
 #include <imgui/Plugins/ImGuizmo.h>
 #ifdef DS_SPLAT_TRAIN
@@ -498,7 +497,7 @@ namespace diverse
             if (ImGui::Button(U8CStr2CStr(ICON_MDI_AXIS_ARROW " 3D")))
             {
                 camera.set_view_mode(Camera::CameraViewMode::Perspective);
-                editor->get_editor_camera_controller().set_current_mode(EditorCameraMode::ARCBALL);
+                editor->get_editor_camera_controller().set_current_mode(EditorCameraMode::FLYCAM);
             }
             if (selected)
                 ImGui::PopStyleColor();
@@ -586,26 +585,6 @@ namespace diverse
             if(selected_mode)
                 ImGui::PopStyleColor();
             ImGui::NextColumn();
-            if (!ortho)
-            {
-                auto mode = editor->get_editor_camera_controller().get_current_mode();
-                selected = mode == EditorCameraMode::FLYCAM;
-                if (selected)
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-                if (ImGui::Button("Fly"))
-                    editor->get_editor_camera_controller().set_current_mode(EditorCameraMode::FLYCAM);
-                if (selected)
-                    ImGui::PopStyleColor();
-
-                ImGui::NextColumn();
-                selected = mode == EditorCameraMode::ARCBALL;
-                if (selected)
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-                if (ImGui::Button("ArcBall"))
-                    editor->get_editor_camera_controller().set_current_mode(EditorCameraMode::ARCBALL);
-                if (selected)
-                    ImGui::PopStyleColor();
-            }
             ImGui::Columns(1);
         /*    ImGui::SliderInt("Width", (int*) & m_Width, 128,2048);
             ImGui::SliderInt("Height", (int*)&m_Height,128,2048);*/
@@ -621,20 +600,6 @@ namespace diverse
             float Far = editor->get_camera()->get_far();
             if (ImGui::DragFloat("Far", &Far))
                 editor->get_camera()->set_far(Far);
-#ifndef DS_PRODUCTION
-            auto rot = glm::degrees(editor->get_editor_camera_transform().get_local_orientation());
-            if(ImGui::DragFloat3("rot", glm::value_ptr(rot)) )
-            {
-                editor->get_editor_camera_transform().set_local_orientation(glm::radians(rot));
-                editor->get_editor_camera_transform().set_world_matrix(glm::mat4(1.0f));
-            }
-            auto pos = editor->get_editor_camera_transform().get_local_position();
-            if (ImGui::DragFloat3("pos", glm::value_ptr(pos)))
-            {
-                editor->get_editor_camera_transform().set_local_position(pos);
-                editor->get_editor_camera_transform().set_world_matrix(glm::mat4(1.0f));
-            }
-#endif
             ImGui::EndPopup();
         }
        
@@ -1352,18 +1317,21 @@ namespace diverse
 
     void SceneViewPanel::draw_splat_focus_box(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)
     {
+#ifdef DS_SPLAT_TRAIN
         auto splat_ent = Entity(editor->get_current_splat_entt(), editor->get_current_scene());
         if (splat_ent.valid() && splat_ent.active() )
         {
+
             auto gsTrain = splat_ent.try_get_component<GaussianTrainerScene>();
             if(!gsTrain) return;
             if(!gsTrain->getTrainConfig().enableFocusRegion) return;
-            auto model = splat_ent.get_component<maths::Transform>();
             auto [a,b] = gsTrain->getFocusRegion();
+            auto focusTransform = gsTrain->getFocusRegionTransform();
+            auto model = splat_ent.get_component<maths::Transform>();
             glm::mat4 view = glm::inverse(camera_transform->get_world_matrix());
             glm::mat4 proj = camera->get_projection_matrix();
             auto world2proj = proj * view;
-            auto m = model.get_world_matrix() * gsTrain->getFocusRegionTransform();
+            auto m = model.get_world_matrix() * focusTransform;           
             auto drawList = ImGui::GetWindowDrawList();
             using namespace glm;
             draw_3d_line(drawList, world2proj, m * vec3{ a.x, a.y, a.z }, m * vec3{ a.x, a.y, b.z }, 0xffff4040, sceneViewPosition, sceneViewSize);
@@ -1381,6 +1349,7 @@ namespace diverse
             draw_3d_line(drawList, world2proj, m * vec3{ a.x, a.y, b.z }, m * vec3{ a.x, b.y, b.z }, 0xffffffff, sceneViewPosition, sceneViewSize);
             draw_3d_line(drawList, world2proj, m * vec3{ b.x, a.y, b.z }, m * vec3{ b.x, b.y, b.z }, 0xffffffff, sceneViewPosition, sceneViewSize);
         }
+#endif
     }
     
     void SceneViewPanel::handle_splat_crop(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)

@@ -167,5 +167,41 @@ namespace diverse
             set_world_matrix(glm::mat4(1.0f));
             return *this;
         }
+
+        void Transform::look_at(const glm::vec3& target, const glm::vec3& up)
+        {
+            DS_PROFILE_FUNCTION_LOW();
+            
+            // Calculate the direction from position to target
+            glm::vec3 direction = glm::normalize(target - m_LocalPosition);
+            
+            // Handle edge case where position equals target
+            if (glm::length(direction) < 1e-6f)
+            {
+                direction = glm::vec3(0.0f, 0.0f, -1.0f); // Default forward direction
+            }
+            
+            // Calculate the right vector
+            glm::vec3 right = glm::normalize(glm::cross(up, direction));
+            
+            // Recalculate the up vector to ensure orthogonality
+            glm::vec3 newUp = glm::cross(direction, right);
+            
+            // Create rotation matrix
+            // Note: In OpenGL/GLM convention, -Z is forward
+            // So we need to negate the direction for the Z column
+            glm::mat4 lookMatrix;
+            lookMatrix[0] = glm::vec4(right, 0.0f);        // Right vector
+            lookMatrix[1] = glm::vec4(newUp, 0.0f);        // Up vector
+            lookMatrix[2] = glm::vec4(-direction, 0.0f);   // Forward vector (negated for OpenGL)
+            lookMatrix[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+            
+            // Extract quaternion from matrix and convert to euler angles
+            glm::quat rotation = glm::quat_cast(lookMatrix);
+            m_LocalOrientation = glm::eulerAngles(rotation);
+            
+            // Update world matrix
+            set_world_matrix(glm::mat4(1.0f));
+        }
     }
 }

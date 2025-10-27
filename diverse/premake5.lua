@@ -68,8 +68,6 @@ project "diverse"
 	
 	links
 	{
-		"lua",
-		"box2d",
 		"imgui",
 		"freetype",
 		"SpirvCross",

@@ -52,7 +52,7 @@ git submodule update --init --recursive
 To build `divshot` you should open the scripts folder, Then, doing the following operations
 
 #### Windows 
-* Run Scripts/GenerateVS.bat to generate a visual studio project, you can select divshot as startup project.
+* Run Scripts/GenerateVS.bat to generate a visual studio project, you can select divshot as startup project. 你必须选择"Release" or "Prodution" 选项来编译，因为当前有几个库我没有提供debug版本编译，选择Debug选项会出现编译错误的.
 
 
 # Credits

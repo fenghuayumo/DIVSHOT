@@ -920,11 +920,7 @@ namespace MM
                 ImGui::TreePop();
             }
             ImGui::Unindent();
-            ImGui::Text("%s", gsTrain->getCurrentTrainingPhaseName().c_str());
-            ImGui::SameLine();
-            auto size = ImGui::CalcTextSize("Elpased %.2f s Remaining: %.2f s ");
-            auto sizeOfGfxAPIDropDown = ImGui::GetFontSize() * 8;
-            ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - size.x - ImGui::GetStyle().ItemSpacing.x * 2);
+            ImGui::Text("Status: %s", gsTrain->getCurrentTrainingPhaseName().c_str());
             ImGui::Text("Elpased: %.2f s Remaining: %.2f s ", gsTrain->getTrainingElpasedTime(), gsTrain->getEstimateTrainingTime());
             float progress = gsTrain->getProgressOnCurrentPhase();
             ImGui::ProgressBar(progress);

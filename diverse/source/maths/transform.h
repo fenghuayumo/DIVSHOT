@@ -69,6 +69,9 @@ namespace diverse
             }
 
             maths::Transform& translate(const glm::vec3& pos);
+            
+            // Set orientation to look at a target point
+            void look_at(const glm::vec3& target, const glm::vec3& up = glm::vec3(0.0f, 1.0f, 0.0f));
 
             template <typename Archive>
             void save(Archive& archive) const

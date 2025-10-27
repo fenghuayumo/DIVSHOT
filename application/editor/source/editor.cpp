@@ -1,4 +1,3 @@
-
 #include "editor.h"
 #include "hierarchy_panel.h"
 #include "console_panel.h"
@@ -1389,14 +1388,6 @@ namespace diverse
 
         Application::update(ts);
     }
-    void Editor::train_splat_gaussian()
-    {
-        //auto current_splat_ent = get_current_splat_entt();
-        while(true)
-        {
-
-        }
-    }
 
     void Editor::update_gaussian(const TimeStep& ts)
     {
@@ -2079,6 +2070,7 @@ namespace diverse
             else
                 filepath = diverse::FileDialogs::saveFile({ "obj", "ply"});
         }
+#ifdef DS_SPLAT_TRAIN
         if (is_export_mesh)
         {
             ImGui::Columns(2);
@@ -2106,6 +2098,7 @@ namespace diverse
             ImGui::PopItemWidth();
             ImGui::NextColumn();
         }
+#endif
         ImGui::Columns(1);
         ImGui::Separator();
         const auto width = ImGui::GetWindowWidth();
@@ -2114,6 +2107,7 @@ namespace diverse
         ImGui::SetCursorPosX(button_posx);
         if (ImGui::Button("Yes", ImVec2(button_sizex, 0)) && !filepath.empty())
         {
+#ifdef DS_SPLAT_TRAIN
             if(is_export_mesh)
             {
                 System::JobSystem::Context context;
@@ -2140,6 +2134,7 @@ namespace diverse
                 is_export_mesh = false;
             }
             else 
+#endif
             {
                 GaussianModel gs_model;
                 if(exportType == 1)
@@ -2223,10 +2218,12 @@ namespace diverse
                 }
                 pivot->get_transform().set_world_matrix(glm::mat4(1.0f));
             }
+#ifdef DS_SPLAT_TRAIN
             if(registry.try_get<GaussianTrainerScene>(entity))
             {
                 current_train_entity = entity;
             }
+#endif
         }
 
         selected_entities.push_back(entity);

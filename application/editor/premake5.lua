@@ -54,8 +54,8 @@ project "divshot"
 	{
 		"diverse_base",
 		"diverse",
-		"lua",
-		"box2d",
+		-- "lua",
+		-- "box2d",
 		"imgui",
 		"freetype",
 		"stbimage",
@@ -119,13 +119,16 @@ project "divshot"
 		{
 			"glfw",
 			"OpenGL32",
-			"OpenAL32",
+			-- "OpenAL32",
 			-- "gstrain",
 			"opencv_world490.lib"
 		}
 
-		postbuildcommands { "xcopy /Y /C \"..\\..\\external\\OpenAL\\libs\\Win32\\OpenAL32.dll\" \"$(OutDir)\"" } 
-
+		postbuildcommands { "xcopy /Y /C \"..\\..\\external\\dxcompiler.dll\" \"$(OutDir)\"" } 
+		postbuildcommands { "xcopy /Y /C \"..\\..\\external\\dxil.dll\" \"$(OutDir)\"" } 
+		postbuildcommands { "xcopy /Y /C \"..\\..\\layouts\\dvui.ini\" \"$(OutDir)\"" } 
+		postbuildcommands { "xcopy /Y /C \"..\\..\\external\\opencv4_9\\linklib\\opencv_videoio_msmf490_64.dll\" \"$(OutDir)\"" } 
+		postbuildcommands { "xcopy /Y /C \"..\\..\\external\\opencv4_9\\linklib\\opencv_world490.dll\" \"$(OutDir)\"" } 
 		disablewarnings { 4307 }
 
 	filter "system:macosx"
