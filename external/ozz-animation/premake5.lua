@@ -127,7 +127,7 @@ project "ozz_animation_offline"
 		"src/animation/offline/*.cc",
 		"src/animation/offline/tools/*.cc",
 		"src/options/*.cc",
-		"extern/jsoncpp/dist/jsoncpp.cpp"
+		"extern/jsoncpp/jsoncpp.cpp"
 
 	}
 
@@ -139,7 +139,7 @@ project "ozz_animation_offline"
 
 	externalincludedirs
 	{
-		"extern/jsoncpp/dist",
+		"extern/jsoncpp/",
 	}
 
 	filter "system:windows"
