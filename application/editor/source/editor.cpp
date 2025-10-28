@@ -1402,13 +1402,13 @@ namespace diverse
                 gs_train.setTrainingStatus(TrainingStatus::Training);
                 auto& gs = gs_ent.get_component<GaussianComponent>();
                 auto& gs_model = gs.ModelRef;
-                auto [means, quats, scales, opacities, shs] = gs_train.getGaussianAttribute();
                 gs_model->update_from_cpu(
-                    means.data(),
-                    shs.data(),
-                    opacities.data(),
-                    scales.data(),
-                    quats.data(),
+                    gs_train.getGaussianPositionCpu().data(),
+                    gs_train.getGaussianSH0Cpu().data(),
+                    gs_train.getGaussianSHNCpu().data(),
+                    gs_train.getGaussianOpcaitiesCpu().data(),
+                    gs_train.getGaussianScalingsCpu().data(),
+                    gs_train.getGaussianRotationsCpu().data(),
                     gs_train.getNumGaussians()
                 );
                 //set camera from training camera views
@@ -1493,7 +1493,8 @@ namespace diverse
                     {
                         gs_model->update_from_cpu(
                             gs_train.getGaussianPositionCpu().data(),
-                            gs_train.getGaussianSHsCpu().data(),
+                            gs_train.getGaussianSH0Cpu().data(),
+                            gs_train.getGaussianSHNCpu().data(),
                             gs_train.getGaussianOpcaitiesCpu().data(),
                             gs_train.getGaussianScalingsCpu().data(),
                             gs_train.getGaussianRotationsCpu().data(),
@@ -1890,9 +1891,20 @@ namespace diverse
                         if(gaussian_train.isTerminate()) break;
                         if(gaussian_train.isTrain() && is_train_gaussian)
                         {
-                            if(!is_update_splat_rendering)
+                        if(!is_update_splat_rendering)
+                        {
+                            // Process all pending config updates before trainStep
                             {
-                                gaussian_train.trainStep();
+                                std::lock_guard<std::mutex> lock(gs_train_queue_mutex_);
+                                while (!gs_train_update_queue_.empty())
+                                {
+                                    auto update_fn = std::move(gs_train_update_queue_.front());
+                                    gs_train_update_queue_.pop();
+                                    update_fn(&gaussian_train); // Execute update in training thread
+                                }
+                            }
+                            
+                            gaussian_train.trainStep();
                                 auto curStep = gaussian_train.getCurrentIterations();
                                 if(curStep % std::max<int>(10,splat_update_freq) == 0 
                                 && curStep < gaussian_train.getTrainConfig().numIters)
@@ -3376,6 +3388,13 @@ namespace diverse
                 is_export_mesh = true;
             }
         }
+    }
+    
+    // Submit config update from render thread to training thread
+    void Editor::enqueue_gs_train_update(std::function<void(void*)> update_fn)
+    {
+        std::lock_guard<std::mutex> lock(gs_train_queue_mutex_);
+        gs_train_update_queue_.push(std::move(update_fn));
     }
 
 #endif

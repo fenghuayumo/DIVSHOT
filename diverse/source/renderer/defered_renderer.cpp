@@ -397,8 +397,8 @@ namespace diverse
 			if (model.ModelRef->gaussians_buf && model_2_gs_buf_id.find(model.ModelRef.get()) == model_2_gs_buf_id.end())
 			{
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_buf.get(), v_buf_id * 4 + 0);
-				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_color_buf.get(), v_buf_id * 4 + 1);
-				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_buf.get(), v_buf_id * 4 + 2);
+				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_0_buf.get(), v_buf_id * 4 + 1);
+				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_n_buf.get(), v_buf_id * 4 + 2);
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->splat_transforms.splat_transform_buffer.get(), v_buf_id * 4 + 3);
 
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model.ModelRef->gaussian_state_buf.get(), v_buf_id);

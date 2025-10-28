@@ -29,10 +29,10 @@ namespace diverse
             const auto offset = -black_point + brightness;
             const auto scale = 1.0f / (white_point - black_point);;
             
-            parallel_for<size_t>(0, ModelRef->sh().size(),[&](size_t i){
-                auto& f_dc_0 = ModelRef->sh()[i][0];
-                auto& f_dc_1 = ModelRef->sh()[i][1];
-                auto& f_dc_2 = ModelRef->sh()[i][2];
+            parallel_for<size_t>(0, ModelRef->sh0().size(),[&](size_t i){
+                auto& f_dc_0 = ModelRef->sh0()[i][0];
+                auto& f_dc_1 = ModelRef->sh0()[i][1];
+                auto& f_dc_2 = ModelRef->sh0()[i][2];
                 f_dc_0 = from(offset + to(f_dc_0) * albedo_color.x * scale);
                 f_dc_1 = from(offset + to(f_dc_1) * albedo_color.y * scale);
                 f_dc_2 = from(offset + to(f_dc_2) * albedo_color.z * scale);

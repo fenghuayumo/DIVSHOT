@@ -73,7 +73,8 @@ namespace diverse
 
         void    update_from_gpu(float* pos, float* shs,float* opacities,float* scales,float* rots);
         void    update_from_cpu(float* pos, 
-                                float* shs, 
+                                float* shs0,
+                                float* shsn,
                                 float* opacities, 
                                 float* scales, 
                                 float* rots,
@@ -89,7 +90,8 @@ namespace diverse
         u64     get_num_gaussians() const;
         std::string get_file_path() const {return file_path;}
         auto    position()->std::vector<glm::vec3>& {return pos;}
-        auto    sh()->std::vector<std::array<float, 48>>& {return shs;}
+        auto    sh0()->std::vector<std::array<float, 3>>& {return shs_0;}
+        auto    shn()->std::vector<std::array<float, 45>>& {return shs_n;}
         auto    opacity()->std::vector<float>& {return opacities;}
         auto    scale()->std::vector<glm::vec3>& {return scales;}
         auto    rotation()->std::vector<glm::vec4>& {return rot;}
@@ -117,8 +119,8 @@ namespace diverse
         void    create_gpu_buffer(bool compact = false);
     public:
         std::shared_ptr<rhi::GpuBuffer>	gaussians_buf;
-        std::shared_ptr<rhi::GpuBuffer>	gaussians_color_buf; //sh0 data, f16 store float data
-        std::shared_ptr<rhi::GpuBuffer>	gaussians_sh_buf; //sh1to3, sh4to7, sh8to11, sh12to15
+        std::shared_ptr<rhi::GpuBuffer>	gaussians_sh_0_buf; //sh0 data, f16 store float data
+        std::shared_ptr<rhi::GpuBuffer>	gaussians_sh_n_buf; //sh1to3, sh4to7, sh8to11, sh12to15
         std::shared_ptr<rhi::GpuBuffer>	points_key_buf;
         std::shared_ptr<rhi::GpuBuffer>	points_value_buf;
         std::shared_ptr<rhi::GpuBuffer>	gaussian_state_buf;
@@ -130,7 +132,8 @@ namespace diverse
         float				                  splat_size = 1.0;
 	protected:
 		std::vector<glm::vec3>                pos;
-		std::vector<std::array<float,48>>     shs;
+		std::vector<std::array<float,3>>      shs_0;
+		std::vector<std::array<float,45>>     shs_n;
 		std::vector<float>                    opacities;
 		std::vector<glm::vec3>                scales;
 		std::vector<glm::vec4>                rot;

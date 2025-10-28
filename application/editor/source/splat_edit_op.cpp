@@ -383,9 +383,9 @@ namespace diverse
         
         parallel_for<size_t>(0, indices.size(),[&](size_t idx){
             auto i = indices[idx];
-            auto& f_dc_0 = ModelRef->sh()[i][0];
-            auto& f_dc_1 = ModelRef->sh()[i][1];
-            auto& f_dc_2 = ModelRef->sh()[i][2];
+            auto& f_dc_0 = ModelRef->sh0()[i][0];
+            auto& f_dc_1 = ModelRef->sh0()[i][1];
+            auto& f_dc_2 = ModelRef->sh0()[i][2];
             f_dc_0 = from(to(f_dc_0) * (1 - new_state.mix_weight) + new_state.color.x * new_state.mix_weight);
             f_dc_1 = from(to(f_dc_1) * (1 - new_state.mix_weight) + new_state.color.y * new_state.mix_weight);
             f_dc_2 = from(to(f_dc_2) * (1 - new_state.mix_weight) + new_state.color.z * new_state.mix_weight);
@@ -408,9 +408,9 @@ namespace diverse
         constexpr auto eps = 1.0f / 256.0f;
         parallel_for<size_t>(0, indices.size(),[&](size_t idx){
             auto i = indices[idx];
-            auto& f_dc_0 = ModelRef->sh()[i][0];
-            auto& f_dc_1 = ModelRef->sh()[i][1];
-            auto& f_dc_2 = ModelRef->sh()[i][2];
+            auto& f_dc_0 = ModelRef->sh0()[i][0];
+            auto& f_dc_1 = ModelRef->sh0()[i][1];
+            auto& f_dc_2 = ModelRef->sh0()[i][2];
             f_dc_0 = from((to(f_dc_0) - new_state.color.x * new_state.mix_weight) / std::max<f32>(1 - new_state.mix_weight, eps));
             f_dc_1 = from((to(f_dc_1) - new_state.color.y * new_state.mix_weight) / std::max<f32>(1 - new_state.mix_weight, eps));
             f_dc_2 = from((to(f_dc_2) - new_state.color.z * new_state.mix_weight) / std::max<f32>(1 - new_state.mix_weight, eps));

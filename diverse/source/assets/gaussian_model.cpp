@@ -42,7 +42,8 @@ namespace diverse
 	
 	void GaussianModel::update_from_cpu(
 						float* pos_d, 
-						float* shs_d, 
+						float* shs0_d,
+						float* shsn_d,
 						float* opacities_d, 
 						float* scales_d, 
 						float* rots_d,
@@ -53,13 +54,15 @@ namespace diverse
 		rot.resize(num_gaussians);
 		scales.resize(num_gaussians);
 		opacities.resize(num_gaussians);
-		shs.resize(num_gaussians);
+		shs_0.resize(num_gaussians);
+		shs_n.resize(num_gaussians);
 
 		memcpy(pos.data(), pos_d, num_gaussians * sizeof(glm::vec3));
 		memcpy(rot.data(), rots_d, num_gaussians * sizeof(glm::vec4));
 		memcpy(scales.data(), scales_d, num_gaussians * sizeof(glm::vec3));
 		memcpy(opacities.data(), opacities_d, num_gaussians * sizeof(f32));
-		memcpy(shs.data(), shs_d, num_gaussians * sizeof(f32) * 48);
+		memcpy(shs_0.data(), shs0_d, num_gaussians * sizeof(f32) * 3);
+		memcpy(shs_n.data(), shsn_d, num_gaussians * sizeof(f32) * 45);
 
 		update_data();
 	}
@@ -71,7 +74,8 @@ namespace diverse
 		rot.resize(num_gaussians);
 		scales.resize(num_gaussians);
 		opacities.resize(num_gaussians);
-		shs.resize(num_gaussians);
+		shs_0.resize(num_gaussians);
+		shs_n.resize(num_gaussians);
 		constexpr float C0 = 0.28209479177387814f;
 
 		struct VertexPosColor{
@@ -83,9 +87,9 @@ namespace diverse
 			pos[i][0] = *(float*)(pos_color_h + i * 16 + 0);
 			pos[i][1] = *(float*)(pos_color_h + i * 16 + 4);
 			pos[i][2] = *(float*)(pos_color_h + i * 16 + 8);
-			shs[i][0] = (pos_color_h[i * 16 + 12] / 255.0f - 0.5f) / C0;
-			shs[i][1] = (pos_color_h[i * 16 + 13] / 255.0f - 0.5f) / C0;
-			shs[i][2] = (pos_color_h[i * 16 + 14] / 255.0f - 0.5f) / C0;
+			shs_0[i][0] = (pos_color_h[i * 16 + 12] / 255.0f - 0.5f) / C0;
+			shs_0[i][1] = (pos_color_h[i * 16 + 13] / 255.0f - 0.5f) / C0;
+			shs_0[i][2] = (pos_color_h[i * 16 + 14] / 255.0f - 0.5f) / C0;
 		});
 		update_data();
 	}
@@ -113,8 +117,8 @@ namespace diverse
 		auto device = get_global_device();
 		const auto alignment = std::max<u64>(1, device->gpu_limits.minStorageBufferOffsetAlignment);
 		std::vector<Gaussian> gaussians(pos.size());
-		std::vector<PackedVertexColor>	gaussians_color(pos.size());
-		std::vector<PackedVertexSH>	gaussians_sh(pos.size());
+		std::vector<PackedVertexColor>	gaussians_sh_0(pos.size());
+		std::vector<PackedVertexSH>	gaussians_sh_n(pos.size());
 		splat_state.resize(pos.size());
 		splat_select_flag.resize(pos.size());
 		splat_transform_index.resize(pos.size());
@@ -126,7 +130,7 @@ namespace diverse
 			glm::vec4 harmonics[16];
 
 			Gaussian& gaussian = gaussians[k];
-			glm::uvec2& gs_color = gaussians_color[k];
+			glm::uvec2& gs_color = gaussians_sh_0[k];
 			// copy position
 			gaussian.position.xyz = pos[k];
 			//normalize 
@@ -148,18 +152,18 @@ namespace diverse
 			auto scale1 = glm::packHalf2x16(glm::vec2(scale_t[2], sigmoid(opacities[k])));
 
 			gaussian.rotation_scale = glm::uvec4(rotation0, rotation1, scale0, scale1);
-			const float r = (shs[k][0] * SH_C0 + 0.5);
-            const float g = (shs[k][1] * SH_C0 + 0.5);
-            const float b = (shs[k][2] * SH_C0 + 0.5);
+			const float r = (shs_0[k][0] * SH_C0 + 0.5);
+            const float g = (shs_0[k][1] * SH_C0 + 0.5);
+            const float b = (shs_0[k][2] * SH_C0 + 0.5);
 			gs_color.x = glm::packHalf2x16(glm::vec2(r, g));
 			gs_color.y = glm::packHalf2x16(glm::vec2(b, 0));
 
 			// extract coefficients
 			std::array<float,45> c = {0};
 			for (auto j = 0; j < 15; ++j) {
-                c[j * 3] = shs[k][j * 3 + 3];
-                c[j * 3 + 1] = shs[k][j * 3 + 4];
-                c[j * 3 + 2] = shs[k][j * 3 + 5];
+                c[j * 3] = shs_n[k][j * 3];
+                c[j * 3 + 1] = shs_n[k][j * 3 + 1];
+                c[j * 3 + 2] = shs_n[k][j * 3 + 2];
             }
 
             // calc maximum value
@@ -176,7 +180,7 @@ namespace diverse
 					c[j * 3 + 2] = (c[j * 3 + 2] / max);
 				}
 			}
-			auto& sh1to3 = gaussians_sh[k].sh1to3;
+			auto& sh1to3 = gaussians_sh_n[k].sh1to3;
 			sh1to3.x = *(u32*)(&max);
 			sh1to3.y = pack_unit_direction_11_10_11(glm::vec3(c[0],c[1],c[2]));
 			sh1to3.z = pack_unit_direction_11_10_11(glm::vec3(c[3],c[4],c[5]));
@@ -184,7 +188,7 @@ namespace diverse
 
 			//sh > 1
             {
-				auto& sh4to7 = gaussians_sh[k].sh4to7;
+				auto& sh4to7 = gaussians_sh_n[k].sh4to7;
 				sh4to7.x = pack_unit_direction_11_10_11(glm::vec3(c[9],c[10],c[11]));
 				sh4to7.y = pack_unit_direction_11_10_11(glm::vec3(c[12],c[13],c[14]));
 				sh4to7.z = pack_unit_direction_11_10_11(glm::vec3(c[15],c[16],c[17]));
@@ -192,13 +196,13 @@ namespace diverse
 
 				//sh > 2
                 {
-					auto& sh8to11 = gaussians_sh[k].sh8to11;
+					auto& sh8to11 = gaussians_sh_n[k].sh8to11;
 					sh8to11.x = pack_unit_direction_11_10_11(glm::vec3(c[21],c[22],c[23]));
 					sh8to11.y = pack_unit_direction_11_10_11(glm::vec3(c[24],c[25],c[26]));
 					sh8to11.z = pack_unit_direction_11_10_11(glm::vec3(c[27],c[28],c[29]));
 					sh8to11.w = pack_unit_direction_11_10_11(glm::vec3(c[30],c[31],c[32]));
 
-					auto& sh12to15 = gaussians_sh[k].sh12to15;
+					auto& sh12to15 = gaussians_sh_n[k].sh12to15;
 					sh12to15.x = pack_unit_direction_11_10_11(glm::vec3(c[33],c[34],c[35]));
 					sh12to15.y = pack_unit_direction_11_10_11(glm::vec3(c[36],c[37],c[38]));
 					sh12to15.z = pack_unit_direction_11_10_11(glm::vec3(c[39],c[40],c[41]));
@@ -216,18 +220,18 @@ namespace diverse
 				gaussians_buf->unmap(device);
 			}
 			{
-				auto data = reinterpret_cast<PackedVertexColor*>(gaussians_color_buf->map(device));
+				auto data = reinterpret_cast<PackedVertexColor*>(gaussians_sh_0_buf->map(device));
 				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians_color[i];
+					data[i] = gaussians_sh_0[i];
 				});
-				gaussians_color_buf->unmap(device);
+				gaussians_sh_0_buf->unmap(device);
 			}
 			{
-				auto data = reinterpret_cast<PackedVertexSH*>(gaussians_sh_buf->map(device));
+				auto data = reinterpret_cast<PackedVertexSH*>(gaussians_sh_n_buf->map(device));
 				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians_sh[i];
+					data[i] = gaussians_sh_n[i];
 				});
-				gaussians_sh_buf->unmap(device);
+				gaussians_sh_n_buf->unmap(device);
 			}
 			{
 				auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
@@ -245,8 +249,8 @@ namespace diverse
 			int scaleFactor = std::ceil(static_cast<double>(gaussians.size()) / static_cast<double>(max_splats));
 			auto num_gaussians = compact ? gaussians.size() : scaleFactor * max_splats;
 			gaussians_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(Gaussian), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_buf", nullptr);
-			gaussians_color_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(PackedVertexColor), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_color_buf", nullptr);
-			gaussians_sh_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(PackedVertexSH), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_sh_buf", nullptr);
+			gaussians_sh_0_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(PackedVertexColor), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_sh_0_buf", nullptr);
+			gaussians_sh_n_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(PackedVertexSH), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_sh_n_buf", nullptr);
 			points_key_buf = device->create_buffer(rhi::GpuBufferDesc::new_gpu_only(num_gaussians * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "points_key_buf", nullptr);
 			points_value_buf = device->create_buffer(rhi::GpuBufferDesc::new_gpu_only(num_gaussians * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "points_value_buf", nullptr);
 			gaussian_state_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_state_buf", nullptr);
@@ -259,18 +263,18 @@ namespace diverse
 				gaussians_buf->unmap(device);
 			}
 			{
-				auto data = reinterpret_cast<PackedVertexColor*>(gaussians_color_buf->map(device));
+				auto data = reinterpret_cast<PackedVertexColor*>(gaussians_sh_0_buf->map(device));
 				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians_color[i];
+					data[i] = gaussians_sh_0[i];
 				});
-				gaussians_color_buf->unmap(device);
+				gaussians_sh_0_buf->unmap(device);
 			}
 			{
-				auto data = reinterpret_cast<PackedVertexSH*>(gaussians_sh_buf->map(device));
+				auto data = reinterpret_cast<PackedVertexSH*>(gaussians_sh_n_buf->map(device));
 				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians_sh[i];
+					data[i] = gaussians_sh_n[i];
 				});
-				gaussians_sh_buf->unmap(device);
+				gaussians_sh_n_buf->unmap(device);
 			}
 			{
 				auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
@@ -333,19 +337,19 @@ namespace diverse
 	{
 		auto device = get_global_device();
 	
-		auto data = reinterpret_cast<PackedVertexColor*>(gaussians_color_buf->map(device));
+		auto data = reinterpret_cast<PackedVertexColor*>(gaussians_sh_0_buf->map(device));
 		parallel_for<size_t>(0, indices.size(), [&](size_t idx) {
 			auto i = indices[idx];
 			glm::vec4 harmonics;
-			harmonics.x = shs[i][0];
-			harmonics.y = shs[i][1];
-			harmonics.z = shs[i][2];
+			harmonics.x = shs_0[i][0];
+			harmonics.y = shs_0[i][1];
+			harmonics.z = shs_0[i][2];
 			harmonics.w = 0;
 			auto hom0 = u32_to_f32(glm::packHalf2x16(harmonics.xy));
 			auto hom1 = u32_to_f32(glm::packHalf2x16(harmonics.zw));
 			data[i].xy = glm::vec2(hom0, hom1);
 		});
-		gaussians_color_buf->unmap(device);
+		gaussians_sh_0_buf->unmap(device);
 	}
 
 	void GaussianModel::update_transform_index()
@@ -366,7 +370,8 @@ namespace diverse
 	void GaussianModel::save_to_file(const std::string& filepath, bool apply_transfom)
 	{
 		std::vector<glm::vec3>	new_pos;
-		std::vector<std::array<float, 48>>        new_shs;
+		std::vector<std::array<float, 3>>        new_shs_0;
+		std::vector<std::array<float, 45>>        new_shs_n;
 		std::vector<float>      	new_opacities;
 		std::vector<glm::vec3>      new_scales;
 		std::vector<glm::vec4>      new_rot;
@@ -394,7 +399,8 @@ namespace diverse
 			}
 			new_scales.push_back(scales[k]);
 			new_opacities.push_back(opacities[k]);
-			new_shs.push_back(shs[k]);
+			new_shs_0.push_back(shs_0[k]);
+			new_shs_n.push_back(shs_n[k]);
 			if (apply_transfom)
 			{ 
 				glm::mat3 tmpMat3 = glm::toMat3(q);
@@ -403,10 +409,10 @@ namespace diverse
 				{
 					std::vector<f32> tmpSHData(15);
 					for (auto j = 0; j < 15; j++)
-						tmpSHData[j] = shs[k][c * 15 + j + 3];
+						tmpSHData[j] = shs_n[k][c * 15 + j];
 					shRot.apply(tmpSHData, {});
 					for (auto j = 0; j < 15; j++)
-						new_shs.back()[c * 15 + j + 3] = tmpSHData[j];
+						new_shs_n.back()[c * 15 + j] = tmpSHData[j];
 				}
 			}
 		}
@@ -418,6 +424,18 @@ namespace diverse
 		auto ext = std::filesystem::path(filepath).extension().string();
 		std::string saved_path = filepath;
 		bool ret = false;
+		std::vector<std::array<float, 48>> new_shs(new_pos.size());
+		parallel_for<size_t>(0, new_pos.size(), [&](size_t i) {
+			new_shs[i][0] = new_shs_0[i][0];
+			new_shs[i][1] = new_shs_0[i][1];
+			new_shs[i][2] = new_shs_0[i][2];
+			for(auto j=0;j<15;j++)
+			{
+				new_shs[i][j * 3 + 3] = new_shs_n[i][j * 3];
+				new_shs[i][j * 3 + 4] = new_shs_n[i][j * 3 + 1];
+				new_shs[i][j * 3 + 5] = new_shs_n[i][j * 3 + 2];
+			}
+		});
 		if( ext  == ".ply")
 		{ 
 			if (saved_path.find(".compressed") != std::string::npos)
@@ -426,8 +444,7 @@ namespace diverse
 			}
 			else if(saved_path.find(".reduced") != std::string::npos)
 			{
-				auto [featureDc,featureRest] = get_feature_dc_rest(new_shs);
-				ret = tinygsplat::save_reduced_ply(saved_path, new_pos, new_scales, featureDc, featureRest,new_rot, new_opacities, new_degrees);
+				ret = tinygsplat::save_reduced_ply(saved_path, new_pos, new_scales, new_shs_0, new_shs_n,new_rot, new_opacities, new_degrees);
 			}
 			else
 				ret = tinygsplat::save_ply(filepath, new_pos, new_scales, new_shs, new_rot, new_opacities,mip_antialiased);
@@ -438,8 +455,7 @@ namespace diverse
 		}
 		else if (ext == ".dvsplat")
 		{
-			auto [featureDc, featureRest] = get_feature_dc_rest(new_shs);
-			ret = tinygsplat::save_dvs_splat(saved_path, new_pos, new_scales, featureDc, featureRest, new_rot, new_opacities, new_degrees);
+			ret = tinygsplat::save_dvs_splat(saved_path, new_pos, new_scales, new_shs_0, new_shs_n, new_rot, new_opacities, new_degrees);
 		}
 		else if (ext == ".spz")
 		{
@@ -502,7 +518,8 @@ namespace diverse
 		auto numSplats = points.size();
 		// Resize our SoA data
 		pos.resize(numSplats);
-		shs.resize(numSplats);
+		shs_0.resize(numSplats);
+		shs_n.resize(numSplats);
 		scales.resize(numSplats);
 		rot.resize(numSplats);
 		opacities.resize(numSplats);
@@ -556,14 +573,14 @@ namespace diverse
 			// Activate alpha
 			opacities[k] = (points[i].opacity);
 			
-			shs[k][0] = points[i].shs[0];
-			shs[k][1] = points[i].shs[1];
-			shs[k][2] = points[i].shs[2];
-			for (int j = 1; j < 16; j++)
+			shs_0[k][0] = points[i].shs[0];
+			shs_0[k][1] = points[i].shs[1];
+			shs_0[k][2] = points[i].shs[2];
+			for (int j = 0; j < 15; j++)
 			{
-				shs[k][j * 3 + 0] = points[i].shs[(j - 1) + 3];
-				shs[k][j * 3 + 1] = points[i].shs[(j - 1) + 18];
-				shs[k][j * 3 + 2] = points[i].shs[(j - 1) + 33];
+				shs_n[k][j * 3 + 0] = points[i].shs[j + 3];
+				shs_n[k][j * 3 + 1] = points[i].shs[j + 18];
+				shs_n[k][j * 3 + 2] = points[i].shs[j + 33];
 			}
 			
 		});
@@ -576,7 +593,8 @@ namespace diverse
 		auto device = get_global_device();
 
 		std::vector<glm::vec3>	new_pos;
-		std::vector<std::array<float, 48>>        new_shs;
+		std::vector<std::array<float, 3>>        new_shs_0;
+		std::vector<std::array<float, 45>>        new_shs_n;
 		std::vector<float>      	new_opacities;
 		std::vector<glm::vec3>      new_scales;
 		std::vector<glm::vec4>      new_rot;
@@ -595,16 +613,18 @@ namespace diverse
 			new_state.push_back(state);
 			new_flag.push_back(splat_select_flag[k]);
 			new_transform_idx.push_back(splat_transform_index[k]);
-			new_shs.push_back(shs[k]);
+			new_shs_0.push_back(shs_0[k]);
+			new_shs_n.push_back(shs_n[k]);
 		}
-		pos = new_pos;
-		shs = new_shs;
-		opacities = new_opacities;
-		scales = new_scales;
-		rot = new_rot;
-		splat_state = new_state;
-		splat_select_flag = new_flag;
-		splat_transform_index = new_transform_idx;
+		pos = std::move(new_pos);
+		shs_0 = std::move(new_shs_0);
+		shs_n = std::move(new_shs_n);
+		opacities = std::move(new_opacities);
+		scales = std::move(new_scales);
+		rot = std::move(new_rot);
+		splat_state = std::move(new_state);
+		splat_select_flag = std::move(new_flag);
+		splat_transform_index = std::move(new_transform_idx);
 		update_data();
 	}
 
@@ -641,13 +661,15 @@ namespace diverse
 			splat_state.resize(num_size);
 			splat_select_flag.resize(num_size);
 			splat_transform_index.resize(num_size);
-			shs.resize(num_size);
+			shs_0.resize(num_size);
+			shs_n.resize(num_size);
 			opacities.resize(num_size);
 			parallel_for<size_t>(0, molde_num_splats, [&](size_t i) {
 				auto idx = i + old_size;
 				pos[idx] = model->position()[i];
 				rot[idx] = model->rotation()[i];
-				shs[idx] = model->sh()[i];
+				shs_0[idx] = model->sh0()[i];
+				shs_n[idx] = model->shn()[i];
 				scales[idx] = model->scale()[i];
 				opacities[idx] = model->opacity()[i];
 				splat_state[idx] = model->splat_state[i];
@@ -668,10 +690,10 @@ namespace diverse
 					{
 						std::vector<f32> tmpSHData(15);
 						for (auto j = 0; j < 15; j++)
-							tmpSHData[j] = shs[idx][c * 15 + j + 3];
+							tmpSHData[j] = shs_n[idx][c * 15 + j];
 						shRot.apply(tmpSHData, {});
 						for (auto j = 0; j < 15; j++)
-							shs[idx][c* 15 + j + 3] = tmpSHData[j];
+							shs_n[idx][c* 15 + j] = tmpSHData[j];
 					}
 				}
 			});
@@ -695,7 +717,8 @@ namespace diverse
 			splat_state.resize(num_size);
 			splat_select_flag.resize(num_size);
 			splat_transform_index.resize(num_size);
-			shs.resize(num_size);
+			shs_0.resize(num_size);
+			shs_n.resize(num_size);
 			opacities.resize(num_size);
 			add_indices.resize(indices.size());
 			parallel_for<size_t>(0, num_splats, [&](size_t i) {
@@ -704,7 +727,8 @@ namespace diverse
 				pos[idx] = model->position()[model_splat_id];
 				scales[idx] = model->scale()[model_splat_id];
 				rot[idx] = model->rotation()[model_splat_id];
-				shs[idx] = model->sh()[model_splat_id];
+				shs_0[idx] = model->sh0()[model_splat_id];
+				shs_n[idx] = model->shn()[model_splat_id];
 				opacities[idx] = model->opacity()[model_splat_id];
 				splat_state[idx] = model->splat_state[model_splat_id];
 				splat_select_flag[idx] = model->splat_select_flag[model_splat_id];
@@ -723,10 +747,10 @@ namespace diverse
 					{
 						std::vector<f32> tmpSHData(15);
 						for (auto j = 0; j < 15; j++)
-							tmpSHData[j] = shs[idx][c * 15 + j + 3];
+							tmpSHData[j] = shs_n[idx][c * 15 + j];
 						shRot.apply(tmpSHData, {});
 						for (auto j = 0; j < 15; j++)
-							shs[idx][c * 15 + j + 3] = tmpSHData[j];
+							shs_n[idx][c * 15 + j] = tmpSHData[j];
 					}
 				}
 				add_indices[i] = idx;
@@ -744,7 +768,8 @@ namespace diverse
 		const auto old_size = pos.size();
 		const auto new_size = pos.size()- indices.size();
 		std::vector<glm::vec3>	new_pos;
-		std::vector<std::array<float, 48>>        new_shs;
+		std::vector<std::array<float, 3>>        new_shs_0;
+		std::vector<std::array<float, 45>>        new_shs_n;
 		std::vector<float>      	new_opacities;
 		std::vector<glm::vec3>      new_scales;
 		std::vector<glm::vec4>      new_rot;
@@ -762,24 +787,27 @@ namespace diverse
 				new_splat_state.push_back(splat_state[i]);
 				new_splat_transform_index.push_back(splat_transform_index[i]);
 				new_splat_select_flag.push_back(splat_select_flag[i]);
-				new_shs.push_back(shs[i]);
+				new_shs_0.push_back(shs_0[i]);
+				new_shs_n.push_back(shs_n[i]);
 			}
 		}
-		pos = new_pos;
-		scales = new_scales;
-		rot = new_rot;
-		shs = new_shs;
-		opacities = new_opacities;
-		splat_state = new_splat_state;
-		splat_transform_index = new_splat_transform_index;
-		splat_select_flag = new_splat_select_flag;
+		pos = std::move(new_pos);
+		scales = std::move(new_scales);
+		rot = std::move(new_rot);
+		shs_0 = std::move(new_shs_0);
+		shs_n = std::move(new_shs_n);
+		opacities = std::move(new_opacities);
+		splat_state = std::move(new_splat_state);
+		splat_transform_index = std::move(new_splat_transform_index);
+		splat_select_flag = std::move(new_splat_select_flag);
 		update_data();
 	}
 
 	auto GaussianModel::get_compressed_data(bool apply_transform)->std::vector<u8>
 	{
 		std::vector<glm::vec3>	new_pos;
-		std::vector<std::array<float, 48>>        new_shs;
+		std::vector<std::array<float, 3>>        new_shs_0;
+		std::vector<std::array<float, 45>>        new_shs_n;
 		std::vector<float>      	new_opacities;
 		std::vector<glm::vec3>      new_scales;
 		std::vector<glm::vec4>      new_rot;
@@ -793,7 +821,8 @@ namespace diverse
 			new_scales.push_back(scales[k]);
 			new_rot.push_back(rot[k]);
 			new_opacities.push_back(opacities[k]);
-			new_shs.push_back(shs[k]);	
+			new_shs_0.push_back(shs_0[k]);	
+			new_shs_n.push_back(shs_n[k]);	
 			if (apply_transform)
 			{
 				auto transform_index = splat_transform_index[k];
@@ -809,10 +838,10 @@ namespace diverse
 				{
 					std::vector<f32> tmpSHData(15);
 					for (auto j = 0; j < 15; j++)
-						tmpSHData[j] = shs[k][c * 15 + j + 3];
+						tmpSHData[j] = shs_n[k][c * 15 + j];
 					shRot.apply(tmpSHData, {});
 					for (auto j = 0; j < 15; j++)
-						new_shs.back()[c * 15 + j + 3] = tmpSHData[j];
+						new_shs_n.back()[c * 15 + j] = tmpSHData[j];
 				}
 			}
 		}
@@ -869,6 +898,18 @@ namespace diverse
 		memcpy(serilizeData.data(),header_text.c_str(),header_size);
 		tinygsplat::DataView dataView(numChunks * 4 * 12 + numSplats * 4 * 4);
 
+		std::vector<std::array<float, 48>> new_shs(numSplats);
+		parallel_for<size_t>(0, numSplats, [&](size_t i) {
+			new_shs[i][0] = new_shs_0[i][0];
+			new_shs[i][1] = new_shs_0[i][1];
+			new_shs[i][2] = new_shs_0[i][2];
+			for(auto j=0;j<15;j++)
+			{
+				new_shs[i][j * 3 + 3] = new_shs_n[i][j * 3];
+				new_shs[i][j * 3 + 4] = new_shs_n[i][j * 3 + 1];
+				new_shs[i][j * 3 + 5] = new_shs_n[i][j * 3 + 2];
+			}
+		});
 		auto vertexOffset = numChunks * 12 * 4;
 		parallel_for<size_t>(0, numChunks, [&](size_t i) {
 			tinygsplat::SplatChunk chunk(indices, i * 256, (i + 1) * 256);

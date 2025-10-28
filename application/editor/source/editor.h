@@ -12,6 +12,9 @@
 #include <maths/rect.h>
 #include <imgui/imgui.h>
 #include <scene/entity.h>
+#include <queue>
+#include <functional>
+#include <mutex>
 
 namespace diverse
 { 
@@ -347,6 +350,16 @@ namespace diverse
         int         current_train_view_id = -1;
         int         hovered_train_view_id = -1;
         std::shared_ptr<class Pivot> pivot;
+        
+#ifdef DS_SPLAT_TRAIN
+        // Training config update queue: submitted from render thread, executed in training thread
+        // Use void* to avoid incomplete type issues with forward declaration
+        std::queue<std::function<void(void*)>> gs_train_update_queue_;
+        std::mutex gs_train_queue_mutex_;
+    public:
+        void enqueue_gs_train_update(std::function<void(void*)> update_fn);
+    protected:
+#endif
     };
 
 }

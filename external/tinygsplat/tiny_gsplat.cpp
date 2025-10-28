@@ -399,8 +399,8 @@
 		const std::string& file_path,
 		const std::vector<glm::vec3>& pos,
 		const std::vector<glm::vec3>& scales,
-		const std::vector<glm::vec3>& featureDc,
-		const std::vector<std::array<glm::vec3, 15>>& featureRest,
+		const std::vector<std::array<float, 3>>& shs_0,
+		const std::vector<std::array<float, 45>>& shs_n,
 		const std::vector<glm::vec4>& rot,
 		const std::vector<f32>& opacities,
 		const std::vector<uint8_t>& degrees,
@@ -518,9 +518,9 @@
 					else {
 						dataView.setData(offset + splatId * stride, (u8*)&pos[pointId], sizeof(glm::vec3));
 					}
-					dataView.setData(offset + splatId * stride + xyzSize, (u8*)&featureDc[pointId], sizeof(glm::vec3));
+					dataView.setData(offset + splatId * stride + xyzSize, (u8*)&shs_0[pointId], sizeof(glm::vec3));
 					for (auto j = 0; j < coeffsNum; j++)
-						dataView.setData(offset + splatId * stride + xyzSize + (j + 1) * sizeof(glm::vec3), (u8*)&featureRest[pointId][j], sizeof(glm::vec3));
+						dataView.setData(offset + splatId * stride + xyzSize + (j + 1) * sizeof(glm::vec3), (u8*)&shs_n[pointId][j], sizeof(glm::vec3));
 					dataView.setFloat32(offset + splatId * stride + scaleOff + 0 * sizeof(float), opacities[pointId]);
 					dataView.setFloat32(offset + splatId * stride + scaleOff + 1 * sizeof(float), scales[pointId].x);
 					dataView.setFloat32(offset + splatId * stride + scaleOff + 2 * sizeof(float), scales[pointId].y);
@@ -995,8 +995,8 @@
 		const std::string& file_path,
 		const std::vector<glm::vec3>& pos,
 		const std::vector<glm::vec3>& scales,
-		const std::vector<glm::vec3>& featureDc,
-		const std::vector<std::array<glm::vec3, 15>>& featureRest,
+		const std::vector<std::array<float, 3>>& shs_0,
+		const std::vector<std::array<float, 45>>& shs_n,
 		const std::vector<glm::vec4>& rot,
 		const std::vector<f32>& opacities,
 		const std::vector<uint8_t>& degrees)
@@ -1092,16 +1092,16 @@
 				glm::u8vec3 quatizedRot = glm::u8vec3(toUint8(q[1]), toUint8(q[2]), toUint8(q[3]));
 				dataView.setData(offset + splatId * stride + 3, (u8*)&quatizedRot, sizeof(glm::u8vec3));
 				dataView.setUint8(offset + splatId * stride + 6, quatizedOpacity);
-				glm::u8vec3 quantizeColors = glm::u8vec3(toUint8(featureDc[pointId].x * (colorScale * 255.0f) + (0.5f * 255.0f)),
-					toUint8(featureDc[pointId].y * (colorScale * 255.0f) + (0.5f * 255.0f)),
-					toUint8(featureDc[pointId].z * (colorScale * 255.0f) + (0.5f * 255.0f)));
+				glm::u8vec3 quantizeColors = glm::u8vec3(toUint8(shs_0[pointId][0] * (colorScale * 255.0f) + (0.5f * 255.0f)),
+					toUint8(shs_0[pointId][1] * (colorScale * 255.0f) + (0.5f * 255.0f)),
+					toUint8(shs_0[pointId][2] * (colorScale * 255.0f) + (0.5f * 255.0f)));
 				dataView.setData(offset + splatId * stride + 7, (u8*)(&quantizeColors), sizeof(glm::u8vec3));
 				constexpr int sh1Bits = 5;
 				constexpr int shRestBits = 4;
 				for (auto j = 0; j < coeffsNum * 3; j++)
 				{
 					u8 qsh;
-					float* rest = (float*)featureRest[pointId].data();
+					float* rest = (float*)shs_n[pointId].data();
 					if (j < 9)
 						qsh = quantizeSH(rest[j], 1 << (8 - sh1Bits));
 					else

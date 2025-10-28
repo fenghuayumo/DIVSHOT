@@ -1387,7 +1387,6 @@ namespace diverse
         auto splat_ent = Entity(editor->get_current_splat_entt(), editor->get_current_scene());
         if (splat_ent.valid() && splat_ent.active() )
         {
-
             auto gsTrain = splat_ent.try_get_component<GaussianTrainerScene>();
             if(!gsTrain) return;
             if(!gsTrain->getTrainConfig().enableFocusRegion) return;

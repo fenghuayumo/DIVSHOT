@@ -782,8 +782,12 @@ namespace MM
                         bool is_selected = (n == gsTrain->getTrainConfig().densifyStrategy);
                         if (ImGui::Selectable(densify_str[n]))
                         {
-                            gsTrain->getTrainConfig().densifyStrategy = n;
-                            gsTrain->setDensifyStrategy(n);
+                            // Submit update to training thread via queue
+                            Editor::get_editor()->enqueue_gs_train_update([n](void* gs_ptr){
+                                auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                                gs->getTrainConfig().densifyStrategy = n;
+                                gs->setDensifyStrategy(n);
+                            });
                         }
                         if (is_selected)
                             ImGui::SetItemDefaultFocus();
@@ -800,22 +804,51 @@ namespace MM
                         gsTrain->pauseTrain();
                 }
 
-                if(ImGuiHelper::Property("MaxIteraions", gsTrain->maxIteriaons(),3000,100000))
-                    gsTrain->getTrainConfig().refineStopIter = gsTrain->maxIteriaons() * 0.5f;
-                ImGuiHelper::Property("StopDensifyAt", gsTrain->getTrainConfig().refineStopIter,100, 100000, "Stop densify gaussians that are larger than after these many steps");
-                gsTrain->getTrainConfig().refineStopIter = std::max(gsTrain->getTrainConfig().refineStopIter, 1000);
+                int maxIter = gsTrain->maxIteriaons();
+                if(ImGuiHelper::Property("MaxIteraions", maxIter, 3000, 100000))
+                {
+                    Editor::get_editor()->enqueue_gs_train_update([maxIter](void* gs_ptr){
+                        auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                        gs->maxIteriaons() = maxIter;
+                        gs->getTrainConfig().refineStopIter = maxIter * 0.5f;
+                    });
+                }
                 
-                if (ImGuiHelper::Property("Create Sky Model", gsTrain->getTrainConfig().enableBg, "Whether create a sky model for the scene")){
+                int refineStopIter = gsTrain->getTrainConfig().refineStopIter;
+                if(ImGuiHelper::Property("StopDensifyAt", refineStopIter, 100, 100000, "Stop densify gaussians that are larger than after these many steps"))
+                {
+                    Editor::get_editor()->enqueue_gs_train_update([refineStopIter](void* gs_ptr){
+                        auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                        gs->getTrainConfig().refineStopIter = std::max(refineStopIter, 1000);
+                    });
+                }
+                
+                bool enableBg = gsTrain->getTrainConfig().enableBg;
+                if (ImGuiHelper::Property("Create Sky Model", enableBg, "Whether create a sky model for the scene")){
+                    Editor::get_editor()->enqueue_gs_train_update([enableBg](void* gs_ptr){
+                        auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                        gs->getTrainConfig().enableBg = enableBg;
+                    });
                     ImGui::OpenPopup("CreateSkyModel");
                 }
                 ImGuiHelper::messageBox("CreateSkyModel", "Create a sky model for the splat, this will reset the splat, are you sure?", [&]() {
-                    gsTrain->resetGaussian();
+                    Editor::get_editor()->enqueue_gs_train_update([](void* gs_ptr){
+                        auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                        gs->resetGaussian();
+                    });
                 });
-                if (ImGuiHelper::Property("AntiAliased", gsTrain->getTrainConfig().mipAntiliased, "Whether use anti-aliased rendering")){
+                
+                bool mipAntiliased = gsTrain->getTrainConfig().mipAntiliased;
+                if (ImGuiHelper::Property("AntiAliased", mipAntiliased, "Whether use anti-aliased rendering")){
+                    Editor::get_editor()->enqueue_gs_train_update([mipAntiliased](void* gs_ptr){
+                        auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                        gs->getTrainConfig().mipAntiliased = mipAntiliased;
+                    });
                     ImGui::OpenPopup("AntiAliased");
                     gaussian.ModelRef->update_from_cpu(
                         gsTrain->getGaussianPositionCpu().data(),
-                        gsTrain->getGaussianSHsCpu().data(),
+                        gsTrain->getGaussianSH0Cpu().data(),
+                        gsTrain->getGaussianSHNCpu().data(),
                         gsTrain->getGaussianOpcaitiesCpu().data(),
                         gsTrain->getGaussianScalingsCpu().data(),
                         gsTrain->getGaussianRotationsCpu().data(),
@@ -823,21 +856,33 @@ namespace MM
                     );
                 }
                 ImGuiHelper::messageBox("AntiAliased", "Modify anti-alias mode will reset the splat, are you sure?", [&]() {
-                    gsTrain->resetGaussian();
+                    Editor::get_editor()->enqueue_gs_train_update([](void* gs_ptr){
+                        auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                        gs->resetGaussian();
+                    });
                     gaussian.ModelRef->update_from_cpu(
                         gsTrain->getGaussianPositionCpu().data(),
-                        gsTrain->getGaussianSHsCpu().data(),
+                        gsTrain->getGaussianSH0Cpu().data(),
+                        gsTrain->getGaussianSHNCpu().data(),
                         gsTrain->getGaussianOpcaitiesCpu().data(),
                         gsTrain->getGaussianScalingsCpu().data(),
                         gsTrain->getGaussianRotationsCpu().data(),
                         gsTrain->getNumGaussians()
                     );
                 });
-                if(ImGuiHelper::Property("Meshing", gsTrain->getTrainConfig().exportMesh,"Enable/Disable Extracting Meshes")){
-                    gsTrain->getTrainConfig().normalConsistencyLoss = gsTrain->getTrainConfig().exportMesh;
-                    if (gsTrain->getCurrentIterations() > gsTrain->getTrainConfig().refineStopIter) {
-                        gsTrain->resetGaussian();
-                    }
+                
+                bool exportMesh = gsTrain->getTrainConfig().exportMesh;
+                if(ImGuiHelper::Property("Meshing", exportMesh,"Enable/Disable Extracting Meshes")){
+                    int curIter = gsTrain->getCurrentIterations();
+                    int refineStop = gsTrain->getTrainConfig().refineStopIter;
+                    Editor::get_editor()->enqueue_gs_train_update([exportMesh, curIter, refineStop](void* gs_ptr){
+                        auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                        gs->getTrainConfig().exportMesh = exportMesh;
+                        gs->getTrainConfig().normalConsistencyLoss = exportMesh;
+                        if (curIter > refineStop) {
+                            gs->resetGaussian();
+                        }
+                    });
                 }
    
                 ImGuiHelper::Property("ShowTrainView", gsTrain->ShowTrainView, "Whether visualize training camera view");
@@ -847,7 +892,7 @@ namespace MM
                     ImGuiHelper::Property("ViewNum", numView, ImGuiHelper::PropertyFlag::ReadOnly);
                 }
                 ImGui::Separator();
-                auto& enableFocusRegion = gsTrain->getTrainConfig().enableFocusRegion;
+                bool enableFocusRegion = gsTrain->getTrainConfig().enableFocusRegion;
                 ImGui::NextColumn();
                 ImGui::Columns(1);
                 if (ImGui::TreeNodeEx("FocusRegion", ImGuiTreeNodeFlags_Framed))
@@ -859,20 +904,34 @@ namespace MM
                    ImGui::Indent();
                    float itemWidth = (ImGui::GetContentRegionAvail().x - (ImGui::GetFontSize() * 3.0f)) / 3.0f;
                    bool modified = false;
-                   if (diverse::ImGuiHelper::PropertyVector3("Position", gsTrain->focus_region_position, itemWidth, 0.0f))
+                   
+                   // Temporary variables for UI display and modification
+                   glm::vec3 focus_pos = gsTrain->focus_region_position;
+                   glm::vec3 focus_rot = gsTrain->focus_region_rotation;
+                   glm::vec3 focus_scale = gsTrain->focus_region_scale;
+                   
+                   if (diverse::ImGuiHelper::PropertyVector3("Position", focus_pos, itemWidth, 0.0f))
                        modified = true;
-                   if (diverse::ImGuiHelper::PropertyVector3("Rotation", gsTrain->focus_region_rotation, itemWidth, 0.0f))
+                   if (diverse::ImGuiHelper::PropertyVector3("Rotation", focus_rot, itemWidth, 0.0f))
                        modified = true;
-                   if (diverse::ImGuiHelper::PropertyVector3("Scale", gsTrain->focus_region_scale, itemWidth, 1.0f))
+                   if (diverse::ImGuiHelper::PropertyVector3("Scale", focus_scale, itemWidth, 1.0f))
                        modified = true;
                    //ImGui::NextColumn();
                    ImGui::Columns(2);
                    if (ImGuiHelper::Property("Focus Region", enableFocusRegion))
                    {
-                       if (enableFocusRegion && modified)
-                       {
-                           gsTrain->updateFocusRegion(gsTrain->focus_region_position, gsTrain->focus_region_rotation, gsTrain->focus_region_scale);
-                       }
+                       Editor::get_editor()->enqueue_gs_train_update([enableFocusRegion](void* gs_ptr){
+                           auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                           gs->getTrainConfig().enableFocusRegion = enableFocusRegion;
+                       });
+                   }
+                   if (modified)
+                   {
+                       // Submit focus region update via queue
+                       Editor::get_editor()->enqueue_gs_train_update([focus_pos, focus_rot, focus_scale](void* gs_ptr){
+                           auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                           gs->updateFocusRegion(focus_pos, focus_rot, focus_scale);
+                       });
                    }
 
                    ImGui::Unindent();
@@ -892,13 +951,20 @@ namespace MM
                     ImGui::NextColumn();
                     if (ImGui::Button("+"))
                     {
-                        gsTrain->pruenIteraions.emplace_back();
+                        Editor::get_editor()->enqueue_gs_train_update([](void* gs_ptr){
+                            auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                            gs->pruenIteraions.emplace_back();
+                        });
                     }
                     ImGuiHelper::Tooltip("Add prune operation on this step");
                     ImGui::NextColumn();
                     if( gsTrain->pruenIteraions.size() > 0 && ImGui::Button("-") )
                     {
-                        gsTrain->pruenIteraions.pop_back();
+                        Editor::get_editor()->enqueue_gs_train_update([](void* gs_ptr){
+                            auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                            if(!gs->pruenIteraions.empty())
+                                gs->pruenIteraions.pop_back();
+                        });
                     }
                     ImGuiHelper::Tooltip("Delete prune operation");
                     ImGui::NextColumn();
@@ -907,7 +973,15 @@ namespace MM
                     auto n = gsTrain->pruenIteraions.size();
                     for (auto i = 0; i < n; i++)
                     {
-                        ImGuiHelper::Property("iteraion", gsTrain->pruenIteraions[i]);
+                        int iter_value = gsTrain->pruenIteraions[i];
+                        if(ImGuiHelper::Property("iteraion", iter_value))
+                        {
+                            Editor::get_editor()->enqueue_gs_train_update([i, iter_value](void* gs_ptr){
+                                auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                                if(i < gs->pruenIteraions.size())
+                                    gs->pruenIteraions[i] = iter_value;
+                            });
+                        }
                     }
 
                     ImGui::Unindent();
@@ -943,7 +1017,8 @@ namespace MM
                 gsTrain->resetGaussian();
                 gaussian.ModelRef->update_from_cpu(
                     gsTrain->getGaussianPositionCpu().data(),
-                    gsTrain->getGaussianSHsCpu().data(),
+                    gsTrain->getGaussianSH0Cpu().data(),
+                    gsTrain->getGaussianSHNCpu().data(),
                     gsTrain->getGaussianOpcaitiesCpu().data(),
                     gsTrain->getGaussianScalingsCpu().data(),
                     gsTrain->getGaussianRotationsCpu().data(),
@@ -964,7 +1039,8 @@ namespace MM
 						gaussian.ModelRef->rotation(),
                         gaussian.ModelRef->scale(),
                         gaussian.ModelRef->opacity(),
-                        gaussian.ModelRef->sh()
+                        gaussian.ModelRef->sh0(),
+                        gaussian.ModelRef->shn()
                     );
 #endif
                auto& gs_edit = diverse::GaussianEdit::get();

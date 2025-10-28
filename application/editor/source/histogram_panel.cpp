@@ -137,7 +137,7 @@ namespace diverse
             case 6:
             case 7:
             case 8:
-                return dataFuncs[select_type](splat->sh()[idx][select_type - 6]);
+                return dataFuncs[select_type](splat->sh0()[idx][select_type - 6]);
             case 9:
                 return dataFuncs[select_type](splat->opacity()[idx]);
             case 10: //distance
