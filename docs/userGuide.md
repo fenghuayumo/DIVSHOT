@@ -19,6 +19,8 @@ When you have downloaded the installation package, double-click to run it, and y
 Then simply click Next through the installation process. During the installation, you can choose the installation path. 
 
 **Note:** After installation is complete, a desktop shortcut icon will appear on your desktop. Double-click it to launch the application. However, on some computers, you may encounter permission access issues that cause the application to crash immediately. In this case, you can run it as administrator, or you can launch it using the command line. Simply navigate to the installation directory and find `diverse_launch.exe`, then type `diverse_launch` in the command line and press Enter to run it. This will open the editor viewer interface. You can also add parameters after `diverse_launch` to run training directly via command line, allowing you to train splats in batch mode. For more details, you can use `diverse_launch --help` to view available options as shown in the image. ![DIVSHOT](/screenshots/lauch.png?raw=true) 
+you can input cmd parameters to lauch the cli train app as the image shows: ![DIVSHOT](/screenshots/cli_example.png?raw=true)
+
 ## Training Splats
 
 DIVSHOT can training 3d gaussian splats from multiview images.

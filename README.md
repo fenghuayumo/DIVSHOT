@@ -27,7 +27,8 @@ It originated from a 2023 paper [gaussian-splatting](https://github.com/graphdec
 * 1. VS2022
 * 2. Cuda SDK
 * 3. Vulkan SDK
-* 4. Python3
+<!-- * 4. Python3 -->
+**Note:** Please ensure you update to the latest graphics card driver, otherwise there may be some issues.
 
 Operating systems:
 
