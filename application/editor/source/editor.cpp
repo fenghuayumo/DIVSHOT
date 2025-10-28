@@ -224,7 +224,7 @@ namespace diverse
 
     /*    glm::mat4 viewMat = glm::inverse(glm::lookAt(glm::vec3(-31.0f, 12.0f, 51.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
         editor_camera_transform.set_local_transform(viewMat);*/
-        editor_camera_transform.set_local_orientation(glm::radians(glm::vec3(-15.0f, 30.0f, 0.0f)));
+        editor_camera_transform.set_local_orientation(glm::radians(glm::vec3(-10.0f, 10.0f, 0.0f)));
         editor_camera_transform.set_world_matrix(glm::mat4(1.0f));
         component_icon_map[typeid(PointLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
         component_icon_map[typeid(SpotLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);

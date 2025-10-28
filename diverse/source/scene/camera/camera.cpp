@@ -126,7 +126,7 @@ namespace diverse
         if(mode != CameraViewMode::Perspective) 
         { 
             set_orthographic(true); 
-            set_near(-10.0f); 
+            // set_near(-10.0f); 
         }
         else
         {

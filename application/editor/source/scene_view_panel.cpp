@@ -497,7 +497,13 @@ namespace diverse
             if (ImGui::Button(U8CStr2CStr(ICON_MDI_AXIS_ARROW " 3D")))
             {
                 camera.set_view_mode(Camera::CameraViewMode::Perspective);
-                editor->get_editor_camera_controller().set_current_mode(EditorCameraMode::FLYCAM);
+                auto& cam_controller = editor->get_editor_camera_controller();
+                auto& transform = editor->get_editor_camera_transform();
+                
+                // Sync focal_point from ortho_view_center when switching back to 3D
+                cam_controller.sync_focal_point_from_ortho_view(transform);
+                
+                cam_controller.set_current_mode(EditorCameraMode::ARCBALL);
             }
             if (selected)
                 ImGui::PopStyleColor();
@@ -525,7 +531,17 @@ namespace diverse
             if (ImGui::Button("Front"))
             {
                 camera.set_view_mode(Camera::CameraViewMode::Front);
-                editor->get_editor_camera_controller().set_front_view(editor->get_editor_camera_transform());
+                auto& cam_controller = editor->get_editor_camera_controller();
+                auto& transform = editor->get_editor_camera_transform();
+                
+                // Initialize ortho view center when switching from 3D view
+                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
+                {
+                    cam_controller.init_ortho_view_from_current(transform);
+                }
+                
+                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
+                cam_controller.set_front_view(transform);
             }
             if(selected_mode)
                 ImGui::PopStyleColor();
@@ -536,7 +552,17 @@ namespace diverse
             if(ImGui::Button("Back"))
             {
                 camera.set_view_mode(Camera::CameraViewMode::Back);
-                editor->get_editor_camera_controller().set_back_view(editor->get_editor_camera_transform());
+                auto& cam_controller = editor->get_editor_camera_controller();
+                auto& transform = editor->get_editor_camera_transform();
+                
+                // Initialize ortho view center when switching from 3D view
+                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
+                {
+                    cam_controller.init_ortho_view_from_current(transform);
+                }
+                
+                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
+                cam_controller.set_back_view(transform);
             }
             if(selected_mode)
                 ImGui::PopStyleColor();
@@ -547,7 +573,17 @@ namespace diverse
             if (ImGui::Button("Left"))
             {
                 camera.set_view_mode(Camera::CameraViewMode::Left);
-                editor->get_editor_camera_controller().set_left_view(editor->get_editor_camera_transform());
+                auto& cam_controller = editor->get_editor_camera_controller();
+                auto& transform = editor->get_editor_camera_transform();
+                
+                // Initialize ortho view center when switching from 3D view
+                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
+                {
+                    cam_controller.init_ortho_view_from_current(transform);
+                }
+                
+                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
+                cam_controller.set_left_view(transform);
             }
             if(selected_mode)
                 ImGui::PopStyleColor();
@@ -558,7 +594,17 @@ namespace diverse
             if (ImGui::Button("Right"))
             {
                 camera.set_view_mode(Camera::CameraViewMode::Right);
-                editor->get_editor_camera_controller().set_right_view(editor->get_editor_camera_transform());
+                auto& cam_controller = editor->get_editor_camera_controller();
+                auto& transform = editor->get_editor_camera_transform();
+                
+                // Initialize ortho view center when switching from 3D view
+                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
+                {
+                    cam_controller.init_ortho_view_from_current(transform);
+                }
+                
+                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
+                cam_controller.set_right_view(transform);
             }
             if(selected_mode)
                 ImGui::PopStyleColor();
@@ -569,7 +615,17 @@ namespace diverse
             if (ImGui::Button("Top"))
             {
                 camera.set_view_mode(Camera::CameraViewMode::Top);
-                editor->get_editor_camera_controller().set_top_view(editor->get_editor_camera_transform());
+                auto& cam_controller = editor->get_editor_camera_controller();
+                auto& transform = editor->get_editor_camera_transform();
+                
+                // Initialize ortho view center when switching from 3D view
+                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
+                {
+                    cam_controller.init_ortho_view_from_current(transform);
+                }
+                
+                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
+                cam_controller.set_top_view(transform);
             }
             if(selected_mode)
                 ImGui::PopStyleColor();
@@ -580,7 +636,17 @@ namespace diverse
             if (ImGui::Button("Buttom"))
             {
                 camera.set_view_mode(Camera::CameraViewMode::Bottom);
-                editor->get_editor_camera_controller().set_buttom_view(editor->get_editor_camera_transform());
+                auto& cam_controller = editor->get_editor_camera_controller();
+                auto& transform = editor->get_editor_camera_transform();
+                
+                // Initialize ortho view center when switching from 3D view
+                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
+                {
+                    cam_controller.init_ortho_view_from_current(transform);
+                }
+                
+                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
+                cam_controller.set_buttom_view(transform);
             }
             if(selected_mode)
                 ImGui::PopStyleColor();

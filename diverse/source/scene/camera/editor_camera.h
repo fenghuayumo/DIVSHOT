@@ -45,6 +45,13 @@ namespace diverse
         void set_right_view(maths::Transform& transform);
         void set_front_view(maths::Transform& transform);
         void set_back_view(maths::Transform& transform);
+        
+        // Initialize orthographic view center from current camera state
+        void init_ortho_view_from_current(const maths::Transform& transform);
+        
+        // Sync focal_point from ortho_view_center (when switching back to ARCBALL)
+        void sync_focal_point_from_ortho_view(const maths::Transform& transform);
+        
     private:
         EditorCameraMode camera_mode = EditorCameraMode::ARCBALL;
         glm::vec2 stored_cursor_pos;
@@ -52,5 +59,9 @@ namespace diverse
         float rotation_speed = 0.3f;
         float pitch_delta { 0.0f }, yaw_delta { 0.0f };
         glm::vec3 position_delta {};
+        
+        // Orthographic view center point - all 6 views look at this point
+        glm::vec3 ortho_view_center {0.0f, 0.0f, 0.0f};
+        float ortho_view_distance = 10.0f;
     };
 }

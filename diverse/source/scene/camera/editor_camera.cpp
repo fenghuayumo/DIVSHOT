@@ -74,10 +74,20 @@ namespace diverse
             if(Input::get().get_mouse_held(InputCode::MouseKey::ButtonMiddle))
             {
                 mouse_sensitivity = 0.1f;
+                
+                // Use camera's actual right and up directions for panning
+                // This works correctly for all 6 orthographic views
+                glm::vec3 right = transform.get_right_direction();
+                glm::vec3 up = transform.get_up_direction();
+                
                 glm::vec3 position = transform.get_local_position();
-                position.x -= (xpos - previous_curser_pos.x) /** camera->get_scale() */ * mouse_sensitivity * 0.5f;
-                position.y += (ypos - previous_curser_pos.y) /** camera->get_scale() */ * mouse_sensitivity * 0.5f;
+                position -= right * (xpos - previous_curser_pos.x) * mouse_sensitivity * 0.5f;
+                position += up * (ypos - previous_curser_pos.y) * mouse_sensitivity * 0.5f;
                 transform.set_local_position(position);
+                
+                // Also update ortho_view_center so switching views maintains the new position
+                ortho_view_center = position - transform.get_forward_direction() * ortho_view_distance;
+                
                 previous_curser_pos = glm::vec2(xpos, ypos);
             }
             else
@@ -538,82 +548,100 @@ namespace diverse
         focal_point = camera_pos - transform.get_forward_direction() * distance;
         //+ transform.get_right_direction() * distance  - transform.get_up_direction() * distance;
     }
+    
+    void EditorCameraController::init_ortho_view_from_current(const maths::Transform& transform)
+    {
+        // Calculate the center point that the current camera is looking at
+        glm::vec3 forward = transform.get_forward_direction();
+        glm::vec3 camera_pos = transform.get_local_position();
+        
+        // Use focal_point if available (for ARCBALL mode)
+        if (glm::length(focal_point) > 0.01f && distance > 0.1f)
+        {
+            // Use the existing focal_point from ARCBALL mode
+            ortho_view_center = focal_point;
+            ortho_view_distance = distance;
+        }
+        else
+        {
+            // Calculate from current position and forward direction
+            // Use a reasonable default distance
+            ortho_view_distance = 10.0f;
+            ortho_view_center = camera_pos - forward * ortho_view_distance;
+        }
+    }
+    
+    void EditorCameraController::sync_focal_point_from_ortho_view(const maths::Transform& transform)
+    {
+        // Sync focal_point and distance from ortho_view data
+        // This is called when switching back to ARCBALL mode
+        focal_point = ortho_view_center;
+        distance = ortho_view_distance;
+    }
     void EditorCameraController::set_front_view(maths::Transform& transform)
     {
-        // Front view: looking along negative Z-axis
+        // Front view: looking along negative Z-axis (toward -Z)
+        // Camera position: ortho_view_center + (0, 0, +distance)
         glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
         transform.set_local_orientation(rotation);
         
-        // Update camera position for arcball mode
-        if (camera_mode == EditorCameraMode::ARCBALL)
-        {
-            transform.set_local_position(calculate_position(transform));
-        }
+        glm::vec3 new_position = ortho_view_center + glm::vec3(0.0f, 0.0f, ortho_view_distance);
+        transform.set_local_position(new_position);
     }
 
     void EditorCameraController::set_back_view(maths::Transform& transform)
     {
-        // Back view: looking along positive Z-axis (rotate 180 degrees around Y-axis)
+        // Back view: looking along positive Z-axis (toward +Z)
+        // Camera position: ortho_view_center + (0, 0, -distance)
         glm::quat rotation = glm::angleAxis(glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
         transform.set_local_orientation(rotation);
         
-        // Update camera position for arcball mode
-        if (camera_mode == EditorCameraMode::ARCBALL)
-        {
-            transform.set_local_position(calculate_position(transform));
-        }
+        glm::vec3 new_position = ortho_view_center + glm::vec3(0.0f, 0.0f, -ortho_view_distance);
+        transform.set_local_position(new_position);
     }
 
     void EditorCameraController::set_left_view(maths::Transform& transform)
     {
-        // Left view: looking along positive X-axis (rotate 90 degrees around Y-axis)
-        glm::quat rotation = glm::angleAxis(glm::pi<float>() / 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+        // Left view: camera on left side looking toward +X (toward center)
+        // Camera position: ortho_view_center + (-distance, 0, 0)
+        glm::quat rotation = glm::angleAxis(-glm::pi<float>() / 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
         transform.set_local_orientation(rotation);
         
-        // Update camera position for arcball mode
-        if (camera_mode == EditorCameraMode::ARCBALL)
-        {
-            transform.set_local_position(calculate_position(transform));
-        }
+        glm::vec3 new_position = ortho_view_center + glm::vec3(-ortho_view_distance, 0.0f, 0.0f);
+        transform.set_local_position(new_position);
     }
 
     void EditorCameraController::set_right_view(maths::Transform& transform)
     {
-        // Right view: looking along negative X-axis (rotate -90 degrees around Y-axis)
-        glm::quat rotation = glm::angleAxis(-glm::pi<float>() / 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+        // Right view: camera on right side looking toward -X (toward center)
+        // Camera position: ortho_view_center + (+distance, 0, 0)
+        glm::quat rotation = glm::angleAxis(glm::pi<float>() / 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
         transform.set_local_orientation(rotation);
         
-        // Update camera position for arcball mode
-        if (camera_mode == EditorCameraMode::ARCBALL)
-        {
-            transform.set_local_position(calculate_position(transform));
-        }
+        glm::vec3 new_position = ortho_view_center + glm::vec3(ortho_view_distance, 0.0f, 0.0f);
+        transform.set_local_position(new_position);
     }
 
     void EditorCameraController::set_top_view(maths::Transform& transform)
     {
-        // Top view: looking along negative Y-axis (rotate -90 degrees around X-axis)
+        // Top view: looking along negative Y-axis (toward -Y, from top)
+        // Camera position: ortho_view_center + (0, +distance, 0)
         glm::quat rotation = glm::angleAxis(-glm::pi<float>() / 2.0f, glm::vec3(1.0f, 0.0f, 0.0f));
         transform.set_local_orientation(rotation);
         
-        // Update camera position for arcball mode
-        if (camera_mode == EditorCameraMode::ARCBALL)
-        {
-            transform.set_local_position(calculate_position(transform));
-        }
+        glm::vec3 new_position = ortho_view_center + glm::vec3(0.0f, ortho_view_distance, 0.0f);
+        transform.set_local_position(new_position);
     }
 
     void EditorCameraController::set_buttom_view(maths::Transform& transform)
     {
-        // Bottom view: looking along positive Y-axis (rotate 90 degrees around X-axis)
+        // Bottom view: looking along positive Y-axis (toward +Y, from bottom)
+        // Camera position: ortho_view_center + (0, -distance, 0)
         glm::quat rotation = glm::angleAxis(glm::pi<float>() / 2.0f, glm::vec3(1.0f, 0.0f, 0.0f));
         transform.set_local_orientation(rotation);
         
-        // Update camera position for arcball mode
-        if (camera_mode == EditorCameraMode::ARCBALL)
-        {
-            transform.set_local_position(calculate_position(transform));
-        }
+        glm::vec3 new_position = ortho_view_center + glm::vec3(0.0f, -ortho_view_distance, 0.0f);
+        transform.set_local_position(new_position);
     }
 
 }
