@@ -28,6 +28,35 @@ DIVSHOT can training 3d gaussian splats from multiview images.
 2. Select the `File` > `New GaussianSplat`, then select image file location and camerapose location 
 as the image shown: ![DIVSHOT](/screenshots/new_splats.png?raw=true) 
 
+### Parameters:
+
+**Camera Settings:**
+* **CameraModel**: Pinhole - Currently 3DGS training only supports Pinhole cameras. Panoramic camera training will be supported in the future.
+* **SfmQuality**: Can be set from 0-3, default is 2, balancing accuracy and speed.
+* **Share Single Camera**: Check this option to speed up SFM execution, indicating that your dataset images were captured by the same camera.
+* **External Camera Pose**: Check this to import external camera data. Currently supports RealityCapture, MetaShape, Blender, and Colmap data. You can drag and drop external camera files directly into the window, which will automatically set your camera file location in the camerapose path. By default, it will look for sparse_pc.ply in the same directory as the camera file to set the sparse point cloud path. If you set this path manually, it will read the point cloud file from your specified path.
+* **SplatMode**: Currently supports 3DGS and 2DGS models. Default is 3DGS. If you want better mesh export results, choose 2DGS model training. Note that 3DGS models also support mesh export - just check the ExportMesh option during training.
+* **DensifyType**: Currently has 3 densification strategies:
+  * **SplatADC**: Standard densification strategy, results are not optimal
+  * **SplatMCMC**: Results don't depend on initial point cloud position, more robust, but generates more Gaussian points
+  * **SplatADC+**: Default densification strategy, balancing quality and performance
+* **MaxSplats**: Sets the maximum number of Gaussian point clouds during training. Generally 2 million points is sufficient, unless you want to train very large scenes, then this parameter can be set higher. Generally, more points mean better results, but higher overhead, slower training speed, and increased memory/VRAM usage.
+* **MaxSteps**: Maximum training iterations, default is 30,000 steps.
+* **RefineEveryStep**: How many steps between each densification operation.
+
+**Datasets Options:**
+Parameters under the Datasets section are used to set dataset data constraints.
+* **MaxImageWidth**: set the training image max width.
+* **MaxImageHeight**: set the training image max height.
+
+**Advance:**
+
+* **Mask**: When checked, it will look for a "masks" folder in the same directory as the training image files. If masks are provided, the training process will remove related objects according to the provided masks, typically used to remove backgrounds. If the image data is PNG with an alpha channel, the alpha channel value will be used as the mask.
+
+* **Mask**: When checked, it will training with geometry constrain, and output mesh geometry finally.
+
+* **AntiAlias**: Whether to use anti-aliasing method to train 3DGS. Implementation based on paper: https://arxiv.org/pdf/2311.16493. When checked, training results are generally better.
+
 ## Loading Splats
 
 DIVSHOT loads splats from .ply files. Only .ply files containing 3D Gaussian Splat data can be loaded. If you attempt to load any other type of data from a .ply file, it will fail.
