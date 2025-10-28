@@ -1,6 +1,10 @@
 <div align="center">
 
 # DIVSHOT 
+</div>
+
+### Introduction
+
 **A lightweight radiance field renderer and training platform client that supports flexible editing tools for editing and cropping trained Gaussian splats for export, as well as rendering them to images or videos.**
 
 It originated from a 2023 paper [gaussian-splatting](https://github.com/graphdeco-inria/gaussian-splatting). Initially, it was created for learning purposes to implement this paper in C++, aiming to build a real-time visualization training tool similar to [instantngp](https://github.com/NVlabs/instant-ngp). After the emergence of SuperSplat, I was inspired to expand its functionality. After 2 years of spare time development, it has now become a comprehensive and practical tool.
