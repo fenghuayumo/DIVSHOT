@@ -92,7 +92,7 @@ project "divshot"
 	filter "system:windows"
 		cppdialect "C++20"
 		staticruntime "Off"
-		systemversion "13.3"
+		systemversion "latest"
 		conformancemode "on"
 
 		defines
