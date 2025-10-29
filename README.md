@@ -23,12 +23,10 @@ It originated from a 2023 paper [gaussian-splatting](https://github.com/graphdec
 ## Video Examples
 - [DIVSHOT Demo on Bilibili](https://www.bilibili.com/video/BV1KEsZzXEPd/?spm_id_from=333.1387.homepage.video_card.click)
    
-## Install On Windows
-* 1. VS2022
-* 2. Cuda SDK
-* 3. Vulkan SDK
 <!-- * 4. Python3 -->
 **Note:** Please ensure you update to the latest graphics card driver, otherwise there may be some issues.
+
+**Explanation:** The current program consists of 2 parts: the training part and the rendering/editing part. These two parts are relatively independent and decoupled. Currently, the open-source code includes the rendering and editing part, which is written using Vulkan and C++, meaning it can be compiled and run on multiple platforms. The training part is implemented using libtorch C++ and CUDA, which requires running on NVIDIA graphics cards. Although CUDA can be run on AMD graphics cards through the AMD HIP technology framework, this requires additional development time and will be completed in the future.
 
 Operating systems:
 
@@ -60,8 +58,15 @@ git submodule update --init --recursive
 
 To build `divshot` you should open the scripts folder, Then, doing the following operations
 
-#### Windows 
-* Run Scripts/GenerateVS.bat to generate a visual studio project, you can select divshot as startup project. You must select "Release" or "Production" option to compile, as several libraries do not currently have debug version builds provided. Selecting the Debug option will result in compilation errors.
+### Build
+#### Windows
+you should install compile build tools and package firstly
+1. VS2022
+2. Cuda SDK
+3. Vulkan SDK
+4. CMake
+   
+Then, Running Scripts/GenerateVS.bat to generate a visual studio project, you can select divshot as startup project. You must select "Release" or "Production" option to compile, as several libraries do not currently have debug version builds provided. Selecting the Debug option will result in compilation errors.
 
 
 # Credits

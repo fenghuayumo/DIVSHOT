@@ -38,7 +38,7 @@ as the image shown: ![DIVSHOT](/screenshots/new_splats.png?raw=true)
 * **SplatMode**: Currently supports 3DGS and 2DGS models. Default is 3DGS. If you want better mesh export results, choose 2DGS model training. Note that 3DGS models also support mesh export - just check the ExportMesh option during training.
 * **DensifyType**: Currently has 3 densification strategies:
   * **SplatADC**: Standard densification strategy, results are not optimal
-  * **SplatMCMC**: Results don't depend on initial point cloud position, more robust, but generates more Gaussian points
+  * **SplatMCMC**: Results don't depend on initial point cloud position, more robust, but generates more Gaussian points. implementation based on [3D Gaussian Splatting as Markov Chain Monte Carlo](https://arxiv.org/abs/2404.09591)
   * **SplatADC+**: Default densification strategy, balancing quality and performance
 * **MaxSplats**: Sets the maximum number of Gaussian point clouds during training. Generally 2 million points is sufficient, unless you want to train very large scenes, then this parameter can be set higher. Generally, more points mean better results, but higher overhead, slower training speed, and increased memory/VRAM usage.
 * **MaxSteps**: Maximum training iterations, default is 30,000 steps.
