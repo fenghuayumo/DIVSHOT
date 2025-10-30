@@ -92,7 +92,7 @@ project "divshot"
 	filter "system:windows"
 		cppdialect "C++20"
 		staticruntime "Off"
-		systemversion "13.3"
+		systemversion "latest"
 		conformancemode "on"
 
 		defines
@@ -129,6 +129,7 @@ project "divshot"
 		postbuildcommands { "xcopy /Y /C \"..\\..\\layouts\\dvui.ini\" \"$(OutDir)\"" } 
 		postbuildcommands { "xcopy /Y /C \"..\\..\\external\\opencv4_9\\linklib\\opencv_videoio_msmf490_64.dll\" \"$(OutDir)\"" } 
 		postbuildcommands { "xcopy /Y /C \"..\\..\\external\\opencv4_9\\linklib\\opencv_world490.dll\" \"$(OutDir)\"" } 
+		postbuildcommands { "xcopy /Y /C \"..\\..\\external\\pkg\\liblink\\zlib1.dll\" \"$(OutDir)\"" } 
 		disablewarnings { 4307 }
 
 	filter "system:macosx"
