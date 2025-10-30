@@ -50,12 +50,14 @@ Parameters under the Datasets section are used to set dataset data constraints.
 * **MaxImageHeight**: set the training image max height.
 
 **Advance:**
-
+* **Create Sky Model**: When enabled, the sky background and main subject are optimized separately. SkyModel is used to fit the sky background, which can improve outdoor scene results to some extent.
 * **Mask**: When checked, it will look for a "masks" folder in the same directory as the training image files. If masks are provided, the training process will remove related objects according to the provided masks, typically used to remove backgrounds. If the image data is PNG with an alpha channel, the alpha channel value will be used as the mask.
 
-* **Mask**: When checked, it will training with geometry constrain, and output mesh geometry finally.
+* **ExportMesh**: When checked, it will training with geometry constrain, and output mesh geometry finally.
 
 * **AntiAlias**: Whether to use anti-aliasing method to train 3DGS. Implementation based on paper: https://arxiv.org/pdf/2311.16493. When checked, training results are generally better.
+
+* **QualityMode**: When enabled, this prioritizes quality, but will slightly increase training time and the number of Splats, which may result in a larger final file size.
 
 ## Loading Splats
 
