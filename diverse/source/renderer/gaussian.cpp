@@ -313,11 +313,11 @@ namespace diverse
 			gs_constants.color_offset = glm::vec4(cmd.color_offset,cmd.model->splat_size);
 			auto point_list_key_buffer = rg.import_res(gs_model->points_key_buf, rhi::AccessType::Nothing);
 			auto point_list_value_buffer = rg.import_res(gs_model->points_value_buf, rhi::AccessType::Nothing);
-			// auto count_buffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(sizeof(u32) * 4, 
-			// 	rhi::BufferUsageFlags::STORAGE_BUFFER | 
-			// 	rhi::BufferUsageFlags::TRANSFER_SRC | 
-			// 	rhi::BufferUsageFlags::TRANSFER_DST), "count_buffer");
-			// rg::clear_buffer(rg,count_buffer,0);
+			auto num_visible_buffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(sizeof(u32) * 4, 
+				rhi::BufferUsageFlags::STORAGE_BUFFER | 
+				rhi::BufferUsageFlags::TRANSFER_SRC | 
+				rhi::BufferUsageFlags::TRANSFER_DST), "count_buffer");
+			rg::clear_buffer(rg,num_visible_buffer,0);
 			rg::RenderPass::new_compute(
 				rg.add_pass("clear_points"), "/shaders/gaussian/clear_points.hlsl")
 				.write(point_list_key_buffer)
@@ -332,11 +332,12 @@ namespace diverse
 				rg.add_pass("gsplat_viewz"), "/shaders/gaussian/gsplat_viewz_cs.hlsl",scaffold_defines)
 				.write(point_list_key_buffer)
 				.write(point_list_value_buffer)
+				.write(num_visible_buffer)
 				.constants(gs_constants)
 				.raw_descriptor_set(1, renderer->binldess_descriptorset())
 				.dispatch({ (u32)gs_constants.num_gaussians,1,1 });
+			// auto [sorted_key, sorted_value] = gpu_sort_indirect(rg, point_list_key_buffer, point_list_value_buffer,num_visible_buffer);
 			auto [sorted_key, sorted_value] = gpu_sort(rg, point_list_key_buffer, point_list_value_buffer, gs_constants.num_gaussians);
-			
 			struct GaussianCropConstants {
 				u32 surface_width;
 				u32 surface_height;
@@ -447,10 +448,22 @@ namespace diverse
 				},
 				std::move(pipeline_desc)
 			);	
-			
+		
+			auto indirect_args_buf = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(
+				(sizeof(rhi::IndirectDrawArgsInstanced)),
+				rhi::BufferUsageFlags::SHADER_DEVICE_ADDRESS | rhi::BufferUsageFlags::INDIRECT_BUFFER),
+				"gsplat.indirect_args_buf");
+			rg::RenderPass::new_compute(
+				rg.add_pass("gsplat draw indirect args"),
+				"/shaders/gaussian/prepare_dispatch_args.hlsl"
+			)
+			.read(num_visible_buffer)
+			.write(indirect_args_buf)
+			.dispatch({ 1, 1, 1 });
 			pass.render([this,
 				color_ref = pass.raster(color_img, rhi::AccessType::ColorAttachmentWrite),
 				depth_ref = pass.raster(depth_img, rhi::AccessType::DepthAttachmentWriteStencilReadOnly),
+				args_buffer_ref = pass.read(indirect_args_buf, rhi::AccessType::IndirectBuffer),
 				gs_constants,cmd,
 				sorted_buffer_ref = pass.read(sorted_value, rhi::AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer),
 				pipeline_raster = std::move(pipeline)](rg::RenderPassApi& api) mutable {
@@ -472,7 +485,7 @@ namespace diverse
 					//write sorted_value buffer
 					std::vector<rg::RenderPassBinding> bindings = { 
 						rg::RenderPassBinding::DynamicConstants(dynamic_offset), 
-						sorted_buffer_ref.bind(),
+						sorted_buffer_ref.bind()
 					};
 
 					auto res = rg::RenderPassPipelineBinding<rg::RgRasterPipelineHandle>::from(pipeline_raster)
@@ -481,7 +494,8 @@ namespace diverse
 					auto bound_raster = api.bind_raster_pipeline(res);
 					auto device = api.device();
 
-					device->draw_instanced(api.cb, 4, gs_constants.num_gaussians,0,0);
+					// device->draw_instanced(api.cb, 4, gs_constants.num_gaussians,0,0);
+					device->draw_instanced_indirect(api.cb, api.resources.buffer(args_buffer_ref), 0);
 
 					api.end_render_pass();
 			});

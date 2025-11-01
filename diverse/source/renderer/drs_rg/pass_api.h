@@ -59,6 +59,8 @@ namespace diverse
             RenderPassApi& api;
             std::shared_ptr<rhi::RasterPipeline>   pipeline;
 
+            auto dispatch_draw_instanced(const u32& vertex_count,const u32& instance_count) -> void;
+            auto dispatch_indirect_draw_instanced(Ref<rhi::GpuBuffer, GpuSrv>&& args_buffer, u64 args_buffer_offset) -> void;
             auto push_constants(rhi::CommandBuffer* cb, u32 offset, u8* constants, u32 size_) -> void;
         };
         struct BoundRayTracingPipeline

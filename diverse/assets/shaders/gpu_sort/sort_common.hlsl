@@ -32,7 +32,7 @@
 [[vk::binding(6)]] RWStructuredBuffer<uint> b_passHist;        //buffer used to store device level offsets for 
                                             //each partition tile for each digit during a binning pass
 #ifdef GPU_SORT_INDIRECT
-[[vk::binding(7)]] StructuredBuffer<uint4> b_count;; // buffer to be sorted
+[[vk::binding(7)]] ByteAddressBuffer b_count;; // buffer to be sorted
 #endif
 groupshared uint g_us[RADIX * 2];           //Shared memory for upsweep kernel
 groupshared uint g_scan[SCAN_DIM];          //Shared memory for the scan kernel
@@ -41,7 +41,7 @@ groupshared uint g_ds[MAX_DS_SMEM];         //Shared memory for the downsweep ke
 inline uint getNumKeys()
 {
 #ifdef GPU_SORT_INDIRECT
-    const uint cnt = b_count[0].x;
+    const uint cnt = b_count.Load(0);
     return cnt;
 #else
     return e_numKeys;
@@ -51,7 +51,7 @@ inline uint getNumKeys()
 inline uint getThreadBlocks()
 {
 #ifdef GPU_SORT_INDIRECT
-    const uint cnt = b_count[0].x;
+    const uint cnt = b_count.Load(0);
     return (cnt + PART_SIZE - 1) / PART_SIZE;
 #else
     return e_threadBlocks;

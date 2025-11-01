@@ -24,6 +24,7 @@ namespace diverse
                pipeline
            };
         }
+
         auto RenderPassApi::bind_raster_pipeline(const RenderPassPipelineBinding<RgRasterPipelineHandle>& binding) -> BoundRasterPipeline
         {
             auto device = this->resources.execution_params.device;
@@ -203,7 +204,16 @@ namespace diverse
                 size_
             );
         }
-
+        auto BoundRasterPipeline::dispatch_draw_instanced(const u32& vertex_count, const u32& instance_count) -> void
+        {
+            api.device()->draw_instanced(api.cb, vertex_count, instance_count, 0, 0);
+        }
+        auto BoundRasterPipeline::dispatch_indirect_draw_instanced(Ref<rhi::GpuBuffer, GpuSrv>&& args_buffer, u64 args_buffer_offset) -> void
+        {
+            api.device()->dispatch_indirect(api.cb,
+                api.resources.buffer(args_buffer),
+                args_buffer_offset);
+        }
 
         auto BoundRasterPipeline::push_constants(rhi::CommandBuffer* cb, u32 offset, u8* constants, u32 size_) -> void
         {

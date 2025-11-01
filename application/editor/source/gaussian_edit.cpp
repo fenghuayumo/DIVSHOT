@@ -7,6 +7,7 @@
 #include <scene/scene.h>
 #include <renderer/defered_renderer.h>
 #include <renderer/drs_rg/image_op.h>
+#include <renderer/drs_rg/buffer_op.h>
 #include <maths/maths_log.hpp>
 namespace diverse
 {
@@ -381,11 +382,16 @@ namespace diverse
                     .write(point_list_value_buffer)
                     .constants(num_gaussians)
                     .dispatch({ (u32)num_gaussians,1,1 });
-
+                auto num_visible_buffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(sizeof(u32) * 4, 
+                rhi::BufferUsageFlags::STORAGE_BUFFER | 
+                rhi::BufferUsageFlags::TRANSFER_SRC | 
+                rhi::BufferUsageFlags::TRANSFER_DST), "count_buffer");
+                rg::clear_buffer(rg,num_visible_buffer,0);
                 rg::RenderPass::new_compute(
                     rg.add_pass("gsplat_viewz"), "/shaders/gaussian/gsplat_viewz_cs.hlsl")
                     .write(point_list_key_buffer)
                     .write(point_list_value_buffer)
+                    .write(num_visible_buffer)
                     .constants(gs_constants)
                     .raw_descriptor_set(1, bindless_set)
                     .dispatch({ (u32)num_gaussians,1,1 });

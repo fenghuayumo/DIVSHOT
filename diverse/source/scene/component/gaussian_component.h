@@ -41,7 +41,7 @@ namespace diverse
 		f32				   white_point = 1.0f;
 		f32				   black_point = 0.0f;
 		glm::vec3		   albedo_color = glm::vec3(1.0f);
-
+		u32 			   max_splats = 2000000;
 		void 			  apply_color_adjustment();
 		template <typename Archive>
 		void save(Archive& archive) const
@@ -50,7 +50,10 @@ namespace diverse
 				return;
 			std::string newPath;
 			FileSystem::get().absolute_path_2_fileSystem(ModelRef->get_file_path(), newPath);
-			archive(cereal::make_nvp("gsvistype", gs_render_type), cereal::make_nvp("FilePath", newPath), cereal::make_nvp("splat_size", ModelRef->splat_size));
+			archive(cereal::make_nvp("gsvistype", gs_render_type));
+			archive(cereal::make_nvp("FilePath", newPath));
+			archive(cereal::make_nvp("splat_size", ModelRef->splat_size));
+			archive(cereal::make_nvp("max_splats", max_splats));
 		}
 
 		template <typename Archive>
@@ -58,11 +61,14 @@ namespace diverse
 		{
 			std::string filePath;
 			float splat_size = 1.0;
-			archive(cereal::make_nvp("gsvistype", gs_render_type), cereal::make_nvp("FilePath", filePath), cereal::make_nvp("splat_size", splat_size));
+			archive(cereal::make_nvp("gsvistype", gs_render_type));
+			archive(cereal::make_nvp("FilePath", filePath));
+			archive(cereal::make_nvp("splat_size", splat_size));
+			archive(cereal::make_nvp("max_splats", max_splats));
 			if( !filePath.empty())
 				ModelRef = createSharedPtr<GaussianModel>(filePath);
 			else
-				ModelRef = createSharedPtr<GaussianModel>(); //from trainning image
+				ModelRef = createSharedPtr<GaussianModel>(max_splats); //from trainning image
 			ModelRef->splat_size = splat_size;
 		}
 	};

@@ -288,6 +288,31 @@ namespace diverse
                 pass.rg->record_pass(std::move(pass.pass));
             }
 
+            auto dispatch_draw_instanced(u32 vertex_count, u32 instance_count)->void
+            {
+                pass.render([r_state = std::move(this->state), vertex_count, instance_count](RenderPassApi& api)mutable {
+                    r_state.patch_const_blobs(api);
+
+                    //api.begin_render_pass(
+                    //    *gsplat_render_pass,
+                    //    { width, height },
+                    //    {
+                    //        std::pair{color_ref,rhi::GpuTextureViewDesc()},
+                    //    },
+                    //    std::pair{ depth_ref, rhi::GpuTextureViewDesc().with_aspect_mask(rhi::ImageAspectFlags::DEPTH) }
+                    //);
+
+                    //api.set_default_view_and_scissor({ width,height });
+                    auto pipeline = api.bind_raster_pipeline(r_state.create_pipeline_binding());
+                    pipeline.dispatch_draw_instanced(vertex_count, instance_count);
+                });
+            }
+
+            auto dispatch_indirect_draw_instanced(const Handle<rhi::GpuBuffer>& args_buffer, uint64 args_buffer_offset) -> void
+            {
+
+            }
+
             auto trace_rays(const Handle<rhi::GpuRayTracingAcceleration>& tlas, std::array<uint32, 3> extent)->void
             {
                 auto tlas_ref = this->pass.read(tlas, rhi::AccessType::AnyShaderReadOther);

@@ -15,6 +15,7 @@
 #include <queue>
 #include <functional>
 #include <mutex>
+#include <unordered_set>
 
 namespace diverse
 { 
@@ -296,6 +297,7 @@ namespace diverse
         void export_cameras();
         void export_sparse_pointcloud();
         void train_splat_gaussian();
+        void run_train_gaussian(void* gs_scene);
     #endif
     protected:
         NONCOPYABLE(Editor)
@@ -344,6 +346,7 @@ namespace diverse
         std::vector<std::string> splat_source_path;
         std::string     load_model_path;
         bool        is_train_gaussian = false;
+        std::unordered_set<entt::entity> train_thread_entities;  // Track which entities have training threads running
         bool        is_update_splat_rendering = false;
         bool        is_splat_edit = false;
         int         splat_update_freq = 100;

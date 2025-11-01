@@ -309,7 +309,7 @@ namespace diverse
 
             if (selected)
                 ImGui::PopStyleColor();
-            ImGuiHelper::Tooltip("Translate");
+            ImGuiHelper::Tooltip("Translate T");
         }
 
         {
@@ -323,7 +323,7 @@ namespace diverse
 
             if (selected)
                 ImGui::PopStyleColor();
-            ImGuiHelper::Tooltip("Rotate");
+            ImGuiHelper::Tooltip("Rotate R");
         }
 
         {
@@ -337,7 +337,7 @@ namespace diverse
 
             if (selected)
                 ImGui::PopStyleColor();
-            ImGuiHelper::Tooltip("Scale");
+            ImGuiHelper::Tooltip("Scale Y");
         }
 
         ImGui::SameLine();
@@ -355,7 +355,7 @@ namespace diverse
 
             if (selected)
                 ImGui::PopStyleColor();
-            ImGuiHelper::Tooltip("Universal");
+            ImGuiHelper::Tooltip("Universal U");
         }
 
         ImGui::SameLine();
@@ -381,19 +381,19 @@ namespace diverse
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
         ImGui::SameLine();
 
-        {
-           selected = (editor->snap_guizmo() == true);
+        // {
+        //    selected = (editor->snap_guizmo() == true);
 
-           if (selected)
-               ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
+        //    if (selected)
+        //        ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
 
-           if (ImGui::Button(U8CStr2CStr(ICON_MDI_MAGNET)))
-               editor->snap_guizmo() = !selected;
+        //    if (ImGui::Button(U8CStr2CStr(ICON_MDI_MAGNET)))
+        //        editor->snap_guizmo() = !selected;
 
-           if (selected)
-               ImGui::PopStyleColor();
-           ImGuiHelper::Tooltip("Snap");
-        }
+        //    if (selected)
+        //        ImGui::PopStyleColor();
+        //    ImGuiHelper::Tooltip("Snap");
+        // }
 
         ImGui::SameLine();
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);

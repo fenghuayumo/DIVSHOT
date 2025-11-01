@@ -22,6 +22,7 @@ It originated from a 2023 paper [gaussian-splatting](https://github.com/graphdec
 - [UserGuide][UserGuide] user documentation
 ## Video Examples
 - [DIVSHOT Demo on Bilibili](https://www.bilibili.com/video/BV1KEsZzXEPd/?spm_id_from=333.1387.homepage.video_card.click)
+- [DIVSHOT Demo on Youtube](https://www.youtube.com/watch?v=MJsJNsayIco)
    
 <!-- * 4. Python3 -->
 **Note:** Please ensure you update to the latest graphics card driver, otherwise there may be some issues.
@@ -56,8 +57,6 @@ git clone https://github.com/fenghuayumo/DIVSHOT.git
 git submodule update --init --recursive
 ```
 
-To build `divshot` you should open the scripts folder, Then, doing the following operations
-
 ### Build
 #### Windows
 you should install compile build tools and package firstly
@@ -90,25 +89,18 @@ Then, Running Scripts/GenerateVS.bat to generate a visual studio project, you ca
  * [ewa splatting](https://www.cs.umd.edu/~zwicker/publications/EWASplatting-TVCG02.pdf) 
  * [gaussian-splatting](https://github.com/graphdeco-inria/gaussian-splatting)
  * [making gaussian splats smaller](https://aras-p.info/blog/2023/09/13/Making-Gaussian-Splats-smaller/)
- * [phys-gaussian](https://xpandora.github.io/PhysGaussian/)
- * [scaffold-gs](https://city-super.github.io/scaffold-gs/)
  * [spacetime-gaussians](https://github.com/oppo-us-research/SpacetimeGaussians)
  * [sugar](https://github.com/Anttwo/SuGaR)
  * [rain-gs](https://ku-cvlab.github.io/RAIN-GS/)
  * [eagles](https://github.com/Sharath-girish/efficientgaussian)
  * [pixelgs](https://arxiv.org/abs/2403.15530)
  * [opgs](https://arxiv.org/html/2402.00752v2)
- * [gspro](https://github.com/kcheng1021/GaussianPro/blob/main)
  * [lightgs](https://github.dev/VITA-Group/LightGaussian/blob/main/)
  * [vastgs](https://vastgaussian.github.io/)
  * [octgs](https://github.com/city-super/Octree-GS/tree/main)
  * [sa-gs](https://github.com/zsy1987/SA-GS/tree/master)
  * [BAGS](https://nwang43jhu.github.io/BAGS/)
  * [4dgs](https://github.com/fudan-zvg/4d-gaussian-splatting)
- * [frosting](https://anttwo.github.io/frosting/)
- * [gaustudio](https://github.com/GAP-LAB-CUHK-SZ/gaustudio)
- * [gs2mesh](https://gs2mesh.github.io/)
- * [nep](https://www.whyy.site/paper/nep)
  * [instantngp](https://github.com/NVlabs/instant-ngp)
 
 [UserGuide]: docs/userGuide.md    

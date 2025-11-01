@@ -112,8 +112,7 @@ namespace diverse
 
         for (auto panel : panels)
             panel->destroy_graphics_resources();
-
-        
+                    
         panels.clear();
 
         Application::quit();
@@ -349,6 +348,28 @@ namespace diverse
         {
             panel->on_new_scene(scene);
         }
+#ifdef DS_SPLAT_TRAIN
+        // Clear training thread tracking for new scene
+        train_thread_entities.clear();
+        
+        // Find all gaussian training entities in the new scene
+        auto& reg = scene->get_registry();
+        auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<maths::Transform>);
+        
+        // Set the first one as current_train_entity and select it (for UI compatibility)
+        bool found_first = false;
+        for (auto entity : gsGroup)
+        {
+            if (!found_first)
+            {
+                current_train_entity = entity;
+                set_selected(current_train_entity);
+                found_first = true;
+                // Note: Don't break - we want to allow all entities to be trained
+                // Training threads will be started in update_gaussian() for each entity
+            }
+        }
+#endif
     }
 
     bool Editor::is_editing_splat()
@@ -1250,10 +1271,10 @@ namespace diverse
 
             if(!Input::get().get_mouse_held(InputCode::MouseKey::ButtonRight) && !ImGuizmo::IsUsing())
             {
-                if(Input::get().get_key_pressed(InputCode::Key::Q))
-                {
-                    set_imguizmo_operation(ImGuizmo::OPERATION::BOUNDS);
-                }
+                // if(Input::get().get_key_pressed(InputCode::Key::Q))
+                // {
+                //     set_imguizmo_operation(ImGuizmo::OPERATION::BOUNDS);
+                // }
 
                 if(Input::get().get_key_pressed(InputCode::Key::T))
                 {
@@ -1265,7 +1286,7 @@ namespace diverse
                     set_imguizmo_operation(ImGuizmo::OPERATION::ROTATE);
                 }
 
-                if(Input::get().get_key_pressed(InputCode::Key::S))
+                if(Input::get().get_key_pressed(InputCode::Key::Y))
                 {
                     set_imguizmo_operation(ImGuizmo::OPERATION::SCALE);
                 }
@@ -1275,10 +1296,10 @@ namespace diverse
                     set_imguizmo_operation(ImGuizmo::OPERATION::UNIVERSAL);
                 }
 
-                if(Input::get().get_key_pressed(InputCode::Key::Y))
-                {
-                    toggle_snap();
-                }
+                // if(Input::get().get_key_pressed(InputCode::Key::Y))
+                // {
+                //     toggle_snap();
+                // }
             }
 
             auto& splatEdit = GaussianEdit::get();
@@ -1392,23 +1413,63 @@ namespace diverse
     void Editor::update_gaussian(const TimeStep& ts)
     {
 #ifdef DS_SPLAT_TRAIN
-
-        auto gs_ent = Entity(current_train_entity, get_current_scene());
-        if(!gs_ent.valid()) return;
+        // Iterate through ALL entities with GaussianTrainerScene component
+        auto& reg = get_current_scene()->get_registry();
+        auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<maths::Transform, GaussianComponent>);
+        
+        for (auto entity_handle : gsGroup)
         {
+            auto gs_ent = Entity(entity_handle, get_current_scene());
+            if (!gs_ent.valid()) continue;
+            
             auto& gs_train = gs_ent.get_component<GaussianTrainerScene>();
+            if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Training)
+            {
+                // Start training thread for this entity if needed (once per entity)
+                if (gs_train.isTrain() && train_thread_entities.find(entity_handle) == train_thread_entities.end())
+                {
+                    // Mark this entity as having a training thread
+                    train_thread_entities.insert(entity_handle);
+                
+                    // Launch independent training thread for this entity
+                    std::thread([this, gs_train_ptr = &gs_train, entity_handle]() {
+                        try {
+                            DS_LOG_INFO("Training thread started for entity {}", static_cast<uint32_t>(entity_handle));
+                            run_train_gaussian(gs_train_ptr);
+                        }
+                        catch (const std::exception& e)
+                        {
+                           messageBox("error", e.what());
+                           DS_LOG_ERROR("Training thread error for entity {}: {}", 
+                                       static_cast<uint32_t>(entity_handle), e.what());
+                           // Remove from tracked entities on error so it can be restarted
+                           train_thread_entities.erase(entity_handle);
+                           gs_train_ptr->setTrainingStatus(TrainingStatus::Loading_Failed);
+                        }
+                    }).detach();
+                }
+            }
+            // Process training status updates for this entity
+            auto& gscom = gs_ent.get_component<GaussianComponent>();
+            auto& gs_model = gscom.ModelRef;
             if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Preprocess_Done)
             {
                 gs_train.setTrainingStatus(TrainingStatus::Training);
-                auto& gs = gs_ent.get_component<GaussianComponent>();
-                auto& gs_model = gs.ModelRef;
+                // Fix: Store temporaries to avoid dangling pointers
+                auto pos_cpu = gs_train.getGaussianPositionCpu();
+                auto sh0_cpu = gs_train.getGaussianSH0Cpu();
+                auto shn_cpu = gs_train.getGaussianSHNCpu();
+                auto opacity_cpu = gs_train.getGaussianOpcaitiesCpu();
+                auto scale_cpu = gs_train.getGaussianScalingsCpu();
+                auto rot_cpu = gs_train.getGaussianRotationsCpu();
+                
                 gs_model->update_from_cpu(
-                    gs_train.getGaussianPositionCpu().data(),
-                    gs_train.getGaussianSH0Cpu().data(),
-                    gs_train.getGaussianSHNCpu().data(),
-                    gs_train.getGaussianOpcaitiesCpu().data(),
-                    gs_train.getGaussianScalingsCpu().data(),
-                    gs_train.getGaussianRotationsCpu().data(),
+                    pos_cpu.data(),
+                    sh0_cpu.data(),
+                    shn_cpu.data(),
+                    opacity_cpu.data(),
+                    scale_cpu.data(),
+                    rot_cpu.data(),
                     gs_train.getNumGaussians()
                 );
                 //set camera from training camera views
@@ -1428,101 +1489,170 @@ namespace diverse
             }
             if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Loading_Failed)
             {
+                train_thread_entities.erase(entity_handle);  // Remove from tracked entities
                 get_current_scene()->destroy_entity(gs_ent);
                 if (gs_ent.get_handle() == current_train_entity) {
                     current_train_entity = entt::null;
-                    gs_ent = Entity(current_train_entity, get_current_scene());
                 }
-            }
-        }
-        if (is_train_gaussian)
-        {
-            if (!gs_ent.valid() || !gs_ent.active())
-                return;
-            auto& gs_train = gs_ent.get_component<GaussianTrainerScene>();
-            auto& gscom =  gs_ent.get_component<GaussianComponent>();
-            auto& gs_model = gscom.ModelRef;
-            auto moved = Input::get().get_mouse_delta().x > 0 || Input::get().get_mouse_delta().y > 0 || Input::get().get_mouse_clicked(InputCode::MouseKey::ButtonLeft);
-            static glm::mat4 prev_view = editor_camera_transform.get_world_matrix();
-            const auto view = editor_camera_transform.get_world_matrix();
-            if(view != prev_view)
-            {
-                prev_view = view;
-                moved = true;
-            }
-            gscom.skip_render = !moved;
-            if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Colmap_Sfm)
-            {
-                if (frame_number() % 100 == 0)
-                {
-                    set_gaussian_render_type(GaussianRenderType::Point);
-                    const auto& points3d = gs_train.getPoints3D(0);
-                    gs_model->update_from_pos_color(
-                        (u8*)points3d.data(),
-                        points3d.size()
-                    );
-                }
-            }
-            if (gs_train.isTrain() && gs_train.getCurrentTrainingStatus() >= TrainingStatus::Preprocess_Done)
-            {
-                if (gs_train.getCurrentIterations() == 0)
-                {
-                    if (!is_device_support_gstrain())
-                    {
-                        messageBox("warn", "current device compute capability doesn't support train");
-                        gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
-                    }
-                    if(!is_driver_support())
-                    {
-                        messageBox("warn", "current driver doesn't support train, please update latest driver");
-                        gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
-                    }
-                    set_gaussian_render_type(GaussianRenderType::Splat);
-                }
-                if (is_device_support_gstrain() && is_driver_support())
-                {
-                    if(gs_train.getCurrentTrainingStatus() == TrainingStatus::Loading_Failed){
-                        get_current_scene()->destroy_entity(gs_ent);
-                    }
-                    const bool is_training = gs_train.getCurrentIterations() < gs_train.getTrainConfig().numIters && !gs_train.isPruningSplat();
-                    if (is_update_splat_rendering && is_training )
-                    {
-                        DS_LOG_INFO("Iteraions {}, loss : {}", gs_train.getCurrentIterations(), gs_train.getCurrentLoss());
-                    }
-                    if (is_update_splat_rendering && is_training)
-                    {
-                        gs_model->update_from_cpu(
-                            gs_train.getGaussianPositionCpu().data(),
-                            gs_train.getGaussianSH0Cpu().data(),
-                            gs_train.getGaussianSHNCpu().data(),
-                            gs_train.getGaussianOpcaitiesCpu().data(),
-                            gs_train.getGaussianScalingsCpu().data(),
-                            gs_train.getGaussianRotationsCpu().data(),
-                            gs_train.getNumGaussians()
-                        );
-                        gscom.skip_render = false;
-                        gs_model->antialiased() = gs_train.getTrainConfig().mipAntiliased;
-                        auto total_vram_size = g_device->gpu_limits.vram_size;
-                        auto allocated_vram_size = gs_train.getNumGaussians() * 236 * 10;
-                        if (allocated_vram_size > total_vram_size * 0.5) 
-                        {
-                            gs_train.getTrainConfig().packLevel |= GSPackLevel::PackTileID | GSPackLevel::PackF32ToU8;
-                        }
-                        is_update_splat_rendering = false;
-                    }
-                }
+                continue;  // Skip to next entity
             }
             
-        }
-        else{
-            if (gs_ent.valid() && gs_ent.active())
+            // Update rendering and training state for this entity
+            if (!gs_ent.valid() || !gs_ent.active())
+                continue;
+            
+            // Check if this entity is currently being trained
+            bool is_entity_training = gs_train.isTrain();
+            
+            if (is_entity_training)
             {
-                auto& gscom = gs_ent.get_component<GaussianComponent>();
+                auto moved = Input::get().get_mouse_delta().x > 0 || Input::get().get_mouse_delta().y > 0 || Input::get().get_mouse_clicked(InputCode::MouseKey::ButtonLeft);
+                static glm::mat4 prev_view = editor_camera_transform.get_world_matrix();
+                const auto view = editor_camera_transform.get_world_matrix();
+                if(view != prev_view)
+                {
+                    prev_view = view;
+                    moved = true;
+                }
+                gscom.skip_render = !moved;
+                if (gs_train.getCurrentTrainingStatus() == TrainingStatus::Colmap_Sfm)
+                {
+                    if (frame_number() % 100 == 0)
+                    {
+                        set_gaussian_render_type(GaussianRenderType::Point);
+                        const auto& points3d = gs_train.getPoints3D(0);
+                        gs_model->update_from_pos_color(
+                            (u8*)points3d.data(),
+                            points3d.size()
+                        );
+                    }
+                }
+                if (gs_train.isTrain() && gs_train.getCurrentTrainingStatus() >= TrainingStatus::Preprocess_Done)
+                {
+                    if (gs_train.getCurrentIterations() == 0)
+                    {
+                        if (!is_device_support_gstrain())
+                        {
+                            messageBox("warn", "current device compute capability doesn't support train");
+                            gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
+                        }
+                        if(!is_driver_support())
+                        {
+                            messageBox("warn", "current driver doesn't support train, please update latest driver");
+                            gs_train.setTrainingStatus(TrainingStatus::Loading_Failed);
+                        }
+                        set_gaussian_render_type(GaussianRenderType::Splat);
+                    }
+                    if (is_device_support_gstrain() && is_driver_support())
+                    {
+                        if(gs_train.getCurrentTrainingStatus() == TrainingStatus::Loading_Failed){
+                            get_current_scene()->destroy_entity(gs_ent);
+                        }
+                        const bool is_training = gs_train.getCurrentIterations() < gs_train.getTrainConfig().numIters && !gs_train.isPruningSplat();
+                        if (is_update_splat_rendering && is_training )
+                        {
+                            DS_LOG_INFO("Iteraions {}, loss : {}", gs_train.getCurrentIterations(), gs_train.getCurrentLoss());
+                        }
+                        if (is_update_splat_rendering && is_training)
+                        {
+                            // Fix: Store temporaries to avoid dangling pointers
+                            auto pos_cpu = gs_train.getGaussianPositionCpu();
+                            auto sh0_cpu = gs_train.getGaussianSH0Cpu();
+                            auto shn_cpu = gs_train.getGaussianSHNCpu();
+                            auto opacity_cpu = gs_train.getGaussianOpcaitiesCpu();
+                            auto scale_cpu = gs_train.getGaussianScalingsCpu();
+                            auto rot_cpu = gs_train.getGaussianRotationsCpu();
+                            
+                            gs_model->update_from_cpu(
+                                pos_cpu.data(),
+                                sh0_cpu.data(),
+                                shn_cpu.data(),
+                                opacity_cpu.data(),
+                                scale_cpu.data(),
+                                rot_cpu.data(),
+                                gs_train.getNumGaussians()
+                            );
+                            gscom.skip_render = false;
+                            gs_model->antialiased() = gs_train.getTrainConfig().mipAntiliased;
+                            auto total_vram_size = g_device->gpu_limits.vram_size;
+                            auto allocated_vram_size = gs_train.getNumGaussians() * 236 * 10;
+                            if (allocated_vram_size > total_vram_size * 0.5) 
+                            {
+                                gs_train.getTrainConfig().packLevel |= GSPackLevel::PackTileID | GSPackLevel::PackF32ToU8;
+                            }
+                            is_update_splat_rendering = false;
+                        }
+                    }
+                }
+            }  // End of if (is_entity_training)
+            else
+            {
+                // Not training: ensure rendering is enabled
                 gscom.skip_render = false;
-            } 
-        }
+            }
+        }  // End of for loop over all GaussianTrainerScene entities
 #endif
     }
+#ifdef DS_SPLAT_TRAIN
+    void    Editor::run_train_gaussian(void* gs_scene)
+    {
+        if(!gs_scene) return;
+        GaussianTrainerScene& gaussian_train = *reinterpret_cast<GaussianTrainerScene*>(gs_scene);
+        while(true)
+        {
+            if(gaussian_train.isTerminate()) break;
+            // Each entity controls its own training state via isTrain()
+            if(gaussian_train.isTrain() && is_train_gaussian)
+            {
+                if(!is_update_splat_rendering)
+                {
+                    // Process all pending config updates before trainStep
+                    {
+                        std::lock_guard<std::mutex> lock(gs_train_queue_mutex_);
+                        while (!gs_train_update_queue_.empty())
+                        {
+                            auto update_fn = std::move(gs_train_update_queue_.front());
+                            gs_train_update_queue_.pop();
+                            update_fn(&gaussian_train); // Execute update in training thread
+                        }
+                    }
+                
+                    gaussian_train.trainStep();
+                    auto curStep = gaussian_train.getCurrentIterations();
+                    if(curStep % std::max<int>(10,splat_update_freq) == 0 
+                    && curStep < gaussian_train.getTrainConfig().numIters)
+                        is_update_splat_rendering = true;
+                    
+                    if (curStep == (gaussian_train.getTrainConfig().numIters +1)
+                        && gaussian_train.getCurrentTrainingStatus() != TrainingStatus::Training_Done)
+                    {
+                        gaussian_train.saveGaussianModel();
+                        DS_LOG_INFO("save splat to file : {}", gaussian_train.getTrainConfig().modelPath);
+                        if(gaussian_train.getTrainConfig().exportMesh)
+                        {
+                            DS_LOG_INFO("Extracting Gaussian Mesh.... ");
+                            try{
+                                auto mesh_path = std::filesystem::path(gaussian_train.getTrainConfig().modelPath).replace_extension("").string() + "_mesh.obj";
+                                gaussian_train.exportMesh(mesh_path);
+                                DS_LOG_INFO("Gaussian Mesh Exported to {}", mesh_path);
+                                //wait 1.5 second
+                                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                                gs2mesh_load = true;
+                                load_model_path = mesh_path;
+                            }
+                            catch(const std::exception& e)
+                            {
+                                messageBox("error", e.what());
+                                DS_LOG_ERROR(e.what());
+                            }
+                        }
+                        gaussian_train.setTrainingStatus(TrainingStatus::Training_Done);
+                    }
+                }
+            }
+        }
+    }
+#endif
 
     void Editor::create_gaussian_dialog(const std::vector<std::string>& file_paths)
     {
@@ -1620,7 +1750,7 @@ namespace diverse
                 trainConfig.cameraPosePath = drop_file_path;
                 trainConfig.datasetType = camerPosDataType;
             }
-            else if(droped_ext == ".ply" || droped_ext == ".bin")
+            else if(droped_ext == ".ply" || droped_ext == ".bin" || droped_ext == ".txt")
             {
                 trainConfig.pointCloudPath = drop_file_path;
             }
@@ -1637,7 +1767,7 @@ namespace diverse
             if(ImGuiHelper::Button("..",2)) //open file dialog
             {
                 //const char* campose_str[] = {"Colmap","OpenSfm","RealityCapture","MetaShape"};
-                auto [browserPath, camerPosDataType] = diverse::FileDialogs::openFile({ "json","bin", "csv","xml" },{"nerfstudio/opensfm/blender","colmap","realitycapture","metashape"});
+                auto [browserPath, camerPosDataType] = diverse::FileDialogs::openFile({ "json","bin", "txt","csv","xml" },{"nerfstudio/opensfm/blender","colmap bin","colmap txt","realitycapture","metashape"});
                 if (browserPath.empty())
                 {
                     messageBox("warn", "must be a valid camera pose file");
@@ -1777,7 +1907,7 @@ namespace diverse
         //ImGui::Checkbox("Default Setup", &defaultSetup);
         ImGuiHelper::Property("MaxSplats",trainConfig.capMax);
         ImGuiHelper::Property("RefineEverySteps",trainConfig.refineEvery,100,3000,"how many every step do refine operation");
-        ImGuiHelper::Property("MaxSteps",trainConfig.numIters,1000,300000,"how many steps to train");
+        if(ImGuiHelper::Property("MaxSteps",trainConfig.numIters,1000,300000,"how many steps to train"))
             modifyNumIters = true;
             
         ImGui::Columns(1);
@@ -1790,13 +1920,31 @@ namespace diverse
         {
             ImGui::Indent();
             ImGui::Columns(2);
+            if (is_video_file(file_path))
+            {
+                ImGui::TextUnformatted("Frame Extraction Strategy");
+                ImGui::NextColumn();
+                ImGui::PushItemWidth(-1);
+                const char* video_strategy_str[] = { "Uniform","QualityBased","DiversityBased","Hybrid"};
+                if (ImGui::BeginCombo("video_strategy", video_strategy_str[trainConfig.videoStrategy], 0)) // The second parameter is the label previewed before opening the combo.
+                {
+                    for (int n = 0; n < 4; n++) //now not support sparse grad
+                    {
+                        bool is_selected = (n == trainConfig.videoStrategy);
+                        if (ImGui::Selectable(video_strategy_str[n]))
+                            trainConfig.videoStrategy = n;
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::PopItemWidth();
+                ImGui::NextColumn();
+                ImGuiHelper::Property("Fps", trainConfig.videoFps);
+            }
             ImGuiHelper::Property("MaxImgNums", trainConfig.maxImageCount);
             ImGuiHelper::Property("MaxImgWidth", trainConfig.maxImageWidth);
             ImGuiHelper::Property("MaxImgHeight", trainConfig.maxImageHeight);
-            if (is_video_file(file_path))
-            {
-                ImGuiHelper::Property("Fps", trainConfig.videoFps);
-            }
             ImGui::Unindent();
             ImGui::TreePop();
         }
@@ -1886,58 +2034,7 @@ namespace diverse
                     if(gaussian_train.loadTrainData(datasource_path)){
                         gaussian_train.trainSetup();
                     }
-                    while(true)
-                    {
-                        if(gaussian_train.isTerminate()) break;
-                        if(gaussian_train.isTrain() && is_train_gaussian)
-                        {
-                        if(!is_update_splat_rendering)
-                        {
-                            // Process all pending config updates before trainStep
-                            {
-                                std::lock_guard<std::mutex> lock(gs_train_queue_mutex_);
-                                while (!gs_train_update_queue_.empty())
-                                {
-                                    auto update_fn = std::move(gs_train_update_queue_.front());
-                                    gs_train_update_queue_.pop();
-                                    update_fn(&gaussian_train); // Execute update in training thread
-                                }
-                            }
-                            
-                            gaussian_train.trainStep();
-                                auto curStep = gaussian_train.getCurrentIterations();
-                                if(curStep % std::max<int>(10,splat_update_freq) == 0 
-                                && curStep < gaussian_train.getTrainConfig().numIters)
-                                    is_update_splat_rendering = true;
-                                
-                                if (curStep == (gaussian_train.getTrainConfig().numIters +1)
-                                    && gaussian_train.getCurrentTrainingStatus() != TrainingStatus::Training_Done)
-                                {
-                                    gaussian_train.saveGaussianModel();
-                                    DS_LOG_INFO("save splat to file : {}", gaussian_train.getTrainConfig().modelPath);
-                                    if(gaussian_train.getTrainConfig().exportMesh)
-                                    {
-                                        DS_LOG_INFO("Extracting Gaussian Mesh.... ");
-                                        try{
-                                            auto mesh_path = std::filesystem::path(gaussian_train.getTrainConfig().modelPath).replace_extension("").string() + "_mesh.obj";
-                                            gaussian_train.exportMesh(mesh_path);
-                                            DS_LOG_INFO("Gaussian Mesh Exported to {}", mesh_path);
-                                            //wait 1.5 second
-                                            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-                                            gs2mesh_load = true;
-                                            load_model_path = mesh_path;
-                                        }
-                                        catch(const std::exception& e)
-                                        {
-                                            messageBox("error", e.what());
-                                            DS_LOG_ERROR(e.what());
-                                        }
-                                    }
-                                    gaussian_train.setTrainingStatus(TrainingStatus::Training_Done);
-                                }
-                            }
-                        }
-                    }
+                    // run_train_gaussian(&gaussian_train);
                 }
                 catch(const std::exception& e)
                 {
@@ -2148,6 +2245,21 @@ namespace diverse
             else 
 #endif
             {
+                auto& reg = get_current_scene()->get_registry();
+                auto gsGroup = reg.view<GaussianTrainerScene, GaussianComponent>();
+                
+                std::vector<std::pair<entt::entity, bool>> original_train_states;
+                for (auto entity : gsGroup)
+                {
+                    auto& gs_train = gsGroup.get<GaussianTrainerScene>(entity);
+                    original_train_states.emplace_back(entity, gs_train.isTrain());
+                    if (gs_train.isTrain()) {
+                        gs_train.pauseTrain();
+                    }
+                }
+                
+                // Wait a bit for any pending updates to complete
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 GaussianModel gs_model;
                 if(exportType == 1)
                 {
@@ -2183,6 +2295,16 @@ namespace diverse
                 if (gs_model.position().size() > 0 && !filepath.empty())
                 {
                     gs_model.save_to_file(filepath);
+                }
+                // Restore original training states
+                for (const auto& [entity, was_training] : original_train_states)
+                {
+                    if (was_training && reg.valid(entity)) {
+                        auto* gs_train = reg.try_get<GaussianTrainerScene>(entity);
+                        if (gs_train) {
+                            gs_train->startTrain();
+                        }
+                    }
                 }
             }
             ImGui::CloseCurrentPopup();
@@ -2544,38 +2666,63 @@ namespace diverse
                 selected = Application::get().get_editor_state() == EditorState::Play;
                 if (selected)
                     ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-                auto gs = get_current_scene()->get_entity_manager()->get_entities_with_type<GaussianTrainerScene>();
-                if( !gs.empty() )
+                auto& reg = get_current_scene()->get_registry();
+                auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<maths::Transform, GaussianComponent>);
+                if( !gsGroup.empty() )
                 { 
-                    auto& gs_train = gs[0].get_component<GaussianTrainerScene>();
-                    if(!is_train_gaussian)
+                    // Check if ANY entity is training
+                    bool any_training = false;
+                    for (auto& entity : gsGroup)
+                    {
+                        auto& gs_train = *reg.try_get<GaussianTrainerScene>(entity);
+                        if (gs_train.isTrain())
+                        {
+                            any_training = true;
+                            break;
+                        }
+                    }
+                    
+                    if(!any_training)
                     {
                         if (ImGui::Button(U8CStr2CStr(ICON_MDI_PLAY)))
                         {
+                            // Start training for ALL entities
+                            for (auto& entity : gsGroup)
+                            {
+                                auto& gs_train = *reg.try_get<GaussianTrainerScene>(entity);
+                                gs_train.startTrain();
+                            }
                             is_train_gaussian = true;
-                            gs_train.startTrain();
                         }
-                        ImGuiHelper::Tooltip("TrainingPlay");
+                        ImGuiHelper::Tooltip("TrainingPlay (All Entities)");
                     }
                     else
                     {
                         if (ImGui::Button(U8CStr2CStr(ICON_MDI_PAUSE)))
                         {
+                            // Pause training for ALL entities
+                            for (auto& entity : gsGroup)
+                            {
+                                auto& gs_train = *reg.try_get<GaussianTrainerScene>(entity);
+                                gs_train.pauseTrain();
+                            }
                             is_train_gaussian = false;
-                            gs_train.pauseTrain();
                         }
-                        ImGuiHelper::Tooltip("TrainingPause");
+                        ImGuiHelper::Tooltip("TrainingPause (All Entities)");
                     }
                 }
                 if (selected)
                     ImGui::PopStyleColor();
-                if (!gs.empty())
+                if (reg.valid(current_splat_entity))
                 {
-                    auto& gs_train = gs[0].get_component<GaussianTrainerScene>();
-                    auto size = ImGui::CalcTextSize("%.i / %.i ") + ImGui::CalcTextSize("%.2f ms (%.i FPS)s");
-                    float sizeOfGfxAPIDropDown = ImGui::GetFontSize() * 8;
-                    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - size.x - ImGui::GetStyle().ItemSpacing.x * 10);
-                    ImGui::TextColored(ImVec4(0,0.9,0,1), "%.i / %.i ", std::max(0,gs_train.curIteration), gs_train.getTrainConfig().numIters);
+                    auto gs_train = reg.try_get<GaussianTrainerScene>(current_splat_entity);
+                    if(gs_train)
+                    {
+                        auto size = ImGui::CalcTextSize("%.i / %.i ") + ImGui::CalcTextSize("%.2f ms (%.i FPS)s");
+                        float sizeOfGfxAPIDropDown = ImGui::GetFontSize() * 8;
+                        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - size.x - ImGui::GetStyle().ItemSpacing.x * 10);
+                        ImGui::TextColored(ImVec4(0,0.9,0,1), "%.i / %.i ", std::max(0,gs_train->curIteration), gs_train->getTrainConfig().numIters);
+                    }
                 }
             }
 #endif
@@ -2807,6 +2954,7 @@ namespace diverse
                 // Application::get().get_scene_manager()->enqueue_scene(scene);
                 // Application::get().get_scene_manager()->switch_scene((int)(Application::get().get_scene_manager()->get_scenes().Size()) - 1);
                 is_train_gaussian = false;
+                train_thread_entities.clear();  // Clear all tracked training threads when closing
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SetItemDefaultFocus();
@@ -2872,19 +3020,10 @@ namespace diverse
         glm::mat4 view = glm::inverse(editor_camera_transform.get_world_matrix());
         glm::mat4 proj = current_camera->get_projection_matrix();
 
-//#ifdef USE_IMGUIZMO_GRID
         if (settings.show_grid && !current_camera->is_orthographic())
             ImGuizmo::DrawGrid(glm::value_ptr(view),
                 glm::value_ptr(proj), identityMatrix, 120.f);
-        //ImGuizmo::DrawCubes(glm::value_ptr(view),
-        //    glm::value_ptr(proj), identityMatrix, 1);
-        // ImGuizmo::ViewManipulate(glm::value_ptr(view), 100.0f, ImVec2(canvasSize.x + windowPos.x - 50, windowPos.y ), ImVec2(48, 48), 0x10101010);
-//#endif
-        // float azim, elev;
-        // if( ImGuizmo::ViewManipulateAxis(glm::value_ptr(view), 100.0f, ImVec2(canvasSize.x + windowPos.x - 50, windowPos.y + 60), azim, elev))
-        // {
-        //     editor_camera_transform.set_local_orientation(glm::vec3(elev,azim,0));
-        // }
+
         ImOGuizmo::SetRect(canvasSize.x + windowPos.x - 96, windowPos.y + 32, 64.0f);
         static glm::mat4 gizmo_proj = glm::perspective(glm::radians(60.0f), 4/3.0f, 0.01f, 1000.0f);
         if(ImOGuizmo::DrawGizmo(glm::value_ptr(view), glm::value_ptr(gizmo_proj), 1.0f))
@@ -3281,6 +3420,24 @@ namespace diverse
 
     void Editor::export_webview()
     {
+        // Thread safety: Ensure no concurrent updates to GaussianComponent during export
+        // Store original training states
+        auto& reg = get_current_scene()->get_registry();
+        auto gsGroup = reg.view<GaussianTrainerScene, GaussianComponent>();
+        
+        std::vector<std::pair<entt::entity, bool>> original_train_states;
+        for (auto entity : gsGroup)
+        {
+            auto& gs_train = gsGroup.get<GaussianTrainerScene>(entity);
+            original_train_states.emplace_back(entity, gs_train.isTrain());
+            if (gs_train.isTrain()) {
+                gs_train.pauseTrain();
+            }
+        }
+        
+        // Wait a bit for any pending updates to complete
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
         auto group = get_current_scene()->get_entity_manager()->get_entities_with_type<GaussianComponent>();
         GaussianModel gs_model;
         for (auto gs_ent : group)
@@ -3294,14 +3451,31 @@ namespace diverse
             copy_gs.apply_color_adjustment();
             gs_model.merge(copy_gs.ModelRef.get());
         }
+        
+        // Restore original training states
+        for (const auto& [entity, was_training] : original_train_states)
+        {
+            if (was_training && reg.valid(entity)) {
+                auto* gs_train = reg.try_get<GaussianTrainerScene>(entity);
+                if (gs_train) {
+                    gs_train->startTrain();
+                }
+            }
+        }
         if(gs_model.position().size() > 0)
         { 
             auto data = gs_model.get_compressed_data();
             auto ply_model = encode_base64(data);
-            auto ply_model_loc = get_html_view_template.find("{{plyModel}}");
-            auto html = get_html_view_template.replace(ply_model_loc,12,ply_model);
-            auto color_loc = html.find("{{clearColor}}");
-            html = html.replace(color_loc,14, "0.4,0.4,0.4");
+            auto html_view_template = get_html_view_template();
+            if(html_view_template.empty())
+            {
+                messageBox("warn", "failed to export webview");
+                return;
+            }
+            auto ply_model_loc = html_view_template.find("{{plyModel}}");
+            auto html = html_view_template.replace(ply_model_loc,12,ply_model);
+            // auto color_loc = html.find("{{clearColor}}");
+            // html = html.replace(color_loc,14, "0.4,0.4,0.4");
             auto file_path = diverse::FileDialogs::saveFile({ "html"});
             if (file_path.empty())
                 messageBox("warn", "file must be a valid path");
