@@ -6,7 +6,7 @@ DIVSHOT is an open source, 3d gaussian splat training and editor client. You can
 
 ## Hardware Requirements
 
-Currently only supports Windows systems with NVIDIA RTX 20 series graphics cards and above (CUDA 7.0 compute capability or higher). AMD graphics card support will be added in the future. 
+Currently only supports Windows systems with NVIDIA RTX 20 series graphics cards and above (CUDA SM7.0 compute capability or higher). AMD graphics card support will be added in the future. 
 
 Since training Splats relies on gradient descent backpropagation, it requires significant VRAM and RAM. Please ensure you have at least 24GB RAM and 6GB VRAM. We recommend 32GB RAM and 16GB VRAM. If you want to train larger Gaussian scenes, you will need even more memory and VRAM. Currently, the system has been tested with 2000 2K-sized images on 32GB RAM and 16GB VRAM, and it runs very well. If your scene data is larger, please upgrade your hardware accordingly.
 ## Installing DIVSHOT

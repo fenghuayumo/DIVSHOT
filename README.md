@@ -15,6 +15,8 @@ It originated from a 2023 paper [gaussian-splatting](https://github.com/graphdec
 ![DIVSHOT](/screenshots/screenshot.png?raw=true)
 ![DIVSHOT](/screenshots/screenshot2.png?raw=true)
 ![DIVSHOT](/screenshots/screenshot3.png?raw=true)
+splat -->  mesh --> texturemesh
+![DIVSHOT](/screenshots/gs_mesh.png?raw=true)
 <!-- ## 🎥 Videos
 ![DIVSHOT](/screenshots/video.mp4?) -->
 
@@ -36,6 +38,12 @@ Operating systems:
 * Linux (Will be in future)
 
 **Note:** Currently refactoring a new framework to support multi-platform training, planned to be named RadField Studio. It will become a professional scanning tool for CG workflows. Stay tuned!
+
+## Run
+
+For general users, you can directly use the latest [Release](https://github.com/fenghuayumo/DIVSHOT/releases) installation package, which includes all dependencies and can be run directly.
+
+For users who want to compile and deploy from source code, I currently only provide the rendering/editing part of the code. The training part has not been open-sourced yet and will be released after some time.
 
 ## Project structure
 <!-- 
