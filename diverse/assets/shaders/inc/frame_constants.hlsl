@@ -80,6 +80,14 @@ struct FrameConstants {
 
     RenderOverrides render_overrides;
 
+    // Camera and Depth of Field parameters
+    float fov_rad;           // FOV in radians
+    float dof_enabled;       // 0.0 = disabled, 1.0 = enabled
+    float focus_distance;    // Focus distance
+    float aperture;          // Aperture size (0 = no DOF)
+    uint camera_type;        // 0 = pinhole, 1 = fisheye
+    float3 camera_padding;   // Padding for alignment
+
     float4 ircache_grid_center;
     IrcacheCascadeConstants ircache_cascades[12];
 };

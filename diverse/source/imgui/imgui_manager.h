@@ -6,6 +6,7 @@
 #include "events/mouse_event.h"
 #include "events/application_event.h"
 
+#include <memory>
 
 namespace diverse
 {
@@ -32,7 +33,7 @@ namespace diverse
         void render(std::function<void()> callback);
         void handle_new_scene(Scene* scene);
 
-        IMGUIRenderer* get_imgui_renderer() const { return m_IMGUIRenderer.get(); }
+        IMGUIRenderer* get_imgui_renderer() const { return imgui_renderer.get(); }
 
     private:
         bool handle_mouse_button_pressed_event(MouseButtonPressedEvent& e);
@@ -48,11 +49,11 @@ namespace diverse
         void set_imgui_style();
         void add_icon_font();
 
-        float m_FontSize;
-        float m_DPIScale;
+        float font_size;
+        float dpi_scale;
 
-        UniquePtr<IMGUIRenderer> m_IMGUIRenderer;
-        bool m_ClearScreen = false;
-        struct UiRenderer*   m_UIRender;
+        std::unique_ptr<IMGUIRenderer> imgui_renderer;
+        bool clear_screen = false;
+        struct UiRenderer* ui_render;
     };
 }

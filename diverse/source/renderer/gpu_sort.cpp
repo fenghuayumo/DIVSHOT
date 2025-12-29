@@ -99,39 +99,46 @@ namespace diverse
         const rg::Handle<rhi::GpuBuffer>& count_buffer)->std::pair<rg::Handle<rhi::GpuBuffer>, rg::Handle<rhi::GpuBuffer>>
     {
         SortConstants constants;
-        u32 const count = (u32)(keys_src.desc.size >> 2);
-        constants.numKeys = count;
-        constants.threadBlocks = maths::divide_rounding_up(count, DEVICE_RADIX_SORT_PARTITION_SIZE);
+        u32 const maxCount = (u32)(keys_src.desc.size >> 2);
+        constants.numKeys = maxCount;  // Use max count for buffer allocation
+        constants.threadBlocks = maths::divide_rounding_up(maxCount, DEVICE_RADIX_SORT_PARTITION_SIZE);
 
-        //setup overall constants
-        uint scratchBufferSize = maths::divide_rounding_up(count, DEVICE_RADIX_SORT_PARTITION_SIZE) * DEVICE_RADIX_SORT_RADIX;
+        //setup overall constants based on max possible size
+        uint scratchBufferSize = maths::divide_rounding_up(maxCount, DEVICE_RADIX_SORT_PARTITION_SIZE) * DEVICE_RADIX_SORT_RADIX;
         uint reducedScratchBufferSize = DEVICE_RADIX_SORT_RADIX * DEVICE_RADIX_SORT_PASSES;
 
-        auto altBuffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(keys_src.desc.size, rhi::BufferUsageFlags::STORAGE_BUFFER), "sortkey");
-        auto altPayloadBuffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(values_src.desc.size, rhi::BufferUsageFlags::STORAGE_BUFFER),"sortvalue");
-        auto passHistBuffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(scratchBufferSize * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER),"passhistbuf");
-        auto globalHistBuffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(reducedScratchBufferSize * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER),"globalhist");
+        auto altBuffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(keys_src.desc.size, rhi::BufferUsageFlags::STORAGE_BUFFER), "sortkey_indirect");
+        auto altPayloadBuffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(values_src.desc.size, rhi::BufferUsageFlags::STORAGE_BUFFER),"sortvalue_indirect");
+        auto passHistBuffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(scratchBufferSize * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER),"passhistbuf_indirect");
+        auto globalHistBuffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(reducedScratchBufferSize * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER),"globalhist_indirect");
 
-        auto args_buffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(sizeof(glm::ivec4) * 2, rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::INDIRECT_BUFFER));
+        auto args_buffer = rg.create<rhi::GpuBuffer>(
+            rhi::GpuBufferDesc::new_gpu_only(sizeof(glm::ivec3) * 2, 
+            rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::INDIRECT_BUFFER),
+            "sort_args_indirect");
         
         auto dstKeyBuffer = altBuffer;
         auto dstPayloadBuffer = altPayloadBuffer;
 
+        // Prepare indirect dispatch arguments based on actual count
         rg::RenderPass::new_compute(
-            rg.add_pass("gpu sort dispatch"), "/shaders/gpu_sort/dispatch_args.hlsl")
+            rg.add_pass("gpu_sort_dispatch_args"), "/shaders/gpu_sort/dispatch_args.hlsl")
             .write(args_buffer)
             .read(count_buffer)
             .dispatch({ 1,1,1 });
 
+        // Initialize global histogram
         rg::RenderPass::new_compute(
-            rg.add_pass("gpu_sort_init"), "/shaders/gpu_sort/init_radix_sort.hlsl")
+            rg.add_pass("gpu_sort_init_indirect"), "/shaders/gpu_sort/init_radix_sort.hlsl")
             .write(globalHistBuffer)
             .dispatch({ 1 * 1024,1,1 });
+            
         // Execute the sort algorithm in 8-bit increments
         for (constants.radixShift = 0; constants.radixShift < 32; constants.radixShift += DEVICE_RADIX_SORT_BITS)
         {
+            // Upsweep: build histogram (indirect dispatch)
             rg::RenderPass::new_compute(
-                rg.add_pass("gpu_sort_unsweep"), "/shaders/gpu_sort/unsweep_indirect.hlsl")
+                rg.add_pass("gpu_sort_unsweep_indirect"), "/shaders/gpu_sort/unsweep_indirect.hlsl")
                 .constants(constants)
                 .read(keys_src)
                 .write(dstKeyBuffer)
@@ -140,10 +147,11 @@ namespace diverse
                 .write(globalHistBuffer)
                 .write(passHistBuffer)
                 .read(count_buffer)
-                .dispatch_indirect(args_buffer,0);
+                .dispatch_indirect(args_buffer, 0);
 
+            // Scan: prefix sum on histogram (fixed dispatch, always RADIX workgroups)
             rg::RenderPass::new_compute(
-                rg.add_pass("gpu_sort_scan"), "/shaders/gpu_sort/scan_indirect.hlsl")
+                rg.add_pass("gpu_sort_scan_indirect"), "/shaders/gpu_sort/scan_indirect.hlsl")
                 .constants(constants)
                 .read(keys_src)
                 .write(dstKeyBuffer)
@@ -152,10 +160,11 @@ namespace diverse
                 .write(globalHistBuffer)
                 .write(passHistBuffer)
                 .read(count_buffer)
-                .dispatch({ (int)DEVICE_RADIX_SORT_RADIX * 128,1,1 });
+                .dispatch({ (uint)DEVICE_RADIX_SORT_RADIX * 128, 1, 1 });
 
+            // Downsweep: scatter keys and values (indirect dispatch)
             rg::RenderPass::new_compute(
-                rg.add_pass("gpu_sort_down_sweep"), "/shaders/gpu_sort/down_sweep_indirect.hlsl")
+                rg.add_pass("gpu_sort_downsweep_indirect"), "/shaders/gpu_sort/down_sweep_indirect.hlsl")
                 .constants(constants)
                 .read(keys_src)
                 .write(dstKeyBuffer)
@@ -164,8 +173,9 @@ namespace diverse
                 .write(globalHistBuffer)
                 .write(passHistBuffer)
                 .read(count_buffer)
-                .dispatch_indirect(args_buffer,16);
+                .dispatch_indirect(args_buffer, 12);
 
+           // Swap buffers for next pass (ping-pong)
            std::swap(keys_src, dstKeyBuffer);
            std::swap(values_src, dstPayloadBuffer);
         }

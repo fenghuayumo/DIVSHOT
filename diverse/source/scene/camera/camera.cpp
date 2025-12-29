@@ -13,7 +13,7 @@ namespace diverse
         , fov(60.0f)
         , projection_dirty(true)
         , frustum_dirty(true)
-        , orthographic(false)
+        , camera_type(CameraType::Perspective)
         , mouse_sensitivity(0.1f)
     {
     }
@@ -25,7 +25,7 @@ namespace diverse
         , fov(FOV)
         , near_plane(Near)
         , far_plane(Far)
-        , orthographic(false)
+        , camera_type(CameraType::Perspective)
         , scale(1.0f) {};
 
     Camera::Camera(float aspectRatio, float scale)
@@ -36,7 +36,7 @@ namespace diverse
         , fov(60)
         , near_plane(-10.0)
         , far_plane(10.0f)
-        , orthographic(true)
+        , camera_type(CameraType::Orthographic)
     {
     }
 
@@ -48,19 +48,19 @@ namespace diverse
         , fov(60)
         , near_plane(nearf)
         , far_plane(farf)
-        , orthographic(true)
+        , camera_type(CameraType::Orthographic)
     {
     }
 
     void Camera::update_projection_matrix()
     {
 #if REVERSED
-        if(orthographic)
+        if(is_orthographic())
             proj_matrix = glm::ortho(-aspect_ratio * scale, aspect_ratio * scale, -scale, scale, far_plane, near_plane);
         else
             proj_matrix = glm::perspective(glm::radians(fov), aspect_ratio, far_plane, near_plane);
 #else
-        if(orthographic)
+        if(is_orthographic())
             proj_matrix = glm::ortho(-aspect_ratio * scale, aspect_ratio * scale, -scale, scale, near_plane, far_plane);
         else
             proj_matrix = glm::perspective(glm::radians(fov), aspect_ratio, near_plane, far_plane);
@@ -123,16 +123,20 @@ namespace diverse
     void Camera::set_view_mode(CameraViewMode mode)
     {
         view_mode = mode;
-        if(mode != CameraViewMode::Perspective) 
+        
+        // Perspective and Fisheye are both perspective-like projections
+        // All other modes (Front, Back, Left, Right, Top, Bottom) are orthographic views
+        if(mode == CameraViewMode::Perspective || mode == CameraViewMode::Fisheye) 
         { 
-            set_orthographic(true); 
-            // set_near(-10.0f); 
-        }
-        else
-        {
             set_orthographic(false);
             set_near(0.01f);
             set_fov(60.0f);
+        }
+        else
+        {
+            // Orthographic views (Front, Back, Left, Right, Top, Bottom)
+            set_orthographic(true); 
+            // Note: orthographic near/far are set elsewhere
         }
     }
 

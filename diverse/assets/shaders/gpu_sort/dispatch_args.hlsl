@@ -13,6 +13,8 @@ void main()
 {
     const uint cnt = g_CountBuffer.Load(0);
     uint threadBlock = (cnt + PART_SIZE - 1) / PART_SIZE;
-    g_ArgsBuffer.Store4(0, uint4(threadBlock * 128, 1, 1, 0));
-    g_ArgsBuffer.Store4(16, uint4(threadBlock * 256, 1, 1, 0));
+    // VkDispatchIndirectCommand is workgroup count (not thread count)
+    // upsweep has 128 threads per workgroup, downsweep has 256
+    g_ArgsBuffer.Store3(0, uint3(threadBlock, 1, 1));   // workgroup count for upsweep
+    g_ArgsBuffer.Store3(12, uint3(threadBlock, 1, 1));  // workgroup count for downsweep
 }

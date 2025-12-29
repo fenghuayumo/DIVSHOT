@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "random": "cpp",
+        "expected": "cpp",
+        "algorithm": "cpp",
+        "execution": "cpp",
+        "locale": "cpp",
+        "optional": "cpp",
+        "ranges": "cpp",
+        "regex": "cpp"
+    }
+}

@@ -1,9 +1,12 @@
 #include "../inc/frame_constants.hlsl"
-
+#include "../inc/color/srgb.hlsl"
+// #include "../inc/bindless.hlsl"
+#include "../inc/pack_unpack.hlsl"
+#include "gaussian_common.hlsl"
 struct PsIn
 {
-    [[vk::location(0)]] nointerpolation float4 colour : COLOR0;
-    [[vk::location(1)]] float2 pix_direction : COLOR2;
+    [[vk::location(0)]] float4 colour : COLOR0;
+    [[vk::location(1)]] float2 fragPos : TEXCOORD1;
     [[vk::location(2)]] nointerpolation uint vert_id : COLOR3;
 };
 struct PsOut {
@@ -12,31 +15,52 @@ struct PsOut {
 };
 
 [[vk::binding(0)]] cbuffer _ {
-    float4x4 transform;
-
+    float4x4 model_matrix;
     uint buf_id;
     uint surface_width;
     uint surface_height;
     uint num_gaussians;
+    float4 locked_color;
+    float4 select_color;
+    float4 tintColor;    // w: transparency
+    float4 color_offset; // w: splat_scale_size
 };
 
-static const float stddev = sqrt(8);
-static const float square = 8;
-static const float minAlpha = 1.0 / 255.0;
 
 PsOut main(PsIn ps)
 {
     PsOut ps_out;
-    if(ps.colour.w <= 0)
-        discard;
+    if (ps.colour.w <= 0) discard;
     uint vert_id = ps.vert_id;
-    float A = dot(ps.pix_direction, ps.pix_direction);
-    if (A > 1) discard;
-    float power = -4 * A;
-    float alpha = ps.colour.w * exp(power);
+    // Compute the positional squared distance from the center of the splat to the current fragment.
+    const float A = dot(ps.fragPos, ps.fragPos);
+    
+    if (A > 8.0) discard;
+    const float power = -0.5 * A;
+    float alpha = min(0.999f, ps.colour.w * exp(power));
 
-    if (alpha < minAlpha)
-        discard;
+    // if (alpha < 1.0 / 255.0)
+    //     discard;
+    // Ring visualization effect parameters
+    const float ringCenter = 1.0;      // Ring center position (A = 1.0 is standard ellipse boundary)
+    const float ringSize = 0.1;        // Ring half-width (controls thickness, smaller = thinner)
+    const float centerAlpha = 0.4;     // Center region opacity (0-1, smaller = more transparent)
+    const float ringAlpha = 0.90;      // Ring region opacity (0-1, larger = brighter)
+    
+    // Calculate distance to ring center
+    float distToRing = abs(A - ringCenter);
+    
+    if (distToRing < ringSize) {
+        // Inside ring band: highlight display
+        alpha = ringAlpha;
+    } else if (A < ringCenter) {
+        // Center region: semi-transparent
+        alpha = alpha * centerAlpha;
+    } else {
+        // Outer region: attenuated with reduced intensity
+        alpha = alpha * 0.15;
+    }
+    
     ps_out.vert_id = vert_id;
     return ps_out;
 }

@@ -32,68 +32,68 @@ namespace diverse
         
         inline void* get_handle() override
         {
-            return m_Handle;
+            return handle;
         }
 
         inline std::string get_title() const override
         {
-            return m_Data.Title;
+            return data.title;
         }
         inline uint32_t get_width() const override
         {
-            return m_Data.Width;
+            return data.width;
         }
         inline uint32_t get_height() const override
         {
-            return m_Data.Height;
+            return data.height;
         }
 
         inline float get_dpi_scale() const override
         {
-            return m_Data.DPIScale;
+            return data.dpi_scale;
         }
 
         inline float get_screen_ratio() const override
         {
-            return (float)m_Data.Width / (float)m_Data.Height;
+            return (float)data.width / (float)data.height;
         }
 
         inline bool get_exit() const override
         {
-            return m_Data.Exit;
+            return data.exit;
         }
 
         inline void set_exit(bool exit) override
         {
-            m_Data.Exit = exit;
+            data.exit = exit;
         }
 
         inline void set_event_callback(const EventCallbackFn& callback) override
         {
-            m_Data.EventCallback = callback;
+            data.event_callback = callback;
         }
 
         void set_icon(const WindowDesc& desc) override;
 
-        static void MakeDefault();
+        static void make_default();
 
     protected:
-        static Window* CreateFuncGLFW(const WindowDesc& properties);
+        static Window* create_func_glfw(const WindowDesc& properties);
 
-        GLFWwindow* m_Handle;
+        GLFWwindow* handle;
 
         struct WindowData
         {
-            std::string Title;
-            uint32_t Width, Height;
-            bool VSync;
-            bool Exit;
-            RenderAPI m_RenderAPI;
-            float DPIScale;
+            std::string title;
+            uint32_t width, height;
+            bool vsync;
+            bool exit;
+            RenderAPI render_api;
+            float dpi_scale;
 
-            EventCallbackFn EventCallback;
+            EventCallbackFn event_callback;
         };
 
-        WindowData m_Data;
+        WindowData data;
     };
 }

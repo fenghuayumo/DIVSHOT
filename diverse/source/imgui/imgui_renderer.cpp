@@ -109,7 +109,7 @@ namespace diverse
             m_FontTexture = device->create_texture(rhi::GpuTextureDesc::new_2d(
                                                                                PixelFormat::R8G8B8A8_UNorm,
                                                                                std::array<u32,2>{(u32)width, (u32)height})
-                                                   .with_usage(rhi::TextureUsageFlags::SAMPLED),
+                                                   .with_usage(rhi::TextureUsageFlags::SAMPLED | rhi::TextureUsageFlags::COLOR_ATTACHMENT),
                                                    initial_data,
                                                    "font_image");
             m_FontTextureID.texture = m_FontTexture;

@@ -10,6 +10,7 @@ namespace diverse
         using ComputePipelineHandle = uint64;
         using RasterPipelineHandle = uint64;
         using RtPipelineHandle = uint64;
+        using MeshShaderPipelineHandle = uint64;
 
         struct CompileShader
         {
@@ -33,7 +34,8 @@ namespace diverse
             {
                 Compute,
                 Raster,
-                Rt
+                Rt,
+                MeshShader
             }ty;
 
             std::any value;
@@ -52,6 +54,11 @@ namespace diverse
                 return std::any_cast<std::pair<RasterPipelineHandle, CompiledPipelineShaders>&>(value);
             }
 
+            auto mesh_shader() -> std::pair<MeshShaderPipelineHandle, CompiledPipelineShaders>&
+            {
+                return std::any_cast<std::pair<MeshShaderPipelineHandle, CompiledPipelineShaders>&>(value);
+            }
+
             static auto compute(std::pair<ComputePipelineHandle, CompiledShaderCode>&& v) -> CompileTaskOutput
             {
                 return CompileTaskOutput{Compute, std::move(v)};
@@ -66,6 +73,11 @@ namespace diverse
             {
                 return CompileTaskOutput{ Raster, std::move(v) };
             }
+
+            static auto mesh_shader(std::pair<MeshShaderPipelineHandle, CompiledPipelineShaders>&& v) -> CompileTaskOutput
+            {
+                return CompileTaskOutput{ MeshShader, std::move(v) };
+            }
         };
 
         struct CompilePipelineShadersLazyWorker
@@ -76,6 +88,7 @@ namespace diverse
             i64 last_compiled_time = 0;
             auto run_rt(RtPipelineHandle handle) -> CompilePipelineShadersLazyWorker::Output;
             auto run_raster(RasterPipelineHandle handle) -> CompilePipelineShadersLazyWorker::Output;
+            auto run_mesh_shader(MeshShaderPipelineHandle handle) -> CompilePipelineShadersLazyWorker::Output;
             auto need_compile()->bool;
         };
 
@@ -115,16 +128,25 @@ namespace diverse
             std::optional<std::shared_ptr<RayTracingPipeline>> pipeline;
         };
 
+        struct MeshShaderPipelineCacheEntry
+        {
+            CompilePipelineShadersLazyWorker worker;
+            MeshShaderPipelineDesc desc;
+            std::optional<std::shared_ptr<MeshShaderPipeline>> pipeline;
+        };
+
         struct PipelineCache
         {
             PipelineCache();
             std::unordered_map<ComputePipelineHandle, ComputePipelineCacheEntry> compute_entries;
             std::unordered_map<RasterPipelineHandle, RasterPipelineCacheEntry> raster_entries;
             std::unordered_map<RtPipelineHandle, RtPipelineCacheEntry> rt_entries;
+            std::unordered_map<MeshShaderPipelineHandle, MeshShaderPipelineCacheEntry> mesh_shader_entries;
 
             std::unordered_map<u64, ComputePipelineHandle> compute_shader_to_handle;
             std::unordered_map<u64, RasterPipelineHandle> raster_shaders_to_handle;
             std::unordered_map<u64, RtPipelineHandle> rt_shaders_to_handle;
+            std::unordered_map<u64, MeshShaderPipelineHandle> mesh_shader_shaders_to_handle;
 
             auto prepare_frame(GpuDevice* device)->bool;
 
@@ -139,6 +161,9 @@ namespace diverse
 
             auto register_ray_tracing(const std::vector< PipelineShaderDesc>& shaders, const RayTracingPipelineDesc& desc) -> RtPipelineHandle;
             auto get_ray_tracing(RtPipelineHandle handle) -> std::shared_ptr<RayTracingPipeline>;
+
+            auto register_mesh_shader(const std::vector<PipelineShaderDesc>& shaders, const MeshShaderPipelineDesc& desc) -> MeshShaderPipelineHandle;
+            auto get_mesh_shader(MeshShaderPipelineHandle handle) -> std::shared_ptr<MeshShaderPipeline>;
 
             auto refresh_shaders()->void;
         };

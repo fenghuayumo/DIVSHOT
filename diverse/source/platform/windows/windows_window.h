@@ -29,72 +29,73 @@ namespace diverse
 
         inline std::string get_title() const override
         {
-            return m_Data.Title;
+            return data.title;
         }
         inline uint32_t get_width() const override
         {
-            return m_Data.Width;
+            return data.width;
         }
         inline uint32_t get_height() const override
         {
-            return m_Data.Height;
+            return data.height;
         }
         inline float get_screen_ratio() const override
         {
-            return (float)m_Data.Width / (float)m_Data.Height;
+            return (float)data.width / (float)data.height;
         }
         inline bool get_exit() const override
         {
-            return m_Data.Exit;
+            return data.exit;
         }
         inline void set_exit(bool exit) override
         {
-            m_Data.Exit = exit;
+            data.exit = exit;
         }
         inline void set_event_callback(const EventCallbackFn& callback) override
         {
-            m_Data.EventCallback = callback;
+            data.event_callback = callback;
         }
 
         inline void* get_handle() override
         {
-            return hWnd;
+            return hwnd;
         }
         std::array<u32,2> get_frame_buffer_size() const override {return {get_width(), get_height()};}
+        
         struct WindowData
         {
-            std::string Title;
-            uint32_t Width = 0, Height = 0;
-            bool VSync;
-            bool Exit;
-            RenderAPI m_RenderAPI;
+            std::string title;
+            uint32_t width = 0, height = 0;
+            bool vsync;
+            bool exit;
+            RenderAPI render_api;
 
-            EventCallbackFn EventCallback;
+            EventCallbackFn event_callback;
         };
 
-        WindowData m_Data;
+        WindowData data;
 
-        HINSTANCE GetHInstance() const
+        HINSTANCE get_hinstance() const
         {
-            return hInstance;
+            return hinstance;
         }
-        HWND GetHWND() const
+        HWND get_hwnd() const
         {
-            return hWnd;
+            return hwnd;
         }
 
-        static void MakeDefault();
+        static void make_default();
 
     protected:
-        static Window* CreateFuncWindows(const WindowDesc& properties);
+        static Window* create_func_windows(const WindowDesc& properties);
 
-        HINSTANCE hInstance {};
-        HDC hDc {};
-        HWND hWnd;
+        HINSTANCE hinstance {};
+        HDC hdc {};
+        HWND hwnd;
         RAWINPUTDEVICE rid {};
 
-        HICON m_BigIcon;
-        HICON m_SmallIcon;
+        HICON big_icon;
+        HICON small_icon;
     };
 
 }

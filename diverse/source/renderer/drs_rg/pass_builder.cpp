@@ -61,6 +61,19 @@ namespace diverse
 			rg->rt_pipelines.push_back(std::move(RgRtPipeline{ desc, shaders }));
 			return RgRtPipelineHandle{ id };
 		}
+
+		auto PassBuilder::register_mesh_shader_pipeline(const std::vector<rhi::PipelineShaderDesc>& shaders, rhi::MeshShaderPipelineDesc&& desc) -> RgMeshShaderPipelineHandle
+		{
+			auto id = static_cast<uint32>(rg->mesh_shader_pipelines.size());
+			for (auto [set_idx, layout] : rg->predefined_descriptor_set_layouts)
+			{
+				desc.descriptor_set_opts[set_idx] = std::pair{set_idx, rhi::DescriptorSetLayoutOpts{rhi::DescriptorSetLayoutCreateFlags::UPDATE_AFTER_BIND_POOL, layout.bindings}};
+			}
+
+			rg->mesh_shader_pipelines.push_back(std::move(RgMeshShaderPipeline{ desc, shaders }));
+			return RgMeshShaderPipelineHandle{ id };
+		}
+
 		auto PassBuilder::render(std::function<void(RenderPassApi&)>&& fn)->void
 		{
 			this->pass.render_fn = std::move(fn);

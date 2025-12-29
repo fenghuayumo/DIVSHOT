@@ -8,7 +8,8 @@ namespace diverse
 		#define  RgPipelineHandleConstrain       template<typename RgPipelineHandle> \
 			requires std::same_as<RgPipelineHandle, RgComputePipelineHandle>		 \
 			|| std::same_as<RgPipelineHandle, RgRtPipelineHandle>					 \
-			|| std::same_as<RgPipelineHandle, RgRasterPipelineHandle>                
+			|| std::same_as<RgPipelineHandle, RgRasterPipelineHandle>				 \
+			|| std::same_as<RgPipelineHandle, RgMeshShaderPipelineHandle>                
 
 		auto RenderPass::new_compute(PassBuilder&& pass, const std::string& pipeline_path, const std::vector<std::pair<std::string, std::string>>& defines) -> SimpleRenderPass<RgComputePipelineHandle>
 		{
@@ -104,6 +105,37 @@ namespace diverse
 			auto pipeline = pass.register_raster_pipeline(shaders, std::move(pipeline_desc));
 
 			return { std::move(pass), SimpleRenderPassState<RgRasterPipelineHandle>{pipeline} };
+		}
+
+		auto RenderPass::new_mesh_shader(PassBuilder&& pass,
+			rhi::MeshShaderPipelineDesc&& pipeline_desc,
+			const rhi::ShaderSource& mesh,
+			const rhi::ShaderSource& fragment,
+			const std::vector<std::pair<std::string, std::string>>& defines,
+			const std::optional<rhi::ShaderSource>& task) -> SimpleRenderPass<RgMeshShaderPipelineHandle>
+		{
+			std::vector<rhi::PipelineShaderDesc>	shaders;
+			if (task)
+			{
+				shaders.push_back(
+					rhi::PipelineShaderDesc()
+					.with_stage(rhi::ShaderPipelineStage::Task)
+					.with_shader_source(task.value())
+				);
+			}
+			shaders.push_back(
+				rhi::PipelineShaderDesc()
+				.with_stage(rhi::ShaderPipelineStage::Mesh)
+				.with_shader_source(mesh)
+			);
+			shaders.push_back(
+				rhi::PipelineShaderDesc()
+				.with_stage(rhi::ShaderPipelineStage::Pixel)
+				.with_shader_source(fragment)
+			);
+			auto pipeline = pass.register_mesh_shader_pipeline(shaders, std::move(pipeline_desc));
+
+			return { std::move(pass), SimpleRenderPassState<RgMeshShaderPipelineHandle>{pipeline} };
 		}
 
 		//RgPipelineHandleConstrain

@@ -26,7 +26,9 @@ namespace diverse
             RayGen,
             RayMiss,
             RayClosestHit,
-            RayAnyHit
+            RayAnyHit,
+            Task,
+            Mesh
         };
 
         enum DescriptorSetLayoutCreateFlags
@@ -247,7 +249,8 @@ namespace diverse
             {
                 Raster,
                 Compute,
-                RayTracing
+                RayTracing,
+                MeshShader
             }ty;
             std::array<uint32, 3>   group_size;
         };
@@ -431,6 +434,78 @@ namespace diverse
         //    // virtual void bind_pipeline() = 0;
         //};
 
+        // Mesh Shader Pipeline Desc
+        struct MeshShaderPipelineDesc
+        {
+            std::array<std::optional<std::pair<uint32, DescriptorSetLayoutOpts>>, MAX_DESCRIPTOR_SETS> descriptor_set_opts;
+            std::shared_ptr<struct RenderPass>  render_pass;
+            CullMode cull_mode = CullMode::BACK;
+            bool depth_write = true;
+            bool depth_test = true;
+            bool blend_enabled = false;
+            bool depth_bias_enabled = false;
+            u32 push_constants_bytes = 0;
+            BlendMode blend_mode = BlendMode::None;
+            FrontFaceOrder  face_order = FrontFaceOrder::CCW;
+            CompareFunc    depth_compare_op = CompareFunc::GreaterEqaul;
+            PolygonMode    polygon_mode = PolygonMode::Fill;
+            std::string_view name;
+
+            auto inline with_cull_mode(CullMode cull) -> MeshShaderPipelineDesc&
+            {
+                cull_mode = cull;
+                return *this;
+            }
+            auto inline with_depth_write(bool write) -> MeshShaderPipelineDesc&
+            {
+                depth_write = write;
+                return *this;
+            }
+            auto inline with_depth_test(bool depthtest) -> MeshShaderPipelineDesc&
+            {
+                depth_test = depthtest;
+                return *this;
+            }
+            auto inline with_push_constants(u32 size) -> MeshShaderPipelineDesc&
+            {
+                push_constants_bytes = size;
+                return *this;
+            }
+            auto inline with_render_pass(const std::shared_ptr<struct RenderPass>& render_p) -> MeshShaderPipelineDesc&
+            {
+                render_pass = render_p;
+                return *this;
+            }
+            auto inline with_blend_mode(BlendMode bm) -> MeshShaderPipelineDesc&
+            {
+                if (bm != BlendMode::None)
+                    blend_enabled = true;
+                blend_mode = bm;
+                return *this;
+            }
+            auto inline with_polygon_mode(PolygonMode mode) -> MeshShaderPipelineDesc&
+            {
+                this->polygon_mode = mode;
+                return *this;
+            }
+            auto inline with_depth_compare_op(CompareFunc depth_compare_op) -> MeshShaderPipelineDesc&
+            {
+                this->depth_compare_op = depth_compare_op;
+                return *this;
+            }
+            auto with_face_order(FrontFaceOrder order) -> MeshShaderPipelineDesc&
+            {
+                face_order = order;
+                return *this;
+            }
+            auto inline with_name(const char* name) -> MeshShaderPipelineDesc&
+            {
+                this->name = name;
+                return *this;
+            }
+        };
+        using MeshShaderPipeline = GpuPipeline;
+
         struct CompiledShaderCode
         {
      /*       uint8*			shader_code;
@@ -452,7 +527,8 @@ namespace diverse
         {
             Compute,
             Raster,
-            RayTracing
+            RayTracing,
+            MeshShader
         };
     }
 }

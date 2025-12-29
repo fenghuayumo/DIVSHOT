@@ -44,6 +44,7 @@ namespace diverse
             std::vector<RgComputePipeline> compute_pipelines;
             std::vector<RgRasterPipeline>  raster_pipelines;
             std::vector<RgRtPipeline>      rt_pipelines;
+            std::vector<RgMeshShaderPipeline> mesh_shader_pipelines;
             std::unordered_map<uint32, PredefinedDescriptorSet> predefined_descriptor_set_layouts;
 
             ResourceInfo resource_info;

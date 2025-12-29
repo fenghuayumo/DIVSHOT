@@ -18,8 +18,10 @@ namespace diverse
 			std::vector<VkSemaphore> acquire_semaphores;
 
 			std::vector< VkSemaphore>	rendering_finished_semaphores;
-			u64			next_semaphore = 0;
+			u64			next_semaphore = 0;  // Index for cycling through acquire semaphores
 			u64			current_frame_id = 0;
+			u32			current_image_index = 0;  // Index of the currently acquired swapchain image
+			u64			current_acquire_sem_index = 0;  // Index of acquire semaphore used in current frame
 		public:
 			SwapchainVulkan(struct GpuDeviceVulkan* device,SwapchainDesc desc,void* window);
 			~SwapchainVulkan();

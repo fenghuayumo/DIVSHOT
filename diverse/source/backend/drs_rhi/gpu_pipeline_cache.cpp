@@ -75,6 +75,11 @@ namespace diverse
                 if (entry.pipeline && entry.worker.need_compile())
                     entry.pipeline = {};
             }
+            for (auto& [handle, entry] : mesh_shader_entries)
+            {
+                if (entry.pipeline && entry.worker.need_compile())
+                    entry.pipeline = {};
+            }
         }
 
         auto PipelineCache::parallel_compile_shaders(rhi::GpuDevice* device)->bool
@@ -102,6 +107,14 @@ namespace diverse
                 if (!entry.second.pipeline)
                 {
                     auto f = std::bind(&CompilePipelineShadersLazyWorker::run_raster,&entry.second.worker, entry.first);
+                    futures.emplace_back(pool.enqueue_task(std::move(f)));
+                }
+            }
+            for (auto& entry : mesh_shader_entries)
+            {
+                if (!entry.second.pipeline)
+                {
+                    auto f = std::bind(&CompilePipelineShadersLazyWorker::run_mesh_shader, &entry.second.worker, entry.first);
                     futures.emplace_back(pool.enqueue_task(std::move(f)));
                 }
             }
@@ -140,6 +153,18 @@ namespace diverse
                         compiled_shaders.push_back(PipelineShader{ shader.code,shader.desc });
                     }
                     entry.pipeline  = device->create_ray_tracing_pipeline(compiled_shaders, entry.desc);
+                }
+                break;
+                case CompileTaskOutput::MeshShader:
+                {
+                    auto& [handle, compile_s] = compiled.mesh_shader();
+                    auto& entry = mesh_shader_entries[handle];
+                    std::vector<PipelineShader> compiled_shaders;
+                    for (const auto& shader : compile_s.shaders)
+                    {
+                        compiled_shaders.push_back(PipelineShader{ shader.code,shader.desc });
+                    }
+                    entry.pipeline = device->create_mesh_shader_pipeline(compiled_shaders, entry.desc);
                 }
                 break;
                 default:
@@ -207,6 +232,26 @@ namespace diverse
             return rt_entries.at(handle).pipeline.value();
         }
 
+        auto PipelineCache::register_mesh_shader(const std::vector<PipelineShaderDesc>& shaders, const MeshShaderPipelineDesc& desc) -> MeshShaderPipelineHandle
+        {
+            auto hash = std::hash<std::vector<PipelineShaderDesc>>{}(shaders);
+            auto it = mesh_shader_shaders_to_handle.find(hash);
+            if (it != mesh_shader_shaders_to_handle.end())
+            {
+                return it->second;
+            }
+            auto handle = MeshShaderPipelineHandle{ mesh_shader_entries.size() };
+            mesh_shader_shaders_to_handle.insert({ hash, handle });
+            CompilePipelineShadersLazyWorker compile_task = { shaders };
+            mesh_shader_entries.insert({ handle, MeshShaderPipelineCacheEntry {std::move(compile_task), desc, {}} });
+            return handle;
+        }
+
+        auto PipelineCache::get_mesh_shader(MeshShaderPipelineHandle handle) -> std::shared_ptr<MeshShaderPipeline>
+        {
+            return mesh_shader_entries.at(handle).pipeline.value();
+        }
+
         auto PipelineCache::refresh_shaders()->void
         {
             for (auto& [handle,entry] : compute_entries)
@@ -214,6 +259,8 @@ namespace diverse
             for (auto& [handle, entry] : raster_entries)
                 entry.worker.dirty_flag = true;
             for (auto& [handle, entry] : rt_entries)
+                entry.worker.dirty_flag = true;
+            for (auto& [handle, entry] : mesh_shader_entries)
                 entry.worker.dirty_flag = true;
         }
 
@@ -306,6 +353,42 @@ namespace diverse
             }
             this->last_compiled_time = last_write_time;
             return CompileTaskOutput::raster({ handle, std::move(compiled_shaders) });
+        }
+
+        auto CompilePipelineShadersLazyWorker::run_mesh_shader(MeshShaderPipelineHandle handle) -> CompilePipelineShadersLazyWorker::Output
+        {
+            CompiledPipelineShaders compiled_shaders;
+            auto instanllDir = get_shader_asset_path();
+            i64 last_write_time = 0;
+            for (const auto& desc : shader_descs)
+            {
+                auto path = instanllDir + desc.source.path;
+                ShaderIncludeProvider   provider;
+                auto source = diverse::process_file(desc.source.path, &provider, "");
+                for (const auto& s : source)
+                    last_write_time = std::max<i64>(last_write_time, s.last_write_time);
+                std::string profile;
+                switch (desc.stage)
+                {
+                case ShaderPipelineStage::Task:
+                    profile = "as";
+                    break;
+                case ShaderPipelineStage::Mesh:
+                    profile = "ms";
+                    break;
+                case ShaderPipelineStage::Pixel:
+                    profile = "ps";
+                    break;
+                default:
+                    DS_LOG_ERROR("not supported shader type for mesh shader pipeline");
+                    break;
+                }
+                auto target_profile = fmt::format("{}_6_5", profile);
+                auto spirv = diverse::compile_generic_shader_hlsl(path, source, target_profile.c_str(), desc.source.defines, desc.source.entry);
+                compiled_shaders.shaders.emplace_back(PipelineShader{ CompiledShaderCode{ std::move(spirv) } , desc });
+            }
+            this->last_compiled_time = last_write_time;
+            return CompileTaskOutput::mesh_shader({ handle, std::move(compiled_shaders) });
         }
 
         auto CompileShaderLazyWorker::need_compile() -> bool

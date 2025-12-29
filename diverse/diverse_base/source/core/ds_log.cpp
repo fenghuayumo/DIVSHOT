@@ -3,6 +3,7 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <filesystem>
 #ifndef DS_PLATFORM_MACOS
 #define LOG_TO_TEXT_FILE 1
 #endif
@@ -20,7 +21,9 @@ namespace diverse::debug
         // sinks.emplace_back(std::make_shared<ImGuiConsoleSink_mt>()); // ImGuiConsole
 
 #ifdef LOG_TO_TEXT_FILE
-        auto logFileSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("diverse_log.txt", true);
+        if(!std::filesystem::exists("C:/Users/WINDOWS/.cache/divshot"))
+            std::filesystem::create_directory("C:/Users/WINDOWS/.cache/divshot");
+        auto logFileSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("C:/Users/WINDOWS/.cache/divshot/diverse_log.txt", true);
         sinks.emplace_back(logFileSink); // Log file
 #endif
 

@@ -25,7 +25,7 @@ namespace diverse
         surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         surfaceInfo.pNext = NULL;
         surfaceInfo.hwnd = static_cast<HWND>(reinterpret_cast<WindowsWindow*>(window)->GetHandle());
-        surfaceInfo.hinstance = dynamic_cast<WindowsWindow*>(window)->GetHInstance();
+        surfaceInfo.hinstance = dynamic_cast<WindowsWindow*>(window)->get_hinstance();
         vkCreateWin32SurfaceKHR(vkInstance, &surfaceInfo, nullptr, &surface);
 
     #endif

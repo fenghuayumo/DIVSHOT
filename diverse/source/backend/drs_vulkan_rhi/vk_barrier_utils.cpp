@@ -100,7 +100,10 @@ namespace vk
 		}
 
 		if (!dst_stages)
-			dst_stages = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		{
+			// Determine appropriate fallback stage based on destination access mask
+			dst_stages = get_fallback_stage_for_access(image_barrier.dstAccessMask);
+		}
 
 		return std::make_tuple(src_stages, dst_stages, image_barrier);
 	}
@@ -112,8 +115,9 @@ namespace vk
 		const std::vector<BufferBarrier>& buffer_barriers,
 		const std::vector<ImageBarrier>& image_barriers)
     {
-		VkFlags src_stage_mask = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		VkFlags dst_stage_mask = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		// Start with 0 and accumulate from barriers
+		VkFlags src_stage_mask = 0;
+		VkFlags dst_stage_mask = 0;
 
 		// TODO: Optimize out the Vec heap allocations
 		std::vector<VkMemoryBarrier> vk_memory_barriers;
@@ -147,6 +151,13 @@ namespace vk
 			dst_stage_mask |= dst_mask;
 			vk_image_barriers.push_back(barrier);
 		}
+
+		// Ensure valid stage masks if nothing was accumulated
+		if (src_stage_mask == 0)
+			src_stage_mask = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		
+		if (dst_stage_mask == 0)
+			dst_stage_mask = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
 		vkCmdPipelineBarrier(command_buffer,
 			src_stage_mask,

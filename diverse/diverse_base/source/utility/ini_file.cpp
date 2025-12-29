@@ -10,93 +10,93 @@
 #include <fstream>
 
 diverse::IniFile::IniFile(const std::string& filePath)
-    : m_FilePath(filePath)
+    : file_path(filePath)
 {
-    Load();
+    load();
 }
 
-void diverse::IniFile::Reload()
+void diverse::IniFile::reload()
 {
-    RemoveAll();
-    Load();
+    remove_all();
+    load();
 }
 
-bool diverse::IniFile::Remove(const std::string& key)
+bool diverse::IniFile::remove(const std::string& key)
 {
-    if (IsKeyExisting(key))
+    if (is_key_existing(key))
     {
-        m_Data.erase(key);
+        data.erase(key);
         return true;
     }
 
     return false;
 }
 
-void diverse::IniFile::RemoveAll()
+void diverse::IniFile::remove_all()
 {
-    m_Data.clear();
+    data.clear();
 }
 
-bool diverse::IniFile::IsKeyExisting(const std::string& key) const
+bool diverse::IniFile::is_key_existing(const std::string& key) const
 {
-    return m_Data.find(key) != m_Data.end();
+    return data.find(key) != data.end();
 }
 
-void diverse::IniFile::RegisterPair(const std::string& key, const std::string& value)
+void diverse::IniFile::register_pair(const std::string& key, const std::string& value)
 {
-    RegisterPair(std::make_pair(key, value));
+    register_pair(std::make_pair(key, value));
 }
 
-void diverse::IniFile::RegisterPair(const std::pair<std::string, std::string>& pair)
+void diverse::IniFile::register_pair(const std::pair<std::string, std::string>& pair)
 {
-    m_Data.insert(pair);
+    data.insert(pair);
 }
 
-std::vector<std::string> diverse::IniFile::GetFormattedContent() const
+std::vector<std::string> diverse::IniFile::get_formatted_content() const
 {
     std::vector<std::string> result;
 
-    for (const auto& [key, value] : m_Data)
+    for (const auto& [key, value] : data)
         result.push_back(key + "=" + value);
 
     return result;
 }
 
-void diverse::IniFile::Load()
+void diverse::IniFile::load()
 {
-    if (m_FilePath.empty())
+    if (file_path.empty())
         return;
 
     std::string fileString;
-    diverse::loadText(m_FilePath, fileString);
+    diverse::loadText(file_path, fileString);
     auto lines = diverse::stringutility::get_lines(fileString);
 
     for (auto& line : lines)
     {
-        if (IsValidLine(line))
+        if (is_valid_line(line))
         {
             // line.erase(std::remove_if(line.begin(), line.end(), isspace), line.end());
-            RegisterPair(ExtractKeyAndValue(line));
+            register_pair(extract_key_and_value(line));
         }
     }
 }
 
-void diverse::IniFile::Rewrite() const
+void diverse::IniFile::rewrite() const
 {
-    if (m_FilePath.empty())
+    if (file_path.empty())
     {
         DS_LOG_WARN("Ini file path empty");
         return;
     }
 
     std::stringstream stream;
-    for (const auto& [key, value] : m_Data)
+    for (const auto& [key, value] : data)
         stream << key << "=" << value << std::endl;
 
-    diverse::write_text(m_FilePath, stream.str());
+    diverse::write_text(file_path, stream.str());
 }
 
-std::pair<std::string, std::string> diverse::IniFile::ExtractKeyAndValue(const std::string& p_line) const
+std::pair<std::string, std::string> diverse::IniFile::extract_key_and_value(const std::string& p_line) const
 {
     std::string key;
     std::string value;
@@ -114,7 +114,7 @@ std::pair<std::string, std::string> diverse::IniFile::ExtractKeyAndValue(const s
     return std::make_pair(key, value);
 }
 
-bool diverse::IniFile::IsValidLine(const std::string& attributeLine) const
+bool diverse::IniFile::is_valid_line(const std::string& attributeLine) const
 {
     if (attributeLine.size() == 0)
         return false;
@@ -128,7 +128,7 @@ bool diverse::IniFile::IsValidLine(const std::string& attributeLine) const
     return true;
 }
 
-bool diverse::IniFile::StringToBoolean(const std::string& value) const
+bool diverse::IniFile::string_to_boolean(const std::string& value) const
 {
     return (value == "1" || value == "T" || value == "t" || value == "True" || value == "true");
 }

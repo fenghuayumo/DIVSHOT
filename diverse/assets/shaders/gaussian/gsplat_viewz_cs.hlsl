@@ -3,6 +3,7 @@
 #include "../inc/bindless.hlsl"
 
 #include "gaussian_common.hlsl"
+#include "threedgs_covariance.hlsl"
 
 // [[vk::push_constant]]
 // struct {
@@ -31,140 +32,37 @@ float ndc2Pix(float v, int S)
     return ((v + 1.0) * S - 1.0) * 0.5;
 }
 
-static const float minAlpha = 1.0 / 255.0;
+static const float alphaCullThreshold = 1.0 / 255.0;
 
-float3 computeCov2D_persp(float3 p_view, float focal_x, float focal_y, float tan_fovx, float tan_fovy, float3x3 cov3D, float4x4 viewmatrix)
+// VK-style covariance projection with proper focal_x and focal_y
+float3 computeCov2D_vk(float3x3 cov3D, float4 viewCenter, float2 focal, float4x4 viewmatrix)
 {
-    // The following models the steps outlined by equations 29
-    // and 31 in "EWA Splatting" (Zwicker et al., 2002).
-    // Additionally considers aspect / scaling of viewport.
-    // Transposes used to account for row-/column-major conventions.
-    // float3 t = transformPoint4x3(mean, viewmatrix);
-
-    const float limx = 1.3f * tan_fovx;
-    const float limy = 1.3f * tan_fovy;
-    const float txtz = p_view.x / p_view.z;
-    const float tytz = p_view.y / p_view.z;
-    p_view.x = min(limx, max(-limx, txtz)) * p_view.z;
-    p_view.y = min(limy, max(-limy, tytz)) * p_view.z;
-
-    float3x3 J = float3x3(
-        focal_x / p_view.z, 0.0f, -(focal_x * p_view.x) / (p_view.z * p_view.z),
-        0.0f, focal_y / p_view.z, -(focal_y * p_view.y) / (p_view.z * p_view.z),
-        0, 0, 0);
-
-    float3x3 W = float3x3(
-        viewmatrix[0][0], viewmatrix[1][0], viewmatrix[2][0],
-        viewmatrix[0][1], viewmatrix[1][1], viewmatrix[2][1],
-        viewmatrix[0][2], viewmatrix[1][2], viewmatrix[2][2]);
-
-    // float3x3 T = W * J;
-    float3x3 T = mul(J, W);
-
-    float3x3 Vrk = float3x3(
-        cov3D[0][0], cov3D[0][1], cov3D[0][2],
-        cov3D[0][1], cov3D[1][1], cov3D[1][2],
-        cov3D[0][2], cov3D[1][2], cov3D[2][2]);
-
-    // float3x3 cov = transpose(T) * transpose(Vrk) * T;
-    float3x3 cov = mul(T, mul(transpose(Vrk), transpose(T)));
-    return float3(float(cov[0][0]), float(cov[1][1]), float(cov[0][1]));
-}
-
-float3 computeCov2D_ortho(float3 p_view, float focal_x, float focal_y, float3x3 cov3D, float4x4 viewmatrix)
-{
-    // The following models the steps outlined by equations 29
-    // and 31 in "EWA Splatting" (Zwicker et al., 2002).
-    // Additionally considers aspect / scaling of viewport.
-    // Transposes used to account for row-/column-major conventions.
-    // float3 t = transformPoint4x3(mean, viewmatrix);
-    float3x3 J = float3x3(
-        focal_x, 0.0f, 0,
-        0.0f, focal_y, 0,
-        0, 0, 0);
-
-    float3x3 W = float3x3(
-        viewmatrix[0][0], viewmatrix[1][0], viewmatrix[2][0],
-        viewmatrix[0][1], viewmatrix[1][1], viewmatrix[2][1],
-        viewmatrix[0][2], viewmatrix[1][2], viewmatrix[2][2]);
-
-    // float3x3 T = W * J;
-    float3x3 T = mul(J, W);
-
-    float3x3 Vrk = float3x3(
-        cov3D[0][0], cov3D[0][1], cov3D[0][2],
-        cov3D[0][1], cov3D[1][1], cov3D[1][2],
-        cov3D[0][2], cov3D[1][2], cov3D[2][2]);
-
-    // float3x3 cov = transpose(T) * transpose(Vrk) * T;
-    float3x3 cov = mul(T, mul(transpose(Vrk), transpose(T)));
-    return float3(float(cov[0][0]), float(cov[1][1]), float(cov[0][1]));
-}
-
-float3x3 computeCov2D(float3 center_view, float3 covA, float3 covB, float4x4 viewmatrix, float focal_x, bool is_ortho)
-{
-    float3x3 Vrk = float3x3(
-        covA.x, covA.y, covA.z,
-        covA.y, covB.x, covB.y,
-        covA.z, covB.y, covB.z
-    );
-    float3 v = is_ortho ? float3(0.0, 0.0, 1.0) : center_view.xyz;
-    float J1 = focal_x / v.z;
-    float2 J2 = -J1 / v.z * v.xy;
-    float3x3 J = float3x3(
-        J1, 0.0, J2.x,
-        0.0, J1, J2.y,
+    // Jacobian of affine approximation of projection
+    // This avoids the non-linear perspective division
+    const float s = 1.0 / (viewCenter.z * viewCenter.z);
+    const float3x3 J = float3x3(
+        focal.x / viewCenter.z, 0.0, -(focal.x * viewCenter.x) * s,
+        0.0, focal.y / viewCenter.z, -(focal.y * viewCenter.y) * s,
         0.0, 0.0, 0.0
     );
-    // T = W * J;
-    // cov = transpose(T) * Vrk * T;
-    float3x3 W = float3x3(
+    
+    // Extract rotation part of view matrix (transpose to get row-major)
+    const float3x3 W = float3x3(
         viewmatrix[0][0], viewmatrix[1][0], viewmatrix[2][0],
         viewmatrix[0][1], viewmatrix[1][1], viewmatrix[2][1],
-        viewmatrix[0][2], viewmatrix[1][2], viewmatrix[2][2]);
-    float3x3 T = mul(J, W);
-    float3x3 cov = mul(T, mul(transpose(Vrk), transpose(T)));
-    return cov;
+        viewmatrix[0][2], viewmatrix[1][2], viewmatrix[2][2]
+    );
+    
+    // T = J * W
+    const float3x3 T = mul(J, W);
+    
+    // cov2D = T * cov3D * T^T
+    const float3x3 cov2D = mul(mul(T, cov3D), transpose(T));
+    
+    // Return upper 2x2 as vector: (xx, xy, yy)
+    return float3(cov2D[0][0], cov2D[0][1], cov2D[1][1]);
 }
 
-void computeCov3D(float3 scale, float4 rot, out float3 covA, out float3 covB)
-{
-    // Create scaling matrix
-    float3x3 S = float3x3(scale.x, 0.0, 0.0,
-                          0.0, scale.y, 0.0,
-                          0.0, 0.0, scale.z);
-#if VISUALIZE_NORMAL
-    float3 scale_axis = float3(0, 1, 0);
-    if (scale.x < scale.y && scale.x < scale.z) {
-        scale_axis = float3(1, 0, 0);
-    } else if (scale.x > scale.y && scale.y < scale.z) {
-        scale_axis = float3(0, 1, 0);
-    } else {
-        scale_axis = float3(0, 0, 1);
-    }
-#endif
-    // Normalize quaternion to get valid rotation
-    float4 q = rot; // / glm::length(rot);
-    float r = q.x;
-    float x = q.y;
-    float y = q.z;
-    float z = q.w;
-
-    // Compute rotation matrix from quaternion
-    float3x3 R = float3x3(
-        1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
-        2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
-        2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
-	);
-#if VISUALIZE_NORMAL
-    normal = normalize(mul(scale_axis, R));
-#endif
-    // float3x3 M = S * R;
-    float3x3 M = mul(R, S);
-
-    covA = float3(dot(M[0], M[0]), dot(M[0], M[1]), dot(M[0], M[2]));
-    covB = float3(dot(M[1], M[1]), dot(M[1], M[2]), dot(M[2], M[2]));
-}
 
 [numthreads(GROUP_SIZE, 1, 1)]
 void main(uint2 px: SV_DispatchThreadID) {
@@ -197,11 +95,16 @@ void main(uint2 px: SV_DispatchThreadID) {
         float4 p_hom = mul(float4(p_view.xyz, 1.0), proj);
         float p_w = 1.0f / (p_hom.w + 0.0000001f);
         float4 p_proj = p_hom * p_w;
-        if (p_proj.z <= 1e-6f || p_proj.z >= 1.0f)
+        
+        // Frustum culling with dilation to avoid flickering at boundaries
+        // Like vk_gaussian_splatting, we add a small margin
+        const float frustumDilation = 0.15f;  // 15% margin
+        const float clip = 1.0f + frustumDilation;
+        if(abs(p_proj.x) > clip || abs(p_proj.y) > clip || 
+           p_proj.z < (0.0f - frustumDilation) || p_proj.z > 1.0f)
             return;
         float view_z = p_view.z;
 
-        float3 center_view = p_view.xyz / p_view.w;
         // Gaussian rotation, scale, and opacity
         uint4 rotation_scale = gaussian.rotation_scale;
         float4 scale_opacity = unpack_uint2(rotation_scale.zw);
@@ -214,42 +117,30 @@ void main(uint2 px: SV_DispatchThreadID) {
         float3 s = scale_opacity.xyz * saturate(color_offset.w);
 
         float3 covA, covB;
-        computeCov3D(s, q, covA, covB);
-
+        threedgs_compute_covariance_3d(s, q, covA, covB);
+        float3x3 cov3D = float3x3(
+            covA.x, covA.y, covA.z,
+            covA.y, covB.x, covB.y,
+            covA.z, covB.y, covB.z
+        );
         const float tan_fovx = 1.0 / proj[0][0];
+        const float tan_fovy = 1.0 / abs(proj[1][1]);
         const float focal_x = surface_width / (2.0f * tan_fovx);
+        const float focal_y = surface_height / (2.0f * tan_fovy);
+        float2 focal = float2(focal_x, focal_y);
         const bool is_ortho = proj[2][3] == 0.0f;
-        float4x4 model_view = mul(transform, view);
-        float3x3 cov2D = computeCov2D(center_view, covA, covB, model_view, focal_x, is_ortho);
-
-        // Gaussian region
-        float diagonal1 = cov2D[0][0] + 0.3;
-        float offDiagonal = cov2D[0][1];
-        float diagonal2 = cov2D[1][1] + 0.3;
-
-        float mid = 0.5 * (diagonal1 + diagonal2);
-        float radius = length(float2((diagonal1 - diagonal2) / 2.0, offDiagonal));
-        float lambda1 = mid + radius;
-        float lambda2 = max(mid - radius, 0.1);
-
-        // Use the smaller viewport dimension to limit the kernel size relative to the screen resolution.
-        float vmin = min(1024.0, min(surface_width, surface_height));
-
-        float l1 = 2.0 * min(sqrt(2.0 * lambda1), vmin);
-        float l2 = 2.0 * min(sqrt(2.0 * lambda2), vmin);
-        if (l1 < 0.1f || l2 < 0.1f) {
-            return;
-        }
-        float2 c = 2.0f / float2(surface_width, surface_height);
-        // cull against frustum x/y axes
-        float l = max(l1, l2);
-        if (any((abs(p_proj.xy) - float2(l, l) * c - float2(1, 1)) > 0.0)) {
+        // Computes the projected covariance
+        const float4x4 model_view = mul(transform, view);
+        const float3 cov2Dv = threedgs_covariance_projection(cov3D, p_view, focal, model_view, is_ortho);
+        float2 basisVector1, basisVector2;
+        if(!threedgs_projected_extent_basis(cov2Dv, sqrt8, 1.0f, opac, basisVector1, basisVector2))
+        {
             return;
         }
 
         uint write_idx = 0;
         num_visible_buffer.InterlockedAdd(0, 1u, write_idx);
-        point_list_key_buffer[write_idx] = FloatToSortableUint(view_z);
+        point_list_key_buffer[write_idx] = encodeMinMaxFp32(view_z);
         point_list_value_buffer[write_idx] = global_id;
     }
 }

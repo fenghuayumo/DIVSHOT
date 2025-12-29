@@ -41,6 +41,7 @@ namespace diverse
 		glm::vec4 	   locked_color;
 		glm::vec4 	   tintColor;
 		glm::vec3	   color_offset;
+		bool		   mip_antialiased;
 		std::vector<void*>	crop_data;
 	};
 	struct RenderMeshCommand

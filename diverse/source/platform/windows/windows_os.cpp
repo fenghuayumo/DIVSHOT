@@ -52,9 +52,9 @@ namespace diverse
     void WindowsOS::init()
     {
 #ifdef DS_USE_GLFW_WINDOWS
-        GLFWWindow::MakeDefault();
+        GLFWWindow::make_default();
 #else
-        WindowsWindow::MakeDefault();
+        WindowsWindow::make_default();
 #endif
     }
 

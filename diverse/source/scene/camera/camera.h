@@ -15,13 +15,21 @@ namespace diverse
     public:
         enum class CameraViewMode
         {
+            Perspective,
             Front,
             Back,
             Left,
             Right,
             Top,
             Bottom,
-            Perspective,
+            Fisheye,
+        };
+
+        enum class CameraType
+        {
+            Perspective = 0,
+            Orthographic = 1,
+            Fisheye = 2,
         };
         Camera();
         Camera(float FOV, float Near, float Far, float aspect);
@@ -38,12 +46,12 @@ namespace diverse
         {
             frustum_dirty    = true;
             projection_dirty = true;
-            orthographic    = ortho;
+            camera_type = ortho ? CameraType::Orthographic : CameraType::Perspective;
         }
 
         bool is_orthographic() const
         {
-            return orthographic;
+            return camera_type == CameraType::Orthographic;
         }
 
         float get_aspect_ratio() const
@@ -148,6 +156,18 @@ namespace diverse
 
         void set_view_mode(CameraViewMode mode);
         CameraViewMode get_view_mode() const { return view_mode; }
+
+        // Depth of Field
+        bool is_dof_enabled() const { return dof_enabled; }
+        void set_dof_enabled(bool enabled) { dof_enabled = enabled; }
+
+        float get_focus_distance() const { return focus_distance; }
+        void set_focus_distance(float distance) { focus_distance = distance; }
+
+        // Camera Type (Perspective/Fisheye)
+        CameraType get_camera_type() const { return camera_type; }
+        void set_camera_type(CameraType type) { camera_type = type; projection_dirty = true; frustum_dirty = true; }
+
     protected:
         void update_projection_matrix();
 
@@ -170,7 +190,13 @@ namespace diverse
         float shutter_speed     = 1.0f / 60.0f;
         float sensitivity      = 250.0f;
 
-        bool orthographic = false;
         CameraViewMode view_mode = CameraViewMode::Perspective;
+
+        // Depth of Field
+        bool dof_enabled = false;
+        float focus_distance = 10.0f;
+
+        // Camera Type
+        CameraType camera_type = CameraType::Perspective;
     };
 }

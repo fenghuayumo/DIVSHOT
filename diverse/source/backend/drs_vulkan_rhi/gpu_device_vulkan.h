@@ -134,6 +134,7 @@ namespace diverse
             auto create_compute_pipeline(const CompiledShaderCode& spirv, const ComputePipelineDesc& desc) -> std::shared_ptr<ComputePipeline> override;
             auto create_raster_pipeline(const std::vector<PipelineShader>& shaders, const RasterPipelineDesc& desc) -> std::shared_ptr<RasterPipeline> override;
             auto create_ray_tracing_pipeline(const std::vector<PipelineShader>& shaders, const RayTracingPipelineDesc& desc)->std::shared_ptr<RayTracingPipeline> override;
+            auto create_mesh_shader_pipeline(const std::vector<PipelineShader>& shaders, const MeshShaderPipelineDesc& desc)->std::shared_ptr<MeshShaderPipeline> override;
 
             auto bind_vertex_buffers(CommandBuffer* cb, const GpuBuffer* const* vertexBuffers, uint32_t slot, uint32_t count, const uint32_t* strides, const uint64_t* offsets) -> void override;
             auto bind_index_buffer(CommandBuffer* cb, const GpuBuffer* indexBuffer, const IndexBufferFormat format, uint64_t offset) -> void override;
@@ -146,6 +147,9 @@ namespace diverse
             auto draw_instanced_indirect_count(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset, const GpuBuffer* count, uint64_t count_offset, uint32_t max_count) -> void override;
             auto draw_indexed_instanced_indirect_count(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset, const GpuBuffer* count, uint64_t count_offset, uint32_t max_count) -> void override;
 
+            auto draw_mesh_tasks(CommandBuffer* cb, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z) -> void override;
+            auto draw_mesh_tasks_indirect(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset, uint32_t draw_count, uint32_t stride) -> void override;
+            auto draw_mesh_tasks_indirect_count(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset, const GpuBuffer* count, uint64_t count_offset, uint32_t max_count, uint32_t stride) -> void override;
 
             auto begin_cmd(CommandBuffer* cb) -> void override;
             auto end_cmd(CommandBuffer* cb) -> void override;

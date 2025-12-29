@@ -41,6 +41,13 @@ namespace diverse
             uint32_t thread_group_count_z = 0;
         };
 
+        struct IndirectDrawMeshTasksArgs
+        {
+            uint32_t group_count_x = 0;
+            uint32_t group_count_y = 0;
+            uint32_t group_count_z = 0;
+        };
+
         struct DeviceFrame
         {
             DeviceFrame(const std::shared_ptr<CommandBuffer>& main_cb,const std::shared_ptr<CommandBuffer>& present_cb)
@@ -91,6 +98,7 @@ namespace diverse
             u32 minImportedHostPointerAlignment = 4096;
             bool rayQuery = false;
             bool ray_tracing_enabled = false;
+            bool mesh_shader_enabled = false;
             bool support_bindless = true;
             u64  vram_size = 0;
         };
@@ -147,6 +155,7 @@ namespace diverse
             virtual auto create_compute_pipeline(const CompiledShaderCode& spirv, const ComputePipelineDesc& desc)->std::shared_ptr<ComputePipeline> = 0;
             virtual auto create_raster_pipeline(const std::vector<PipelineShader>& shaders,const RasterPipelineDesc& desc)->std::shared_ptr<RasterPipeline> = 0;
             virtual auto create_ray_tracing_pipeline(const std::vector<PipelineShader>& shaders, const RayTracingPipelineDesc& desc) -> std::shared_ptr<RayTracingPipeline> = 0;
+            virtual auto create_mesh_shader_pipeline(const std::vector<PipelineShader>& shaders, const MeshShaderPipelineDesc& desc) -> std::shared_ptr<MeshShaderPipeline> = 0;
             virtual auto create_render_pass(const RenderPassDesc& desc,const char* name = nullptr) -> std::shared_ptr<RenderPass> = 0;
 
             virtual auto begin_frame()->DeviceFrame* = 0;
@@ -187,6 +196,10 @@ namespace diverse
             virtual auto draw_indexed_instanced_indirect(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset)->void = 0;
             virtual auto draw_instanced_indirect_count(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset, const GpuBuffer* count, uint64_t count_offset, uint32_t max_count)->void = 0;
             virtual auto draw_indexed_instanced_indirect_count(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset, const GpuBuffer* count, uint64_t count_offset, uint32_t max_count)->void = 0;
+
+            virtual auto draw_mesh_tasks(CommandBuffer* cb, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)->void = 0;
+            virtual auto draw_mesh_tasks_indirect(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset, uint32_t draw_count, uint32_t stride)->void = 0;
+            virtual auto draw_mesh_tasks_indirect_count(CommandBuffer* cb, const GpuBuffer* args, uint64_t args_offset, const GpuBuffer* count, uint64_t count_offset, uint32_t max_count, uint32_t stride)->void = 0;
 
             virtual auto with_setup_cb(std::function<void(CommandBuffer* cmd)>&& callback)->void = 0;
             virtual auto copy_buffer(CommandBuffer* cmd,GpuBuffer* src,u64 src_offset, GpuBuffer* dst, u64 dst_offset,u64 size_)->void = 0;

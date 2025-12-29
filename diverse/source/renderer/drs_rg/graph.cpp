@@ -278,6 +278,11 @@ namespace diverse
                 pipelines.rt.emplace_back(pipeline_cache.register_ray_tracing(pipeline.shaders,pipeline.desc));
             }
 
+            for (auto& pipeline : mesh_shader_pipelines)
+            {
+                pipelines.mesh_shader.emplace_back(pipeline_cache.register_mesh_shader(pipeline.shaders, pipeline.desc));
+            }
+
             this->resource_info = std::move(resource_info);
       /*      this->pipelines = std::move(RenderGraphPipelines{
                 compute_pipeline_handles,

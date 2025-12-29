@@ -22,11 +22,18 @@ namespace diverse
         Max
     };
 
+    enum class SplatRenderMethod
+    {
+        Standard = 0,
+        GUT = 1,
+    };
+
     struct RenderSettings
     {
         i32  gs_vis_type;
         f32  gs_point_size = 2.0f;
         u8   splat_edit_render_mode = 0xff;//0: Centers, 1: Rings
+        SplatRenderMethod splat_render_method = SplatRenderMethod::Standard;
         glm::vec4  select_color = glm::vec4(1,1,0,1);
         glm::vec4  locked_color = glm::vec4(0,0,0,0.045);
         glm::vec3  paint_color = glm::vec3(1);

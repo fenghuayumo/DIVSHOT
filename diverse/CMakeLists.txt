@@ -22,6 +22,15 @@ list(FILTER SOURCES EXCLUDE REGEX "source/platform/.*")
 
 target_sources(diverse PRIVATE ${SOURCES})
 
+# Organize source files into folders in Visual Studio
+# This creates folder structure matching the source directory structure
+if(MSVC)
+    # Use TREE option (CMake 3.8+) to automatically organize files by directory structure
+    source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/source" 
+                 PREFIX "Source Files" 
+                 FILES ${SOURCES})
+endif()
+
 # Include directories
 target_include_directories(diverse PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -103,9 +112,9 @@ if(TIME_TRACE)
 endif()
 
 # Architecture specific
-# if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-#     target_compile_definitions(diverse PUBLIC USE_VMA_ALLOCATOR)
-# endif()
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    target_compile_definitions(diverse PUBLIC USE_VMA_ALLOCATOR)
+endif()
 
 # Platform specific settings
 if(WIN32)
@@ -133,6 +142,32 @@ if(WIN32)
         "../external/glad/src/glad_wgl.c"
     )
     target_sources(diverse PRIVATE ${PLATFORM_SOURCES})
+    
+    # Organize platform source files into folders in Visual Studio
+    if(MSVC)
+        # Separate files that are in source/platform from external files
+        set(PLATFORM_SOURCE_FILES "")
+        set(EXTERNAL_FILES "")
+        foreach(FILE ${PLATFORM_SOURCES})
+            if(FILE MATCHES "source/platform/")
+                list(APPEND PLATFORM_SOURCE_FILES ${FILE})
+            else()
+                list(APPEND EXTERNAL_FILES ${FILE})
+            endif()
+        endforeach()
+        
+        # Group platform files by directory structure
+        if(PLATFORM_SOURCE_FILES)
+            source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/source/platform" 
+                         PREFIX "Source Files\\Platform" 
+                         FILES ${PLATFORM_SOURCE_FILES})
+        endif()
+        
+        # Group external files separately
+        if(EXTERNAL_FILES)
+            source_group("Source Files\\External" FILES ${EXTERNAL_FILES})
+        endif()
+    endif()
 
     target_link_libraries(diverse PUBLIC
         Dbghelp

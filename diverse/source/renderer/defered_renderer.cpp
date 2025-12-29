@@ -283,12 +283,13 @@ namespace diverse
 				auto offset = -gs_com.black_point + gs_com.brightness;
 				auto scale = 1.0f / (gs_com.white_point - gs_com.black_point);
 				gs_command_queue.push_back(RenderGSCommand{ trans, 
-											gs_com.ModelRef, 
+											gs_com.ModelRef.get(), 
 											(u32)gs_com.sh_degree,
 											g_render_settings.select_color,
 											g_render_settings.locked_color,
 											glm::vec4(gs_com.albedo_color.xyz * scale, gs_com.transparency),
-											glm::vec3(offset,offset,offset)});
+											glm::vec3(offset,offset,offset),	
+											gs_com.mip_antialiased});
 				
 				const auto crop = Entity(gs_ent, current_scene).try_get_component<GaussianCrop>();
 				if (crop)
@@ -403,6 +404,7 @@ namespace diverse
 
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model.ModelRef->gaussian_state_buf.get(), v_buf_id);
 				model_2_gs_buf_id[model.ModelRef] = v_buf_id;
+				model.mip_antialiased = model.ModelRef->antialiased();
 				skip_gs_render = false;
 			}
 		}
@@ -840,6 +842,22 @@ namespace diverse
 		u32 scene_lights_count = scene_lights.size();
 		RenderOverride	render_overrides;
 		f32 real_sun_angular_radius = glm::radians(0.53f) * 0.5f;
+		// Get camera and DOF parameters from camera
+		f32 fov_rad_val = glm::radians(60.0f);
+		f32 dof_enabled_val = 0.0f;
+		f32 focus_distance_val = 10.0f;
+		f32 aperture_val = 0.0f;
+		u32 camera_type_val = 0;
+		if (camera)
+		{
+			fov_rad_val = glm::radians(camera->get_fov());
+			dof_enabled_val = camera->is_dof_enabled() ? 1.0f : 0.0f;
+			focus_distance_val = camera->get_focus_distance();
+			aperture_val = camera->get_aperture() * 0.001f; // Convert to reasonable range
+			auto cam_type = camera->get_camera_type();
+			camera_type_val = (cam_type == Camera::CameraType::Fisheye) ? 1u : 0u;
+		}
+		
 		auto global_offset = dynamic_constants.push(FrameConstants{
 			view_constants.transpose(),
 			glm::vec4(sun_direction,0),
@@ -854,6 +872,12 @@ namespace diverse
 			post->expos_state.pre_mult_delta,
 			scene_lights_count,
 			render_overrides,
+			fov_rad_val,
+			dof_enabled_val,
+			focus_distance_val,
+			aperture_val,
+			camera_type_val,
+			{0.0f, 0.0f, 0.0f},
 			glm::vec4(irache->get_grid_center(),1.0),
 			irache->constants()
 		});

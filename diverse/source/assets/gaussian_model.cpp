@@ -440,18 +440,18 @@ namespace diverse
 		{ 
 			if (saved_path.find(".compressed") != std::string::npos)
 			{
-				ret = tinygsplat::save_compress_ply(saved_path, new_pos, new_scales, new_shs, new_rot, new_opacities,mip_antialiased);
+				ret = tinygsplat::save_compress_ply(saved_path, new_pos, new_scales, new_shs_0, new_shs_n, new_rot, new_opacities,mip_antialiased);
 			}
 			else if(saved_path.find(".reduced") != std::string::npos)
 			{
 				ret = tinygsplat::save_reduced_ply(saved_path, new_pos, new_scales, new_shs_0, new_shs_n,new_rot, new_opacities, new_degrees);
 			}
 			else
-				ret = tinygsplat::save_ply(filepath, new_pos, new_scales, new_shs, new_rot, new_opacities,mip_antialiased);
+				ret = tinygsplat::save_ply(filepath, new_pos, new_scales, new_shs_0, new_shs_n, new_rot, new_opacities,mip_antialiased);
 		}
 		else if (ext == ".splat")
 		{
-			ret = tinygsplat::save_splat(saved_path, new_pos, new_scales, new_shs, new_rot, new_opacities);
+			ret = tinygsplat::save_splat(saved_path, new_pos, new_scales, new_shs_0, new_shs_n, new_rot, new_opacities);
 		}
 		else if (ext == ".dvsplat")
 		{
@@ -459,7 +459,11 @@ namespace diverse
 		}
 		else if (ext == ".spz")
 		{
-			ret = tinygsplat::save_spz_splats(filepath, new_pos, new_scales, new_shs, new_rot, new_opacities,mip_antialiased);
+			ret = tinygsplat::save_spz_splats(filepath, new_pos, new_scales, new_shs_0, new_shs_n, new_rot, new_opacities,mip_antialiased);
+		}
+		else if (ext == ".sog")
+		{
+			ret = tinygsplat::save_sog(filepath, new_pos, new_scales, new_shs_0, new_shs_n, new_rot, new_opacities);
 		}
 		if (!ret)
 		{
@@ -498,16 +502,20 @@ namespace diverse
 			{
 				load_ret = tinygsplat::load_dvs_splat(filePath, points);
 			}
-			else if (ext == ".spz")
-			{
-				load_ret = tinygsplat::load_spz_splats(filePath, points,mip_antialiased);
-			}
-			if (!load_ret)
-			{
-				DS_LOG_ERROR("loading gaussian model file {} failed!", filePath);
-				set_flag(AssetFlag::Invalid);
-				return;
-			}
+		else if (ext == ".spz")
+		{
+			load_ret = tinygsplat::load_spz_splats(filePath, points,mip_antialiased);
+		}
+		else if (ext == ".sog")
+		{
+			load_ret = tinygsplat::load_sog(filePath, points);
+		}
+		if (!load_ret)
+		{
+			DS_LOG_ERROR("loading gaussian model file {} failed!", filePath);
+			set_flag(AssetFlag::Invalid);
+			return;
+		}
 		}
 		catch (...)
 		{
@@ -914,7 +922,8 @@ namespace diverse
 		parallel_for<size_t>(0, numChunks, [&](size_t i) {
 			tinygsplat::SplatChunk chunk(indices, i * 256, (i + 1) * 256);
 
-			auto [pmin, pmax, smin, smax] = chunk.pack(new_pos, new_scales, new_rot, new_shs, new_opacities);
+			// DVS format only stores DC color, not higher-order SH
+			auto [pmin, pmax, smin, smax] = chunk.pack(new_pos, new_scales, new_rot, new_shs_0, new_opacities);
 
 			dataView.setFloat32(i * 12 * 4 + 0, pmin.x);
 			dataView.setFloat32(i * 12 * 4 + 4, pmin.y);

@@ -49,7 +49,7 @@ namespace diverse
 
     void MacOSOS::init()
     {
-        GLFWWindow::MakeDefault();
+        GLFWWindow::make_default();
     }
 
     void MacOSOS::setTitleBarColour(const glm::vec4& colour, bool dark)

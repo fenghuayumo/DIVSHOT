@@ -39,18 +39,30 @@ namespace diverse
 
         auto SwapchainVulkan::acquire_next_image()->SwapchainImage
         {
-            auto acquire_semaphore = acquire_semaphores[next_semaphore];
-            auto rendering_finished_semaphore = rendering_finished_semaphores[next_semaphore];
-            uint32 present_index;
-            auto res = vkAcquireNextImageKHR(device->device, swapchain, UINT64_MAX, acquire_semaphore, nullptr, &present_index);
+            // Per Vulkan best practices: Use cycling index for acquire semaphore,
+            // but use image index for render finished semaphore
+            // Reference: nvpro_core2/nvvk/swapchain.cpp
+            
+            // Use cycling index to select acquire semaphore
+            u64 acquire_sem_index = next_semaphore;
+            auto acquire_semaphore = acquire_semaphores[acquire_sem_index];
+            
+            uint32 image_index;
+            auto res = vkAcquireNextImageKHR(device->device, swapchain, UINT64_MAX, acquire_semaphore, VK_NULL_HANDLE, &image_index);
 
             if (res == VK_SUCCESS)
             {
+                // Store indices for use in present
+                current_image_index = image_index;
+                current_acquire_sem_index = acquire_sem_index;  // Save which acquire semaphore was used
                 next_semaphore = (next_semaphore + 1) % images.size();
                 current_frame_id = current_frame_id + 1;
+                
+                // Return the image with its index
+                // present_image will use image_index to select the correct renderFinishedSemaphore
                 return SwapchainImage{
-                    images[present_index],
-                    present_index
+                    images[image_index],
+                    image_index  // Store image index for selecting renderFinishedSemaphore
                 };
             }
             else
@@ -74,17 +86,27 @@ namespace diverse
         {
             auto presentation_cb = dynamic_cast<GpuCommandBufferVulkan*>(present_cb);
 
-            auto acquire_semaphore = acquire_semaphores[image.image_index];
-            auto rendering_finished_semaphore = rendering_finished_semaphores[image.image_index];
+            // CRITICAL: Per Vulkan best practices (nvpro_core2 reference):
+            // - acquire_semaphore: Use cycling index (saved from acquire)
+            // - renderFinishedSemaphore: Use image index (from acquire return value)
+            // This ensures each swapchain image has its own renderFinishedSemaphore,
+            // preventing semaphore reuse issues
+            
+            // Use the acquire semaphore index that was saved during acquire
+            auto acquire_semaphore = acquire_semaphores[current_acquire_sem_index];
+            
+            // Use image index for renderFinishedSemaphore (per Vulkan spec recommendation)
+            u32 image_index = image.image_index;
+            auto rendering_finished_semaphore = rendering_finished_semaphores[image_index];
 
-            VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT /*, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR*/ };
+            VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
             VkSubmitInfo	submit_info = {};
             submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submit_info.pCommandBuffers = &presentation_cb->handle;
             submit_info.commandBufferCount = 1;
-            submit_info.pWaitSemaphores = &acquire_semaphore;
+            submit_info.pWaitSemaphores = &acquire_semaphore;  // Wait on the semaphore signaled by acquire
             submit_info.waitSemaphoreCount = 1;
-            submit_info.pSignalSemaphores = &rendering_finished_semaphore;
+            submit_info.pSignalSemaphores = &rendering_finished_semaphore;  // Signal the image's semaphore
             submit_info.signalSemaphoreCount = 1;
             submit_info.pWaitDstStageMask = waitStages;
             vkResetFences(device->device, 1, &presentation_cb->submit_done_fence);
@@ -92,10 +114,10 @@ namespace diverse
 
             VkPresentInfoKHR    present_info = {};
             present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-            present_info.pWaitSemaphores = &rendering_finished_semaphore;
+            present_info.pWaitSemaphores = &rendering_finished_semaphore;  // Wait on image's renderFinishedSemaphore
             present_info.waitSemaphoreCount = 1;
             present_info.pSwapchains = &swapchain;
-            present_info.pImageIndices = &image.image_index;
+            present_info.pImageIndices = &image_index;  // Use the image index
             present_info.swapchainCount = 1;
             auto res = vkQueuePresentKHR(device->universe_queue.queue, &present_info);
             if (res != VK_SUCCESS)

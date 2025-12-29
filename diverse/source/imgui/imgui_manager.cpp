@@ -37,14 +37,14 @@
 namespace diverse
 {
     ImGuiManager::ImGuiManager(rhi::GpuDevice* device, rhi::Swapchain* swapchain,UiRenderer* ui_renderer)
-        : m_UIRender(ui_renderer)
+        : ui_render(ui_renderer)
     {
-        m_FontSize = 14.0f;
+        font_size = 14.0f;
 
 #ifdef DS_PLATFORM_IOS
-        m_FontSize *= 2.0f;
+        font_size *= 2.0f;
 #endif
-        m_IMGUIRenderer = UniquePtr<IMGUIRenderer>(IMGUIRenderer::create(device, swapchain));
+        imgui_renderer = std::unique_ptr<IMGUIRenderer>(IMGUIRenderer::create(device, swapchain));
     }
 
     ImGuiManager::~ImGuiManager()
@@ -73,18 +73,22 @@ namespace diverse
 #endif
         Application& app = Application::get();
         ImGuiIO& io = ImGui::GetIO();
+        
+        // DisplaySize should be in framebuffer pixels (actual render target size)
+        // get_width()/get_height() now correctly returns framebuffer pixel dimensions
         io.DisplaySize = ImVec2(static_cast<float>(app.get_window()->get_width()), static_cast<float>(app.get_window()->get_height()));
-        // io.DisplayFramebufferScale = ImVec2(app.get_window()->GetDPIScale(), app.get_window()->GetDPIScale());
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-        m_DPIScale = app.get_window()->get_dpi_scale();
+        dpi_scale = app.get_window()->get_dpi_scale();
+        DS_LOG_INFO("ImGui DPI Scale: {0}", dpi_scale);
+        
 #ifdef DS_PLATFORM_IOS
         io.ConfigFlags |= ImGuiConfigFlags_IsTouchScreen;
 #endif
         io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
         io.ConfigWindowsMoveFromTitleBarOnly = true;
 
-        m_FontSize *= app.get_window()->get_dpi_scale();
+        font_size *= dpi_scale;
 
         set_imgui_key_codes();
         set_imgui_style();
@@ -95,12 +99,14 @@ namespace diverse
 
         style.ScrollbarSize = 20;
 #endif
-#ifdef DS_PLATFORM_MACOS
-        ImGui::GetStyle().ScaleAllSizes(m_DPIScale);
-#endif
+        // Scale ImGui style on high DPI displays (Windows and macOS)
+        if (dpi_scale > 1.0f)
+        {
+            ImGui::GetStyle().ScaleAllSizes(dpi_scale);
+        }
 
-        if (m_IMGUIRenderer)
-            m_IMGUIRenderer->init();
+        if (imgui_renderer)
+            imgui_renderer->init();
 
 #ifdef USING_GLFW
         io.SetClipboardTextFn = ImGui_ImplGlfw_SetClipboardText;
@@ -127,22 +133,22 @@ namespace diverse
         DS_PROFILE_FUNCTION();
         ImGuizmo::BeginFrame();
 
-        if (m_IMGUIRenderer )
+        if (imgui_renderer)
         {
-            m_IMGUIRenderer->new_frame();
+            imgui_renderer->new_frame();
 
             callback();
 
-            m_UIRender->ui_frame = std::make_pair< UiRenderCallback, std::shared_ptr<rhi::GpuTexture>>([&](rhi::CommandBuffer* cmd_buf){
-                m_IMGUIRenderer->render(cmd_buf);
-            }, m_IMGUIRenderer->get_target_tex());
+            ui_render->ui_frame = std::make_pair<UiRenderCallback, std::shared_ptr<rhi::GpuTexture>>([&](rhi::CommandBuffer* cmd_buf){
+                imgui_renderer->render(cmd_buf);
+            }, imgui_renderer->get_target_tex());
         }
     }
 
     void ImGuiManager::handle_new_scene(Scene* scene)
     {
         DS_PROFILE_FUNCTION();
-        m_IMGUIRenderer->clear();
+        imgui_renderer->clear();
     }
 
     int diverseMouseButtonToImGui(diverse::InputCode::MouseKey key)
@@ -181,8 +187,9 @@ namespace diverse
     bool ImGuiManager::handle_mouse_moved_event(MouseMovedEvent& e)
     {
         ImGuiIO& io = ImGui::GetIO();
+        // Mouse coordinates are already in framebuffer pixels (converted in GLFW callback)
         if (Input::get().get_mouse_mode() == MouseMode::Visible)
-            io.MousePos = ImVec2(e.GetX() * m_DPIScale, e.GetY() * m_DPIScale);
+            io.MousePos = ImVec2(e.GetX(), e.GetY());
 
         return false;
     }
@@ -241,8 +248,8 @@ namespace diverse
 
         io.DisplaySize = ImVec2(static_cast<float>(width), static_cast<float>(height));
         // io.DisplayFramebufferScale = ImVec2(e.GetDPIScale(), e.GetDPIScale());
-        m_DPIScale = e.GetDPIScale();
-        m_IMGUIRenderer->handle_resize(width, height);
+        dpi_scale = e.GetDPIScale();
+        imgui_renderer->handle_resize(width, height);
 
         return false;
     }
@@ -301,15 +308,15 @@ namespace diverse
             0,
         };
 
-        io.Fonts->AddFontFromMemoryCompressedTTF(RobotoRegular_compressed_data, RobotoRegular_compressed_size, m_FontSize, &icons_config, ranges);
+        io.Fonts->AddFontFromMemoryCompressedTTF(RobotoRegular_compressed_data, RobotoRegular_compressed_size, font_size, &icons_config, ranges);
         add_icon_font();
 
-        io.Fonts->AddFontFromMemoryCompressedTTF(RobotoBold_compressed_data, RobotoBold_compressed_size, m_FontSize + 2.0f, &icons_config, ranges);
+        io.Fonts->AddFontFromMemoryCompressedTTF(RobotoBold_compressed_data, RobotoBold_compressed_size, font_size + 2.0f, &icons_config, ranges);
 
-        io.Fonts->AddFontFromMemoryCompressedTTF(RobotoRegular_compressed_data, RobotoRegular_compressed_size, m_FontSize * 0.8f, &icons_config, ranges);
+        io.Fonts->AddFontFromMemoryCompressedTTF(RobotoRegular_compressed_data, RobotoRegular_compressed_size, font_size * 0.8f, &icons_config, ranges);
         // AddIconFont();
         //io.Fonts->AddFontDefault();
-       io.Fonts->AddFontFromFileTTF("../resource/fonts/simkai.ttf", m_FontSize, &icons_config, io.Fonts->GetGlyphRangesChineseFull());
+       io.Fonts->AddFontFromFileTTF("../resource/fonts/simkai.ttf", font_size, &icons_config, io.Fonts->GetGlyphRangesChineseFull());
 
         io.Fonts->TexGlyphPadding = 1;
         for (int n = 0; n < io.Fonts->ConfigData.Size; n++)
@@ -374,7 +381,7 @@ namespace diverse
         icons_config.GlyphMinAdvanceX = 4.0f;
         icons_config.SizePixels = 12.0f;
 
-        io.Fonts->AddFontFromMemoryCompressedTTF(MaterialDesign_compressed_data, MaterialDesign_compressed_size, m_FontSize, &icons_config, icons_ranges);
+        io.Fonts->AddFontFromMemoryCompressedTTF(MaterialDesign_compressed_data, MaterialDesign_compressed_size, font_size, &icons_config, icons_ranges);
     }
 
     ImGuiTextureID* add_imgui_texture(const std::shared_ptr<rhi::GpuTexture>& tex)

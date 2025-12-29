@@ -21,5 +21,11 @@ namespace diverse
             auto handle = this->pipelines.rt[pipeline.id];
             return execution_params.pipeline_cache->get_ray_tracing(handle);
         }
+
+        auto ResourceRegistry::mesh_shader_pipeline(const RgMeshShaderPipelineHandle& pipeline)->std::shared_ptr<rhi::MeshShaderPipeline>
+        {
+            auto handle = this->pipelines.mesh_shader[pipeline.id];
+            return execution_params.pipeline_cache->get_mesh_shader(handle);
+        }
     }
 }

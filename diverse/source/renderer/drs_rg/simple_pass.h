@@ -99,10 +99,13 @@ namespace diverse
         requires std::same_as<RgPipelineHandle, RgComputePipelineHandle>
             || std::same_as<RgPipelineHandle, RgRtPipelineHandle>
             || std::same_as<RgPipelineHandle, RgRasterPipelineHandle>
+            || std::same_as<RgPipelineHandle, RgMeshShaderPipelineHandle>
         struct SimpleRenderPass
         {
             PassBuilder pass;
             SimpleRenderPassState<RgPipelineHandle> state;
+            std::vector<Ref<rhi::GpuTexture, GpuRt>> render_targets;
+            Ref<rhi::GpuTexture, GpuRt> depth_target;
             SimpleRenderPass(PassBuilder&& builder, SimpleRenderPassState<RgPipelineHandle>&& sta)
             : pass(std::move(builder)), state(sta)
             {
@@ -125,6 +128,31 @@ namespace diverse
                 );
 
                 state.bindings.push_back(handle_ref.bind());
+                return *this;
+            }
+
+            template<typename Res>
+                requires std::derived_from<Res, rhi::GpuResource>
+            auto raster_color(Handle<Res>& handle) -> SimpleRenderPass&
+            {
+                auto handle_ref = pass.raster(
+                    handle,
+                    rhi::AccessType::ColorAttachmentWrite
+                );
+                render_targets.push_back(handle_ref);
+                return *this;
+            }
+
+            template<typename Res>
+                requires std::derived_from<Res, rhi::GpuResource>
+            auto raster_depth(Handle<Res>& handle) -> SimpleRenderPass&
+            {
+                auto handle_ref = pass.raster(
+                    handle,
+                    rhi::AccessType::DepthAttachmentWriteStencilReadOnly
+                );
+
+                depth_target = std::move(handle_ref);
                 return *this;
             }
 
@@ -288,29 +316,119 @@ namespace diverse
                 pass.rg->record_pass(std::move(pass.pass));
             }
 
-            auto dispatch_draw_instanced(u32 vertex_count, u32 instance_count)->void
+            auto draw_instanced(rhi::RenderPass& render_pass,u32 vertex_count, u32 instance_count)->void
             {
-                pass.render([r_state = std::move(this->state), vertex_count, instance_count](RenderPassApi& api)mutable {
+                pass.render([r_state = std::move(this->state), vertex_count, instance_count,
+                    &render_pass, depth_ref = std::move(depth_target), color_ref = std::move(render_targets)](RenderPassApi& api)mutable {
                     r_state.patch_const_blobs(api);
+                    auto [width, height, _] = depth_ref.desc.extent;
+                    api.begin_render_pass(
+                        render_pass,
+                       { width, height },
+                        color_ref,
+                        depth_ref
+                    );
 
-                    //api.begin_render_pass(
-                    //    *gsplat_render_pass,
-                    //    { width, height },
-                    //    {
-                    //        std::pair{color_ref,rhi::GpuTextureViewDesc()},
-                    //    },
-                    //    std::pair{ depth_ref, rhi::GpuTextureViewDesc().with_aspect_mask(rhi::ImageAspectFlags::DEPTH) }
-                    //);
-
-                    //api.set_default_view_and_scissor({ width,height });
+                    api.set_default_view_and_scissor({ width,height });
                     auto pipeline = api.bind_raster_pipeline(r_state.create_pipeline_binding());
-                    pipeline.dispatch_draw_instanced(vertex_count, instance_count);
+                    pipeline.draw_instanced(vertex_count, instance_count);
+                    api.end_render_pass();
                 });
+                pass.rg->record_pass(std::move(pass.pass));
             }
 
-            auto dispatch_indirect_draw_instanced(const Handle<rhi::GpuBuffer>& args_buffer, uint64 args_buffer_offset) -> void
+            auto draw_indirect_instanced(rhi::RenderPass& render_pass, const Handle<rhi::GpuBuffer>& args_buffer, uint64 args_buffer_offset) -> void
             {
+              auto args_buffer_ref = pass.read(args_buffer, rhi::AccessType::IndirectBuffer);
+              pass.render([r_state = std::move(this->state), args_buffer_ref = std::move(args_buffer_ref), args_buffer_offset,
+                  &render_pass, depth_ref = std::move(depth_target), color_ref = std::move(render_targets)](RenderPassApi& api) mutable {
+                      r_state.patch_const_blobs(api);
+                      auto [width, height, _] = depth_ref.desc.extent;
+                      api.begin_render_pass(
+                          render_pass,
+                          { width, height },
+                          color_ref,
+                          depth_ref
+                      );
 
+                    api.set_default_view_and_scissor({ width,height });
+                    auto pipeline = api.bind_raster_pipeline(r_state.create_pipeline_binding());
+                    pipeline.indirect_draw_instanced(args_buffer_ref, args_buffer_offset);
+                    api.end_render_pass();
+                });
+                pass.rg->record_pass(std::move(pass.pass));
+            }
+
+            auto draw_mesh_tasks(rhi::RenderPass& render_pass, uint32 group_count_x, uint32 group_count_y, uint32 group_count_z) -> void
+            {
+                pass.render([r_state = std::move(this->state), group_count_x, group_count_y, group_count_z,
+                    &render_pass, depth_ref = std::move(depth_target), color_ref = std::move(render_targets)](RenderPassApi& api)mutable {
+                    r_state.patch_const_blobs(api);
+                    auto [width, height, _] = depth_ref.desc.extent;
+                    api.begin_render_pass(
+                        render_pass,
+                        { width, height },
+                        color_ref,
+                        depth_ref
+                    );
+
+                    api.set_default_view_and_scissor({ width, height });
+                    auto pipeline = api.bind_mesh_shader_pipeline(r_state.create_pipeline_binding());
+                    pipeline.draw_mesh_tasks(group_count_x, group_count_y, group_count_z);
+                    api.end_render_pass();
+                });
+                pass.rg->record_pass(std::move(pass.pass));
+            }
+
+            auto draw_mesh_tasks_indirect(rhi::RenderPass& render_pass, const Handle<rhi::GpuBuffer>& args_buffer, uint64 args_buffer_offset, uint32 draw_count, uint32 stride) -> void
+            {
+                auto args_buffer_ref = pass.read(args_buffer, rhi::AccessType::IndirectBuffer);
+                pass.render([r_state = std::move(this->state), args_buffer_ref = std::move(args_buffer_ref), args_buffer_offset, draw_count, stride,
+                    &render_pass, depth_ref = std::move(depth_target), color_ref = std::move(render_targets)](RenderPassApi& api) mutable {
+                    r_state.patch_const_blobs(api);
+                    auto [width, height, _] = depth_ref.desc.extent;
+                    api.begin_render_pass(
+                        render_pass,
+                        { width, height },
+                        color_ref,
+                        depth_ref
+                    );
+
+                    api.set_default_view_and_scissor({ width, height });
+                    auto pipeline = api.bind_mesh_shader_pipeline(r_state.create_pipeline_binding());
+                    pipeline.draw_mesh_tasks_indirect(args_buffer_ref, args_buffer_offset, draw_count, stride);
+                    api.end_render_pass();
+                });
+                pass.rg->record_pass(std::move(pass.pass));
+            }
+
+            auto draw_mesh_tasks_indirect_count(rhi::RenderPass& render_pass, 
+                                                const Handle<rhi::GpuBuffer>& args_buffer, uint64 args_buffer_offset,
+                                                const Handle<rhi::GpuBuffer>& count_buffer, uint64 count_buffer_offset,
+                                                uint32 max_count, uint32 stride) -> void
+            {
+                auto args_buffer_ref = pass.read(args_buffer, rhi::AccessType::IndirectBuffer);
+                auto count_buffer_ref = pass.read(count_buffer, rhi::AccessType::IndirectBuffer);
+                pass.render([r_state = std::move(this->state), 
+                    args_buffer_ref = std::move(args_buffer_ref), args_buffer_offset,
+                    count_buffer_ref = std::move(count_buffer_ref), count_buffer_offset,
+                    max_count, stride,
+                    &render_pass, depth_ref = std::move(depth_target), color_ref = std::move(render_targets)](RenderPassApi& api) mutable {
+                    r_state.patch_const_blobs(api);
+                    auto [width, height, _] = depth_ref.desc.extent;
+                    api.begin_render_pass(
+                        render_pass,
+                        { width, height },
+                        color_ref,
+                        depth_ref
+                    );
+
+                    api.set_default_view_and_scissor({ width, height });
+                    auto pipeline = api.bind_mesh_shader_pipeline(r_state.create_pipeline_binding());
+                    pipeline.draw_mesh_tasks_indirect_count(args_buffer_ref, args_buffer_offset, count_buffer_ref, count_buffer_offset, max_count, stride);
+                    api.end_render_pass();
+                });
+                pass.rg->record_pass(std::move(pass.pass));
             }
 
             auto trace_rays(const Handle<rhi::GpuRayTracingAcceleration>& tlas, std::array<uint32, 3> extent)->void
@@ -387,6 +505,13 @@ namespace diverse
                 const rhi::ShaderSource& fragment,
                 const std::vector<std::pair<std::string, std::string>>& defines = {},
                 const std::optional<rhi::ShaderSource>& gemotry = {}) -> SimpleRenderPass<RgRasterPipelineHandle>;
+
+            static auto new_mesh_shader(PassBuilder&& pass,
+                rhi::MeshShaderPipelineDesc&& desc,
+                const rhi::ShaderSource& mesh,
+                const rhi::ShaderSource& fragment,
+                const std::vector<std::pair<std::string, std::string>>& defines = {},
+                const std::optional<rhi::ShaderSource>& task = {}) -> SimpleRenderPass<RgMeshShaderPipelineHandle>;
         };
 
         struct RasterPass
@@ -453,6 +578,56 @@ namespace diverse
             }
             rhi::RasterPipelineDesc pipeline_desc;
 
+        };
+
+        struct MeshShaderPass
+        {
+            auto inline cull_mode(rhi::CullMode cull) -> MeshShaderPass&
+            {
+                pipeline_desc.cull_mode = cull;
+                return *this;
+            }
+            auto inline depth_write(bool write) -> MeshShaderPass&
+            {
+                pipeline_desc.depth_write = write;
+                return *this;
+            }
+            auto inline depth_test(bool depthtest) -> MeshShaderPass&
+            {
+                pipeline_desc.depth_test = depthtest;
+                return *this;
+            }
+            auto inline push_constants(u32 size) -> MeshShaderPass&
+            {
+                pipeline_desc.push_constants_bytes = size;
+                return *this;
+            }
+            auto inline render_pass(const std::shared_ptr<rhi::RenderPass>& render_p) -> MeshShaderPass&
+            {
+                pipeline_desc.with_render_pass(render_p);
+                return *this;
+            }
+            auto inline blend_mode(rhi::BlendMode bm) -> MeshShaderPass&
+            {
+                pipeline_desc.with_blend_mode(bm);
+                return *this;
+            }
+            auto inline polygon_mode(rhi::PolygonMode mode) -> MeshShaderPass&
+            {
+                pipeline_desc.with_polygon_mode(mode);
+                return *this;
+            }
+            auto inline depth_compare_op(rhi::CompareFunc compare_op) -> MeshShaderPass&
+            {
+                pipeline_desc.with_depth_compare_op(compare_op);
+                return *this;
+            }
+            auto face_order(rhi::FrontFaceOrder order) -> MeshShaderPass&
+            {
+                pipeline_desc.with_face_order(order);
+                return *this;
+            }
+            rhi::MeshShaderPipelineDesc pipeline_desc;
         };
     }
 }

@@ -22,6 +22,7 @@ namespace diverse
 		GaussianComponent(const SharedPtr<GaussianModel>& modelRef)
 			: ModelRef(modelRef)
 		{
+			mip_antialiased = modelRef->antialiased();
 		}
 
 		GaussianComponent(const std::string& path);
@@ -42,6 +43,7 @@ namespace diverse
 		f32				   black_point = 0.0f;
 		glm::vec3		   albedo_color = glm::vec3(1.0f);
 		u32 			   max_splats = 2000000;
+		bool               mip_antialiased = false;
 		void 			  apply_color_adjustment();
 		template <typename Archive>
 		void save(Archive& archive) const
@@ -54,6 +56,7 @@ namespace diverse
 			archive(cereal::make_nvp("FilePath", newPath));
 			archive(cereal::make_nvp("splat_size", ModelRef->splat_size));
 			archive(cereal::make_nvp("max_splats", max_splats));
+			archive(cereal::make_nvp("mip_antialiased", mip_antialiased));
 		}
 
 		template <typename Archive>
@@ -65,6 +68,7 @@ namespace diverse
 			archive(cereal::make_nvp("FilePath", filePath));
 			archive(cereal::make_nvp("splat_size", splat_size));
 			archive(cereal::make_nvp("max_splats", max_splats));
+			archive(cereal::make_nvp("mip_antialiased", mip_antialiased));
 			if( !filePath.empty())
 				ModelRef = createSharedPtr<GaussianModel>(filePath);
 			else

@@ -54,12 +54,12 @@ namespace diverse
 #endif
 
     WindowsWindow::WindowsWindow(const WindowDesc& properties)
-        : hWnd(nullptr)
+        : hwnd(nullptr)
     {
         m_Init  = false;
         m_VSync = properties.VSync;
         set_has_resized(true);
-        m_Data.m_RenderAPI = static_cast<RenderAPI>(properties.RenderAPI);
+        data.render_api = static_cast<RenderAPI>(properties.RenderAPI);
 
         m_Init            = init(properties);
     }
@@ -168,16 +168,16 @@ namespace diverse
 
     bool WindowsWindow::init(const WindowDesc& properties)
     {
-        m_Data.Title  = properties.Title;
-        m_Data.Width  = properties.Width;
-        m_Data.Height = properties.Height;
-        m_Data.Exit   = false;
+        data.title  = properties.Title;
+        data.width  = properties.Width;
+        data.height = properties.Height;
+        data.exit   = false;
 
-        hInstance = reinterpret_cast<HINSTANCE>(&__ImageBase);
+        hinstance = reinterpret_cast<HINSTANCE>(&__ImageBase);
 
         WNDCLASSEXW winClass   = {};
         winClass.cbSize        = sizeof(WNDCLASSEX);
-        winClass.hInstance     = hInstance;
+        winClass.hInstance     = hinstance;
         winClass.style         = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
         winClass.lpfnWndProc   = static_cast<WNDPROC>(WndProc);
         winClass.lpszClassName = WindowsUtilities::StringToWString(properties.Title).c_str();
@@ -204,11 +204,11 @@ namespace diverse
         RECT size = { 0, 0, (LONG)properties.Width, (LONG)properties.Height };
         AdjustWindowRectEx(&size, style, false, WS_EX_APPWINDOW | WS_EX_WINDOWEDGE);
 
-        m_Data.Width  = size.right - size.left;
-        m_Data.Height = size.bottom - size.top;
+        data.width  = size.right - size.left;
+        data.height = size.bottom - size.top;
 
-        int windowLeft = (GetSystemMetrics(SM_CXSCREEN) - m_Data.Width) / 2;
-        int windowTop  = (GetSystemMetrics(SM_CYSCREEN) - m_Data.Height) / 2;
+        int windowLeft = (GetSystemMetrics(SM_CXSCREEN) - data.width) / 2;
+        int windowTop  = (GetSystemMetrics(SM_CYSCREEN) - data.height) / 2;
 
         if(properties.Fullscreen)
         {
@@ -216,20 +216,20 @@ namespace diverse
             windowTop  = 0;
         }
 
-        hWnd = CreateWindow(winClass.lpszClassName, WindowsUtilities::StringToWString(properties.Title).c_str(), style, windowLeft, windowTop, m_Data.Width, m_Data.Height, NULL, NULL, hInstance, NULL);
+        hwnd = CreateWindow(winClass.lpszClassName, WindowsUtilities::StringToWString(properties.Title).c_str(), style, windowLeft, windowTop, data.width, data.height, NULL, NULL, hinstance, NULL);
 
-        if(!hWnd)
+        if(!hwnd)
         {
             DS_LOG_CRITICAL("Could not create window!");
             return false;
         }
 
-        hDc                       = GetDC(hWnd);
+        hdc                       = GetDC(hwnd);
         PIXELFORMATDESCRIPTOR pfd = GetPixelFormat();
-        int32_t pixelFormat       = ChoosePixelFormat(hDc, &pfd);
+        int32_t pixelFormat       = ChoosePixelFormat(hdc, &pfd);
         if(pixelFormat)
         {
-            if(!SetPixelFormat(hDc, pixelFormat, &pfd))
+            if(!SetPixelFormat(hdc, pixelFormat, &pfd))
             {
                 DS_LOG_CRITICAL("Failed setting pixel format!");
                 return false;
@@ -243,23 +243,23 @@ namespace diverse
 
         set_icon(properties);
 
-        ShowWindow(hWnd, SW_SHOW);
-        SetFocus(hWnd);
+        ShowWindow(hwnd, SW_SHOW);
+        SetFocus(hwnd);
         set_window_title(properties.Title);
 
         RECT clientRect;
-        GetClientRect(hWnd, &clientRect);
+        GetClientRect(hwnd, &clientRect);
 
-        UpdateWindow(hWnd);
+        UpdateWindow(hwnd);
 
-        MoveWindow(hWnd, windowLeft, windowTop, m_Data.Width, m_Data.Height, TRUE);
+        MoveWindow(hwnd, windowLeft, windowTop, data.width, data.height, TRUE);
 
-        GetClientRect(hWnd, &clientRect);
+        GetClientRect(hwnd, &clientRect);
         int w = clientRect.right - clientRect.left;
         int h = clientRect.bottom - clientRect.top;
 
-        m_Data.Height = h;
-        m_Data.Width  = w;
+        data.height = h;
+        data.width  = w;
 
         if(!properties.ShowConsole)
         {
@@ -267,7 +267,7 @@ namespace diverse
 
             ShowWindow(consoleWindow, SW_HIDE);
 
-            SetActiveWindow(hWnd);
+            SetActiveWindow(hwnd);
         }
         else
         {
@@ -287,8 +287,8 @@ namespace diverse
                         m_data->m_oldHeight = dm.dmPelsHeight;
                         m_data->m_oldBitsPerPel = dm.dmBitsPerPel;*/
 
-            dm.dmPelsWidth  = m_Data.Width;
-            dm.dmPelsHeight = m_Data.Height;
+            dm.dmPelsWidth  = data.width;
+            dm.dmPelsHeight = data.height;
             /*if (colorBitsPerPixel)
                         {
                                 dm.dmBitsPerPel = colorBitsPerPixel;
@@ -357,7 +357,7 @@ namespace diverse
         rid.usUsagePage = HID_USAGE_PAGE_GENERIC;
         rid.usUsage     = HID_USAGE_GENERIC_KEYBOARD;
         rid.dwFlags     = RIDEV_INPUTSINK;
-        rid.hwndTarget  = hWnd;
+        rid.hwndTarget  = hwnd;
         RegisterRawInputDevices(&rid, 1, sizeof(rid));
 
         return true;
@@ -365,13 +365,13 @@ namespace diverse
 
     void ResizeCallback(Window* window, int32_t width, int32_t height)
     {
-        WindowsWindow::WindowData& data = static_cast<WindowsWindow*>(window)->m_Data;
+        WindowsWindow::WindowData& win_data = static_cast<WindowsWindow*>(window)->data;
 
-        data.Width  = width;
-        data.Height = height;
+        win_data.width  = width;
+        win_data.height = height;
 
         WindowResizeEvent event(width, height);
-        data.EventCallback(event);
+        win_data.event_callback(event);
     }
 
     void FocusCallback(Window* window, bool focused)
@@ -381,7 +381,7 @@ namespace diverse
 
     void WindowsWindow::on_update()
     {
-        ::SwapBuffers(hDc);
+        ::SwapBuffers(hdc);
     }
 
     void WindowsWindow::process_input()
@@ -395,8 +395,8 @@ namespace diverse
             if(message.message == WM_QUIT)
             {
                 WindowCloseEvent event;
-                m_Data.EventCallback(event);
-                m_Data.Exit = true;
+                data.event_callback(event);
+                data.exit = true;
                 return;
             }
             TranslateMessage(&message);
@@ -406,7 +406,7 @@ namespace diverse
 
     void WindowsWindow::set_window_title(const std::string& title)
     {
-        SetWindowText(hWnd, WindowsUtilities::StringToWString(title).c_str());
+        SetWindowText(hwnd, WindowsUtilities::StringToWString(title).c_str());
     }
 
     void WindowsWindow::toggle_vsync()
@@ -429,15 +429,15 @@ namespace diverse
 
     void MouseButtonCallback(Window* window, int32_t button, int32_t x, int32_t y)
     {
-        WindowsWindow::WindowData& data = static_cast<WindowsWindow*>(window)->m_Data;
-        HWND hWnd                       = static_cast<WindowsWindow*>(window)->GetHWND();
+        WindowsWindow::WindowData& win_data = static_cast<WindowsWindow*>(window)->data;
+        HWND win_hwnd                       = static_cast<WindowsWindow*>(window)->get_hwnd();
 
         bool down = false;
         diverse::InputCode::MouseKey mouseKey;
         switch(button)
         {
         case WM_LBUTTONDOWN:
-            SetCapture(hWnd);
+            SetCapture(win_hwnd);
             mouseKey = diverse::InputCode::MouseKey::ButtonLeft;
             down     = true;
             break;
@@ -447,7 +447,7 @@ namespace diverse
             down     = false;
             break;
         case WM_RBUTTONDOWN:
-            SetCapture(hWnd);
+            SetCapture(win_hwnd);
             mouseKey = diverse::InputCode::MouseKey::ButtonRight;
             down     = true;
             break;
@@ -457,7 +457,7 @@ namespace diverse
             down     = false;
             break;
         case WM_MBUTTONDOWN:
-            SetCapture(hWnd);
+            SetCapture(win_hwnd);
             mouseKey = diverse::InputCode::MouseKey::ButtonMiddle;
             down     = true;
             break;
@@ -471,36 +471,36 @@ namespace diverse
         if(down)
         {
             MouseButtonPressedEvent event(mouseKey);
-            data.EventCallback(event);
+            win_data.event_callback(event);
         }
         else
         {
             MouseButtonReleasedEvent event(mouseKey);
-            data.EventCallback(event);
+            win_data.event_callback(event);
         }
     }
 
     void MouseScrollCallback(Window* window, int inSw, WPARAM wParam, LPARAM lParam)
     {
-        WindowsWindow::WindowData& data = static_cast<WindowsWindow*>(window)->m_Data;
+        WindowsWindow::WindowData& win_data = static_cast<WindowsWindow*>(window)->data;
 
         MouseScrolledEvent event(0.0f, static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA));
-        data.EventCallback(event);
+        win_data.event_callback(event);
     }
 
     void MouseMoveCallback(Window* window, int32_t x, int32_t y)
     {
-        WindowsWindow::WindowData& data = static_cast<WindowsWindow*>(window)->m_Data;
+        WindowsWindow::WindowData& win_data = static_cast<WindowsWindow*>(window)->data;
         MouseMovedEvent event(static_cast<float>(x), static_cast<float>(y));
-        data.EventCallback(event);
+        win_data.event_callback(event);
     }
 
     void CharCallback(Window* window, int32_t key, int32_t flags, UINT message)
     {
-        WindowsWindow::WindowData& data = static_cast<WindowsWindow*>(window)->m_Data;
+        WindowsWindow::WindowData& win_data = static_cast<WindowsWindow*>(window)->data;
 
         KeyTypedEvent event(diverse::InputCode::Key {}, char(key));
-        data.EventCallback(event);
+        win_data.event_callback(event);
     }
 
     void KeyCallback(Window* window, int32_t key, int32_t flags, UINT message)
@@ -508,17 +508,17 @@ namespace diverse
         bool pressed = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
         bool repeat  = (flags >> 30) & 1;
 
-        WindowsWindow::WindowData& data = static_cast<WindowsWindow*>(window)->m_Data;
+        WindowsWindow::WindowData& win_data = static_cast<WindowsWindow*>(window)->data;
 
         if(pressed)
         {
             KeyPressedEvent event(WindowsKeyCodes::WindowsKeyTodiverse(key), repeat ? 1 : 0);
-            data.EventCallback(event);
+            win_data.event_callback(event);
         }
         else
         {
             KeyReleasedEvent event(WindowsKeyCodes::WindowsKeyTodiverse(key));
-            data.EventCallback(event);
+            win_data.event_callback(event);
         }
     }
 
@@ -713,12 +713,12 @@ namespace diverse
         // m_SmallIcon = smallIcon;
     }
 
-    void WindowsWindow::MakeDefault()
+    void WindowsWindow::make_default()
     {
-        CreateFunc = CreateFuncWindows;
+        CreateFunc = create_func_windows;
     }
 
-    Window* WindowsWindow::CreateFuncWindows(const WindowDesc& properties)
+    Window* WindowsWindow::create_func_windows(const WindowDesc& properties)
     {
         return new WindowsWindow(properties);
     }

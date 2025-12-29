@@ -25,6 +25,14 @@ namespace diverse
 		glm::vec4 	locked_color;
 	};
 
+	// Camera type for GUT rendering
+	enum class GaussianCameraType : u32
+	{
+		Pinhole = 0,
+		Fisheye = 1
+	};
+
+
 	struct GaussianRenderPass
 	{
         GaussianRenderPass(struct DeferedRenderer* renderer);
@@ -33,6 +41,12 @@ namespace diverse
 		auto render(rg::TemporalGraph& rg,
 			rg::Handle<rhi::GpuTexture>& color_img,
 			rg::Handle<rhi::GpuTexture>& depth_img) -> GSplatRenderOutput;
+
+		// New GUT mesh shader render pass for fisheye camera support
+		auto render_gut_mesh_shader(rg::TemporalGraph& rg,
+			rg::Handle<rhi::GpuTexture>& color_img,
+			rg::Handle<rhi::GpuTexture>& depth_img) -> GSplatRenderOutput;
+
 	protected:
 
 		auto render_points(rg::TemporalGraph& rg,
@@ -55,10 +69,12 @@ namespace diverse
 		auto render_splats(rg::TemporalGraph& rg,
 			rg::Handle<rhi::GpuTexture>& color_img,
 			rg::Handle<rhi::GpuTexture>& depth_img) -> GSplatRenderOutput;
+
 	protected:
         struct DeferedRenderer* renderer;
 
 		std::shared_ptr<rhi::RenderPass> gs_point_render_pass;
 		std::shared_ptr<rhi::RenderPass> gsplat_render_pass;
+		std::shared_ptr<rhi::RenderPass> gut_mesh_render_pass;
 	};
 }

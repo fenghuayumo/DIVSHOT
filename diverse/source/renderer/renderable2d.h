@@ -1,11 +1,22 @@
+#pragma once
 
+#include "core/core.h"
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <array>
+#include <memory>
 
-#define RENDERER2D_VERTEX_SIZE sizeof(VertexData)
-#define RENDERERTEXT_VERTEX_SIZE sizeof(TextVertexData)
+namespace diverse
+{
+    namespace rhi
+    {
+        struct GpuTexture;
+    }
+}
+
+#define RENDERER2D_VERTEX_SIZE sizeof(diverse::VertexData)
+#define RENDERERTEXT_VERTEX_SIZE sizeof(diverse::TextVertexData)
 
 namespace diverse
 {

@@ -48,6 +48,18 @@ namespace diverse
                 pipeline
             };
         }
+
+        auto RenderPassApi::bind_mesh_shader_pipeline(const RenderPassPipelineBinding<RgMeshShaderPipelineHandle>& binding) -> BoundMeshShaderPipeline
+        {
+            auto device = this->resources.execution_params.device;
+            auto pipeline = resources.mesh_shader_pipeline(binding.pipeline);
+            bind_pipeline_common(device, pipeline.get(), binding.binding);
+
+            return {
+                *this,
+                pipeline
+            };
+        }
         
         auto RenderPassApi::bind_pipeline_common(rhi::GpuDevice* device, rhi::GpuPipeline* pipeline, const RenderPassCommonShaderPipelineBinding& binding) -> void
         {
@@ -144,11 +156,24 @@ namespace diverse
             const std::pair<Ref<rhi::GpuTexture, GpuRt>, rhi::GpuTextureViewDesc>& depth_attch) -> void
         {
             auto device = resources.execution_params.device;
-            std::vector<rhi::GpuTexture*> color_texs;
-            for(auto& color : color_attachments)
-                color_texs.push_back(resources.image(color.first));
+            std::vector<rhi::GpuTexture*> color_texs(color_attachments.size());
+            for(size_t i = 0; i < color_attachments.size(); i++)
+                color_texs[i] = resources.image(color_attachments[i].first);
 
             device->begin_render_pass(cb,dims ,&render_pass, color_texs, resources.image(depth_attch.first));
+        }
+
+        auto RenderPassApi::begin_render_pass(rhi::RenderPass& render_pass, 
+            const std::array<u32,2>& dims,
+            const std::vector<Ref<rhi::GpuTexture, GpuRt>>& color_attachments,
+            const Ref<rhi::GpuTexture, GpuRt>& depth_attch) -> void
+        {
+            auto device = resources.execution_params.device;
+            std::vector<rhi::GpuTexture*> color_texs(color_attachments.size());
+            for(size_t i = 0; i < color_attachments.size(); i++)
+                color_texs[i] = resources.image(color_attachments[i]);
+
+            device->begin_render_pass(cb, dims ,&render_pass, color_texs, resources.image(depth_attch));
         }
 
         auto RenderPassApi::end_render_pass() -> void
@@ -204,13 +229,13 @@ namespace diverse
                 size_
             );
         }
-        auto BoundRasterPipeline::dispatch_draw_instanced(const u32& vertex_count, const u32& instance_count) -> void
+        auto BoundRasterPipeline::draw_instanced(const u32& vertex_count, const u32& instance_count) -> void
         {
             api.device()->draw_instanced(api.cb, vertex_count, instance_count, 0, 0);
         }
-        auto BoundRasterPipeline::dispatch_indirect_draw_instanced(Ref<rhi::GpuBuffer, GpuSrv>&& args_buffer, u64 args_buffer_offset) -> void
+        auto BoundRasterPipeline::indirect_draw_instanced(const Ref<rhi::GpuBuffer, GpuSrv>& args_buffer, u64 args_buffer_offset) -> void
         {
-            api.device()->dispatch_indirect(api.cb,
+            api.device()->draw_instanced_indirect(api.cb,
                 api.resources.buffer(args_buffer),
                 args_buffer_offset);
         }
@@ -239,6 +264,44 @@ namespace diverse
                     pipeline.get(),
                     indirect_device_address);
             }
+        }
+
+        auto BoundMeshShaderPipeline::draw_mesh_tasks(uint32 group_count_x, uint32 group_count_y, uint32 group_count_z) -> void
+        {
+            api.device()->draw_mesh_tasks(api.cb, group_count_x, group_count_y, group_count_z);
+        }
+
+        auto BoundMeshShaderPipeline::draw_mesh_tasks_indirect(const Ref<rhi::GpuBuffer, GpuSrv>& args_buffer, u64 args_buffer_offset, uint32 draw_count, uint32 stride) -> void
+        {
+            api.device()->draw_mesh_tasks_indirect(api.cb,
+                api.resources.buffer(args_buffer),
+                args_buffer_offset,
+                draw_count,
+                stride);
+        }
+
+        auto BoundMeshShaderPipeline::draw_mesh_tasks_indirect_count(const Ref<rhi::GpuBuffer, GpuSrv>& args_buffer, u64 args_buffer_offset,
+                                            const Ref<rhi::GpuBuffer, GpuSrv>& count_buffer, u64 count_buffer_offset,
+                                            uint32 max_count, uint32 stride) -> void
+        {
+            api.device()->draw_mesh_tasks_indirect_count(api.cb,
+                api.resources.buffer(args_buffer),
+                args_buffer_offset,
+                api.resources.buffer(count_buffer),
+                count_buffer_offset,
+                max_count,
+                stride);
+        }
+
+        auto BoundMeshShaderPipeline::push_constants(rhi::CommandBuffer* cb, u32 offset, u8* constants, u32 size_) -> void
+        {
+            api.resources.execution_params.device->push_constants(
+                cb,
+                pipeline.get(),
+                offset,
+                constants,
+                size_
+            );
         }
 
 }

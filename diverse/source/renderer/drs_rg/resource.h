@@ -42,6 +42,7 @@ namespace diverse
             std::vector<rhi::ComputePipelineHandle>  compute;
             std::vector<rhi::RasterPipelineHandle> raster;
             std::vector<rhi::RtPipelineHandle> rt;
+            std::vector<rhi::MeshShaderPipelineHandle> mesh_shader;
         };
 
 		struct GraphResourceDesc
@@ -189,6 +190,15 @@ namespace diverse
 			rhi::RayTracingPipelineDesc desc;
 			std::vector<rhi::PipelineShaderDesc> shaders;
 		};
+
+		struct RgMeshShaderPipelineHandle { uint32 id; };
+
+		struct RgMeshShaderPipeline
+		{
+			rhi::MeshShaderPipelineDesc desc;
+			std::vector<rhi::PipelineShaderDesc> shaders;
+		};
+
 		template<typename ResType>
 		requires std::derived_from<ResType,diverse::rhi::GpuResource>
 		struct Handle

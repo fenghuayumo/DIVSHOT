@@ -190,6 +190,7 @@ namespace diverse
 
             auto register_raster_pipeline(const std::vector<rhi::PipelineShaderDesc>& shaders, rhi::RasterPipelineDesc&& desc)-> RgRasterPipelineHandle;
             auto register_ray_tracing_pipeline(const std::vector<rhi::PipelineShaderDesc>& shaders, rhi::RayTracingPipelineDesc&& desc)-> RgRtPipelineHandle;
+            auto register_mesh_shader_pipeline(const std::vector<rhi::PipelineShaderDesc>& shaders, rhi::MeshShaderPipelineDesc&& desc)-> RgMeshShaderPipelineHandle;
             auto render(std::function<void(RenderPassApi& )>&&)->void;
 
         };

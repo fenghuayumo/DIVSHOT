@@ -45,7 +45,7 @@ namespace diverse
     {
         std::string extension = stringutility::get_file_extension(filepath);
 
-        if ( extension == "splat" || extension == "dsplat" || extension == "dvsplat" || extension == "spz")
+        if ( extension == "splat" || extension == "dsplat" || extension == "dvsplat" || extension == "spz" || extension == "sog")
             return true;
         if (extension == "ply")
         {

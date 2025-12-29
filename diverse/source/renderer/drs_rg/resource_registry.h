@@ -142,6 +142,8 @@ namespace diverse
 			auto raster_pipeline(const RgRasterPipelineHandle& pipeline)->std::shared_ptr<rhi::RasterPipeline>;
 
 			auto ray_tracing_pipeline(const RgRtPipelineHandle& pipeline)->std::shared_ptr<rhi::RayTracingPipeline>;
+
+			auto mesh_shader_pipeline(const RgMeshShaderPipelineHandle& pipeline)->std::shared_ptr<rhi::MeshShaderPipeline>;
 		};
 	}
 }

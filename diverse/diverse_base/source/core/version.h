@@ -5,7 +5,7 @@ namespace diverse
     struct Version
     {
         int major = 1;
-        int minor = 2;
+        int minor = 3;
         int patch = 1;
     };
 

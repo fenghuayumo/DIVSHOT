@@ -44,14 +44,14 @@ namespace diverse
 
         DS_LOG_INFO("VSync : {0}", m_VSync ? "True" : "False");
         m_HasResized       = true;
-        m_Data.m_RenderAPI = static_cast<RenderAPI>(properties.RenderAPI);
-        m_Data.VSync       = m_VSync;
+        data.render_api = static_cast<RenderAPI>(properties.RenderAPI);
+        data.vsync      = m_VSync;
         m_Init             = init(properties);
 
         // Setting fullscreen overrides width and heigh in Init
         auto propCopy   = properties;
-        propCopy.Width  = m_Data.Width;
-        propCopy.Height = m_Data.Height;
+        propCopy.Width  = data.width;
+        propCopy.Height = data.height;
     }
 
     GLFWWindow::~GLFWWindow()
@@ -62,7 +62,7 @@ namespace diverse
             g_MouseCursors[cursor_n] = NULL;
         }
 
-        glfwDestroyWindow(m_Handle);
+        glfwDestroyWindow(handle);
 
         s_NumGLFWWindows--;
 
@@ -92,10 +92,10 @@ namespace diverse
         GLFWmonitor* monitor = glfwGetPrimaryMonitor();
         float xscale, yscale;
         glfwGetMonitorContentScale(monitor, &xscale, &yscale);
-        m_Data.DPIScale = xscale;
+        data.dpi_scale = xscale;
 
 #ifdef DS_PLATFORM_MACOS
-        if(m_Data.DPIScale > 1.0f)
+        if(data.dpi_scale > 1.0f)
         {
             glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
             glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
@@ -108,7 +108,7 @@ namespace diverse
 #endif
 
 #ifdef DS_RENDER_API_OPENGL
-        if(m_Data.m_RenderAPI == RenderAPI::OPENGL)
+        if(data.render_api == RenderAPI::OPENGL)
         {
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
@@ -142,26 +142,36 @@ namespace diverse
             ScreenHeight = properties.Height;
         }
 
-        m_Data.Title  = properties.Title;
-        m_Data.Width  = ScreenWidth;
-        m_Data.Height = ScreenHeight;
-        m_Data.Exit   = false;
+        data.title  = properties.Title;
+        data.width  = ScreenWidth;
+        data.height = ScreenHeight;
+        data.exit   = false;
 
 #if defined(DS_RENDER_API_VULKAN) || defined(DS_RENDER_API_METAL)
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 #endif
 
-        m_Handle = glfwCreateWindow(ScreenWidth, ScreenHeight, properties.Title.c_str(), nullptr, nullptr);
+        handle = glfwCreateWindow(ScreenWidth, ScreenHeight, properties.Title.c_str(), nullptr, nullptr);
 
-        int w, h;
-        glfwGetFramebufferSize(m_Handle, &w, &h);
-        m_Data.Width  = w;
-        m_Data.Height = h;
+        // Get both window size (logical) and framebuffer size (pixels) for DPI calculation
+        int windowW, windowH;
+        glfwGetWindowSize(handle, &windowW, &windowH);
+        
+        int fbW, fbH;
+        glfwGetFramebufferSize(handle, &fbW, &fbH);
+        
+        // DPI scale is the ratio of framebuffer pixels to window logical units
+        // On 4K screens with 200% scaling: windowW=960, fbW=1920, dpi_scale=2.0
+        data.dpi_scale = (windowW > 0) ? (float)fbW / (float)windowW : 1.0f;
+        
+        // Store framebuffer size (actual pixel dimensions for rendering)
+        data.width  = fbW;
+        data.height = fbH;
 
 #ifdef DS_RENDER_API_OPENGL
-        if(m_Data.m_RenderAPI == RenderAPI::OPENGL)
+        if(data.render_api == RenderAPI::OPENGL)
         {
-            glfwMakeContextCurrent(m_Handle);
+            glfwMakeContextCurrent(handle);
 
             if(!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
             {
@@ -170,54 +180,56 @@ namespace diverse
         }
 #endif
 
-        glfwSetWindowUserPointer(m_Handle, &m_Data);
+        glfwSetWindowUserPointer(handle, &data);
 
         if(glfwRawMouseMotionSupported())
-            glfwSetInputMode(m_Handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+            glfwSetInputMode(handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
         // #ifndef DS_PLATFORM_MACOS
         set_icon(properties);
         // #endif
 
-        // glfwSetWindowPos(m_Handle, mode->width / 2 - m_Data.Width / 2, mode->height / 2 - m_Data.Height / 2);
-        glfwSetInputMode(m_Handle, GLFW_STICKY_KEYS, true);
-
-         #ifdef DS_PLATFORM_WINDOWS
-        		glfwGetWindowSize(m_Handle, &w, &h);
-        		m_Data.DPIScale = (float)w / m_Data.Width;
-         #endif
+        // glfwSetWindowPos(handle, mode->width / 2 - data.width / 2, mode->height / 2 - data.height / 2);
+        glfwSetInputMode(handle, GLFW_STICKY_KEYS, true);
+        
+        DS_LOG_INFO("Window DPI Scale: {0}, Window Size: {1}x{2}, Framebuffer Size: {3}x{4}", 
+                    data.dpi_scale, windowW, windowH, fbW, fbH);
 
         // Set GLFW callbacks
-        glfwSetWindowSizeCallback(m_Handle, [](GLFWwindow* window, int width, int height)
+        glfwSetWindowSizeCallback(handle, [](GLFWwindow* window, int width, int height)
                                   {
-                WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+                WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
 
-                int w, h;
-                glfwGetFramebufferSize(window, &w, &h);
+                // width/height are logical window size
+                // Get actual framebuffer pixel size
+                int fbW, fbH;
+                glfwGetFramebufferSize(window, &fbW, &fbH);
 
-                data.DPIScale = (float)w / (float)width;
+                // DPI scale is framebuffer pixels / logical window size
+                win_data.dpi_scale = (width > 0) ? (float)fbW / (float)width : 1.0f;
 
-                data.Width = uint32_t(width * data.DPIScale);
-                data.Height = uint32_t(height * data.DPIScale);
+                // Store framebuffer size (actual pixel dimensions for rendering)
+                win_data.width = (uint32_t)fbW;
+                win_data.height = (uint32_t)fbH;
 
-                WindowResizeEvent event(data.Width, data.Height, data.DPIScale);
-                data.EventCallback(event); });
+                WindowResizeEvent event(win_data.width, win_data.height, win_data.dpi_scale);
+                win_data.event_callback(event); });
 
-        glfwSetWindowCloseCallback(m_Handle, [](GLFWwindow* window)
+        glfwSetWindowCloseCallback(handle, [](GLFWwindow* window)
                                    {
-                WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+                WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
                 WindowCloseEvent event;
-                data.EventCallback(event);
-                data.Exit = true; });
+                win_data.event_callback(event);
+                win_data.exit = true; });
 
-        glfwSetWindowFocusCallback(m_Handle, [](GLFWwindow* window, int focused)
+        glfwSetWindowFocusCallback(handle, [](GLFWwindow* window, int focused)
                                    { 
 			Window* lmWindow = Application::get().get_window();
 
 			if(lmWindow)
 				lmWindow->set_window_focus(focused); });
 
-        glfwSetWindowIconifyCallback(m_Handle, [](GLFWwindow* window, int32_t state)
+        glfwSetWindowIconifyCallback(handle, [](GLFWwindow* window, int32_t state)
                                      {
                 switch(state)
                 {
@@ -231,83 +243,84 @@ namespace diverse
                     DS_LOG_INFO("Unsupported window iconify state from callback");
                 } });
 
-        glfwSetKeyCallback(m_Handle, [](GLFWwindow* window, int key, int scancode, int action, int mods)
+        glfwSetKeyCallback(handle, [](GLFWwindow* window, int key, int scancode, int action, int mods)
                            {
-                WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+                WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
 
                 switch(action)
                 {
                 case GLFW_PRESS:
                 {
                     KeyPressedEvent event(GLFWKeyCodes::glfw2diverseKeyboardKey(key), 0);
-                    data.EventCallback(event);
+                    win_data.event_callback(event);
                     break;
                 }
                 case GLFW_RELEASE:
                 {
                     KeyReleasedEvent event(GLFWKeyCodes::glfw2diverseKeyboardKey(key));
-                    data.EventCallback(event);
+                    win_data.event_callback(event);
                     break;
                 }
                 case GLFW_REPEAT:
                 {
                     KeyPressedEvent event(GLFWKeyCodes::glfw2diverseKeyboardKey(key), 1);
-                    data.EventCallback(event);
+                    win_data.event_callback(event);
                     break;
                 }
                 } });
 
-        glfwSetMouseButtonCallback(m_Handle, [](GLFWwindow* window, int button, int action, int mods)
+        glfwSetMouseButtonCallback(handle, [](GLFWwindow* window, int button, int action, int mods)
                                    {
-                WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+                WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
 
                 switch(action)
                 {
                 case GLFW_PRESS:
                 {
                     MouseButtonPressedEvent event(GLFWKeyCodes::glfw2diverseMouseKey(button));
-                    data.EventCallback(event);
+                    win_data.event_callback(event);
                     break;
                 }
                 case GLFW_RELEASE:
                 {
                     MouseButtonReleasedEvent event(GLFWKeyCodes::glfw2diverseMouseKey(button));
-                    data.EventCallback(event);
+                    win_data.event_callback(event);
                     break;
                 }
                 } });
 
-        glfwSetScrollCallback(m_Handle, [](GLFWwindow* window, double xOffset, double yOffset)
+        glfwSetScrollCallback(handle, [](GLFWwindow* window, double xOffset, double yOffset)
                               {
-                WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+                WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
                 MouseScrolledEvent event((float)xOffset, (float)yOffset);
-                data.EventCallback(event); });
+                win_data.event_callback(event); });
 
-        glfwSetCursorPosCallback(m_Handle, [](GLFWwindow* window, double xPos, double yPos)
+        glfwSetCursorPosCallback(handle, [](GLFWwindow* window, double xPos, double yPos)
                                  {
-                WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
-                MouseMovedEvent event((float)xPos /* * data.DPIScale*/, (float)yPos /* * data.DPIScale*/);
-                data.EventCallback(event); });
+                WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+                // GLFW returns screen coordinates (logical units), convert to framebuffer pixels
+                MouseMovedEvent event((float)(xPos * win_data.dpi_scale), (float)(yPos * win_data.dpi_scale));
+                win_data.event_callback(event); });
 
-        glfwSetCursorEnterCallback(m_Handle, [](GLFWwindow* window, int enter)
+        glfwSetCursorEnterCallback(handle, [](GLFWwindow* window, int enter)
                                    {
-                WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+                WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
 
                 MouseEnterEvent event(enter > 0);
-                data.EventCallback(event); });
+                win_data.event_callback(event); });
 
-        glfwSetCharCallback(m_Handle, [](GLFWwindow* window, unsigned int keycode)
+        glfwSetCharCallback(handle, [](GLFWwindow* window, unsigned int keycode)
                             {
-                WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+                WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
 
                 KeyTypedEvent event(GLFWKeyCodes::glfw2diverseKeyboardKey(keycode), char(keycode));
-                data.EventCallback(event); });
+                win_data.event_callback(event); });
 
-        glfwSetDropCallback(m_Handle, [](GLFWwindow* window, int numDropped, const char** filenames)
+        glfwSetDropCallback(handle, [](GLFWwindow* window, int numDropped, const char** filenames)
                             {
-            WindowData& data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
+            WindowData& win_data = *static_cast<WindowData*>((glfwGetWindowUserPointer(window)));
             WindowFileEvent event(numDropped,filenames);
-            data.EventCallback(event); });
+            win_data.event_callback(event); });
 
         g_MouseCursors[ImGuiMouseCursor_Arrow]      = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
         g_MouseCursors[ImGuiMouseCursor_TextInput]  = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
@@ -325,7 +338,7 @@ namespace diverse
     std::array<u32,2> GLFWWindow::get_frame_buffer_size() const
     {
         int w, h;
-        glfwGetFramebufferSize(m_Handle, &w, &h);
+        glfwGetFramebufferSize(handle, &w, &h);
         return std::array<u32,2>{(u32)w,(u32)h};
     }
 
@@ -347,7 +360,7 @@ namespace diverse
                 images.push_back(image);
             }
 
-            glfwSetWindowIcon(m_Handle, int(images.size()), images.data());
+            glfwSetWindowIcon(handle, int(images.size()), images.data());
         }
         else
         {
@@ -374,7 +387,7 @@ namespace diverse
                 }
             }
 
-            glfwSetWindowIcon(m_Handle, int(images.size()), images.data());
+            glfwSetWindowIcon(handle, int(images.size()), images.data());
 
             for(int i = 0; i < (int)images.size(); i++)
             {
@@ -386,7 +399,7 @@ namespace diverse
     void GLFWWindow::set_window_title(const std::string& title)
     {
         DS_PROFILE_FUNCTION();
-        glfwSetWindowTitle(m_Handle, title.c_str());
+        glfwSetWindowTitle(handle, title.c_str());
     }
 
     void GLFWWindow::toggle_vsync()
@@ -419,10 +432,10 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
 #ifdef DS_RENDER_API_OPENGL
-        if(m_Data.m_RenderAPI == RenderAPI::OPENGL)
+        if(data.render_api == RenderAPI::OPENGL)
         {
             DS_PROFILE_SCOPE("GLFW SwapBuffers");
-            glfwSwapBuffers(m_Handle);
+            glfwSwapBuffers(handle);
         }
 #endif
     }
@@ -445,27 +458,30 @@ namespace diverse
         DS_PROFILE_FUNCTION();
         if(hide)
         {
-            glfwSetInputMode(m_Handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            glfwSetInputMode(handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
         else
         {
-            glfwSetInputMode(m_Handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            glfwSetInputMode(handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
     }
 
     void GLFWWindow::set_mouse_position(const glm::vec2& pos)
     {
         DS_PROFILE_FUNCTION();
+        // pos is in framebuffer pixels, store it as-is for internal use
         Input::get().store_mouse_position(pos.x, pos.y);
-        glfwSetCursorPos(m_Handle, pos.x, pos.y);
+        // glfwSetCursorPos expects screen coordinates (logical units), convert from pixels
+        float dpi = data.dpi_scale > 0.0f ? data.dpi_scale : 1.0f;
+        glfwSetCursorPos(handle, pos.x / dpi, pos.y / dpi);
     }
 
-    void GLFWWindow::MakeDefault()
+    void GLFWWindow::make_default()
     {
-        CreateFunc = CreateFuncGLFW;
+        CreateFunc = create_func_glfw;
     }
 
-    Window* GLFWWindow::CreateFuncGLFW(const WindowDesc& properties)
+    Window* GLFWWindow::create_func_glfw(const WindowDesc& properties)
     {
         return new GLFWWindow(properties);
     }
@@ -476,7 +492,7 @@ namespace diverse
         ImGuiIO& io                   = ImGui::GetIO();
         ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
 
-        if((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || glfwGetInputMode(m_Handle, GLFW_CURSOR) == GLFW_CURSOR_DISABLED)
+        if((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || glfwGetInputMode(handle, GLFW_CURSOR) == GLFW_CURSOR_DISABLED)
             return;
 
         if(imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
@@ -485,12 +501,12 @@ namespace diverse
 
             // TODO: This was disabled as it would override control of hiding the cursor
             //       Need to find a solution to support both
-            // glfwSetInputMode(m_Handle, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            // glfwSetInputMode(handle, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
         }
         else
         {
-            glfwSetCursor(m_Handle, g_MouseCursors[imgui_cursor] ? g_MouseCursors[imgui_cursor] : g_MouseCursors[ImGuiMouseCursor_Arrow]);
-            // glfwSetInputMode(m_Handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            glfwSetCursor(handle, g_MouseCursors[imgui_cursor] ? g_MouseCursors[imgui_cursor] : g_MouseCursors[ImGuiMouseCursor_Arrow]);
+            // glfwSetInputMode(handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
     }
 
@@ -567,7 +583,7 @@ namespace diverse
     void GLFWWindow::maximise()
     {
         DS_PROFILE_FUNCTION();
-        glfwMaximizeWindow(m_Handle);
+        glfwMaximizeWindow(handle);
 
 #ifdef DS_PLATFORM_MACOS
         // TODO: Move to glfw extensions or something

@@ -10,69 +10,69 @@ namespace diverse
         IniFile(const std::string& filePath);
         ~IniFile() = default;
 
-        void Reload();
-        void Rewrite() const;
+        void reload();
+        void rewrite() const;
 
         template <typename T>
-        T Get(const std::string& key);
+        T get(const std::string& key);
         template <typename T>
-        T GetOrDefault(const std::string& key, T defaultT);
+        T get_or_default(const std::string& key, T defaultT);
         template <typename T>
-        bool Set(const std::string& key, const T& value);
+        bool set(const std::string& key, const T& value);
         template <typename T>
-        bool Add(const std::string& key, const T& value);
+        bool add(const std::string& key, const T& value);
         template <typename T>
-        bool SetOrAdd(const std::string& key, const T& value);
+        bool set_or_add(const std::string& key, const T& value);
 
-        bool Remove(const std::string& key);
-        void RemoveAll();
-        bool IsKeyExisting(const std::string& key) const;
-        std::vector<std::string> GetFormattedContent() const;
+        bool remove(const std::string& key);
+        void remove_all();
+        bool is_key_existing(const std::string& key) const;
+        std::vector<std::string> get_formatted_content() const;
 
-        void RegisterPair(const std::string& key, const std::string& value);
-        void RegisterPair(const std::pair<std::string, std::string>& pair);
+        void register_pair(const std::string& key, const std::string& value);
+        void register_pair(const std::pair<std::string, std::string>& pair);
 
-        void Load();
+        void load();
 
-        std::pair<std::string, std::string> ExtractKeyAndValue(const std::string& attributeLine) const;
-        bool IsValidLine(const std::string& attributeLine) const;
-        bool StringToBoolean(const std::string& value) const;
+        std::pair<std::string, std::string> extract_key_and_value(const std::string& attributeLine) const;
+        bool is_valid_line(const std::string& attributeLine) const;
+        bool string_to_boolean(const std::string& value) const;
 
     private:
-        std::string m_FilePath;
-        std::unordered_map<std::string, std::string> m_Data;
+        std::string file_path;
+        std::unordered_map<std::string, std::string> data;
     };
 
     template <typename T>
-    inline T IniFile::Get(const std::string& key)
+    inline T IniFile::get(const std::string& key)
     {
         if constexpr (std::is_same<bool, T>::value)
         {
-            if (!IsKeyExisting(key))
+            if (!is_key_existing(key))
                 return false;
 
-            return StringToBoolean(m_Data[key]);
+            return string_to_boolean(data[key]);
         }
         else if constexpr (std::is_same<std::string, T>::value)
         {
-            if (!IsKeyExisting(key))
+            if (!is_key_existing(key))
                 return std::string("NULL");
 
-            return m_Data[key];
+            return data[key];
         }
         else if constexpr (std::is_integral<T>::value)
         {
-            if (!IsKeyExisting(key))
+            if (!is_key_existing(key))
                 return static_cast<T>(0);
 
-            return static_cast<T>(std::atoi(m_Data[key].c_str()));
+            return static_cast<T>(std::atoi(data[key].c_str()));
         }
         else if constexpr (std::is_floating_point<T>::value)
         {
-            if (!IsKeyExisting(key))
+            if (!is_key_existing(key))
                 return static_cast<T>(0.0f);
 
-            return static_cast<T>(std::atof(m_Data[key].c_str()));
+            return static_cast<T>(std::atof(data[key].c_str()));
         }
         else
         {
@@ -82,31 +82,31 @@ namespace diverse
     }
 
     template <typename T>
-    inline T IniFile::GetOrDefault(const std::string& key, T defaultT)
+    inline T IniFile::get_or_default(const std::string& key, T defaultT)
     {
-        return IsKeyExisting(key) ? Get<T>(key) : defaultT;
+        return is_key_existing(key) ? get<T>(key) : defaultT;
     }
 
     template <typename T>
-    inline bool IniFile::Set(const std::string& key, const T& value)
+    inline bool IniFile::set(const std::string& key, const T& value)
     {
-        if (IsKeyExisting(key))
+        if (is_key_existing(key))
         {
             if constexpr (std::is_same<bool, T>::value)
             {
-                m_Data[key] = value ? "true" : "false";
+                data[key] = value ? "true" : "false";
             }
             else if constexpr (std::is_same<std::string, T>::value)
             {
-                m_Data[key] = value;
+                data[key] = value;
             }
             else if constexpr (std::is_integral<T>::value)
             {
-                m_Data[key] = std::to_string(value);
+                data[key] = std::to_string(value);
             }
             else if constexpr (std::is_floating_point<T>::value)
             {
-                m_Data[key] = std::to_string(value);
+                data[key] = std::to_string(value);
             }
             else
             {
@@ -120,34 +120,34 @@ namespace diverse
     }
 
     template <typename T>
-    inline bool IniFile::SetOrAdd(const std::string& key, const T& value)
+    inline bool IniFile::set_or_add(const std::string& key, const T& value)
     {
-        if (IsKeyExisting(key))
-            return Set(key, value);
+        if (is_key_existing(key))
+            return set(key, value);
         else
-            return Add(key, value);
+            return add(key, value);
     }
 
     template <typename T>
-    inline bool IniFile::Add(const std::string& key, const T& value)
+    inline bool IniFile::add(const std::string& key, const T& value)
     {
-        if (!IsKeyExisting(key))
+        if (!is_key_existing(key))
         {
             if constexpr (std::is_same<bool, T>::value)
             {
-                RegisterPair(key, value ? "true" : "false");
+                register_pair(key, value ? "true" : "false");
             }
             else if constexpr (std::is_same<std::string, T>::value)
             {
-                RegisterPair(key, value);
+                register_pair(key, value);
             }
             else if constexpr (std::is_integral<T>::value)
             {
-                RegisterPair(key, std::to_string(value));
+                register_pair(key, std::to_string(value));
             }
             else if constexpr (std::is_floating_point<T>::value)
             {
-                RegisterPair(key, std::to_string(value));
+                register_pair(key, std::to_string(value));
             }
             else
             {

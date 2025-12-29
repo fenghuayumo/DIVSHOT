@@ -29,7 +29,7 @@ namespace diverse
 
     void UnixOS::init()
     {
-        GLFWWindow::MakeDefault();
+        GLFWWindow::make_default();
     }
 
     SystemMemoryInfo MemoryManager::get_system_info()

@@ -479,9 +479,10 @@ namespace diverse
 			}
 		}
 #endif
-		auto res = compile_hlsl(name, source, entry_point.c_str(), target_profile, { "-spirv",
+		auto res = compile_hlsl(name, source, entry_point.c_str(), target_profile, { 
+			"-spirv",
 			//"-enable-16bit-types",
-			"-fspv-target-env=vulkan1.2",
+			"-fspv-target-env=vulkan1.3",
 			"-Wfor-redefinition",
 			"-Ges"}, // strict mode}, 
 			defines);

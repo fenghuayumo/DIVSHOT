@@ -45,6 +45,14 @@ namespace diverse
 
         RenderOverride render_overrides;
 
+        // Camera and Depth of Field parameters
+        f32 fov_rad = 1.047f;         // FOV in radians (default ~60 degrees)
+        f32 dof_enabled = 0.0f;       // 0.0 = disabled, 1.0 = enabled
+        f32 focus_distance = 10.0f;   // Focus distance
+        f32 aperture = 0.0f;          // Aperture size (0 = no DOF)
+        u32 camera_type = 0;          // 0 = pinhole, 1 = fisheye
+        f32 camera_padding[3] = {0};  // Padding for alignment
+
         glm::vec4 ircache_grid_center;
         std::array<SurfelCascadeConstants, IRACHE_CASCADE_COUNT>  ircache_cascades;
         //SurfelCascadeConstants ircache_cascades[IRACHE_CASCADE_COUNT];

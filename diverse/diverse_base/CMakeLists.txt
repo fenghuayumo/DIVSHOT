@@ -20,6 +20,13 @@ file(GLOB_RECURSE SOURCES
 
 target_sources(diverse_base PRIVATE ${SOURCES})
 
+# Organize source files into folders in Visual Studio
+if(MSVC)
+    source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/source" 
+                 PREFIX "Source Files" 
+                 FILES ${SOURCES})
+endif()
+
 # Include directories
 target_include_directories(diverse_base PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -119,6 +126,8 @@ if(WIN32)
         DS_OPENAL
         DS_VOLK
         DS_USE_GLFW_WINDOWS
+        UNICODE
+        _UNICODE
     )
 
     target_link_libraries(diverse_base PUBLIC
