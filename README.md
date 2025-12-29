@@ -58,6 +58,7 @@ For users who want to compile and deploy from source code, I currently only prov
 |[/diverse][diverse]                        |the core rendering lib including render lib an other useful function       |
 |[/application/editor][editor]                |the editor exe, main  program                                       
 |[/application/diverseshot-cli][diverseshot-cli]                |gsplat training console exe             |
+|[/diverse_utils/gstrain][gstrain]                        |the core gsplat training lib which use gsplatrast lib to forward and backward render, contains data loader process                                   |
 |[/external][external]                      |external lib                            |
 ## Building and running
 ```
@@ -69,11 +70,36 @@ git submodule update --init --recursive
 #### Windows
 you should install compile build tools and package firstly
 1. VS2022
-2. Cuda SDK
+2. Cuda SDK (Cuda 12.8)
 3. Vulkan SDK
 4. CMake
-   
-Then, Running Scripts/GenerateVS.bat to generate a visual studio project, you can select divshot as startup project. You must select "Release" or "Production" option to compile, as several libraries do not currently have debug version builds provided. Selecting the Debug option will result in compilation errors.
+5. Python
+
+Set PY3_PATH="Pyton3 install directory"  and VCPKG_ROOT="vcpkg.exe directory" enviroment variable
+
+## Building and running
+```
+git clone https://github.com/fenghuayumo/diverse.git
+git submodule update --init --recursive
+$env:VCPKG_ROOT\vcpkg.exe install opencv[core,contrib,ffmpeg]:x64-windows
+# 所有必需的第三方库
+$env:VCPKG_ROOT\vcpkg.exe install \
+    glm:x64-windows \
+    tinyply:x64-windows \
+    libarchive:x64-windows \
+    webp:x64-windows \
+    zlib:x64-windows \
+    nlohmann-json:x64-windows \
+    tl-expected:x64-windows
+
+pip3 install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
+
+$env:PY3_PATH         # Python PATH
+$env:CUDA_PATH        # CUDA PATH  
+$env:VK_SDK_PATH      # Vulkan SDK PATH
+$env:VCPKG_ROOT       # vcpkg PATH: D:\XXXX\vcpkg）
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+```
 
 
 # Credits
@@ -118,3 +144,4 @@ Then, Running Scripts/GenerateVS.bat to generate a visual studio project, you ca
 [external]: external
 [editor]: application/editor
 [diverseshot-cli]: application/diverseshot-cli
+[gstrain]: diverse_utils/gstrain/
