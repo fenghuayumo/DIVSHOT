@@ -15,9 +15,11 @@ target_include_directories(spz PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../pkg/include
 )
 
-target_link_libraries(spz PRIVATE ZLIB::ZLIB)
+# Link zlib from pkg directory
+target_link_libraries(spz PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../pkg/liblink/zlib.lib)
 # Platform-specific settings
 if(WIN32)
     # Windows-specific settings

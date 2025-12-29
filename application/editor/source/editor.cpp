@@ -1618,13 +1618,9 @@ namespace diverse
                             gs_model->antialiased() = gs_train.getTrainConfig().mipAntiliased;
                             auto total_vram_size = g_device->gpu_limits.vram_size;
                             auto allocated_vram_size = gs_train.getNumGaussians() * 236 * 10;
-                            if (allocated_vram_size > total_vram_size * 0.4 && allocated_vram_size <= total_vram_size * 0.75) 
+                            if (allocated_vram_size > total_vram_size * 0.5) 
                             {
                                 gs_train.getTrainConfig().packLevel = GSPackLevel::PackTileID | GSPackLevel::PackF32ToU8;
-                            }
-                            else if (allocated_vram_size > total_vram_size * 0.75) 
-                            {
-                                gs_train.getTrainConfig().packLevel = GSPackLevel::PackTileID | GSPackLevel::PackF32ToU8 | GSPackLevel::PackSparseGrad;
                             }
                             is_update_splat_rendering = false;
                         }
@@ -2045,12 +2041,10 @@ namespace diverse
                     }
                     auto req_mem_size = file_count * sizeof(float) * 2 * (trainConfig.maxImageWidth * trainConfig.maxImageHeight);
                     auto total_vram_size = g_device->gpu_limits.vram_size;
-                    if (req_mem_size >= total_vram_size * 0.1 && req_mem_size < 0.4 * total_vram_size) 
+                    if (req_mem_size >= total_vram_size * 0.1 && req_mem_size < 0.5 * total_vram_size) 
                         trainConfig.packLevel = GSPackLevel::PackF32ToU8;
-                    else if(req_mem_size >= 0.4 * total_vram_size && req_mem_size < 0.75 * total_vram_size)
+                    else if(req_mem_size >= 0.5 * total_vram_size)
                         trainConfig.packLevel = GSPackLevel::PackF32ToU8 | GSPackLevel::PackTileID;
-                    else if(req_mem_size >= 0.75 * total_vram_size)
-                        trainConfig.packLevel = GSPackLevel::PackF32ToU8 | GSPackLevel::PackTileID | GSPackLevel::PackSparseGrad;
                     else
                         trainConfig.packLevel = GSPackLevel::PackF32ToU8;
                     int times = (file_count + 600 - 1)/ 600;

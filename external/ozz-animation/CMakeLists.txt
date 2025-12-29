@@ -41,9 +41,9 @@ file(GLOB ANIMOFFLINE_CPP_FILES
 "${CMAKE_CURRENT_SOURCE_DIR}/include/ozz/animation/offline/*.h" 
 "${CMAKE_CURRENT_SOURCE_DIR}/src/animation/offline/*.h" 
 "${CMAKE_CURRENT_SOURCE_DIR}/src/animation/offline/*.cc"
-"${CMAKE_CURRENT_SOURCE_DIR}/src/animation/offline/tools/*.cc"
-"${CMAKE_CURRENT_SOURCE_DIR}/src/options/*.cc"
-"${CMAKE_CURRENT_SOURCE_DIR}/extern/jsoncpp/dist/jsoncpp.cpp"
+# "${CMAKE_CURRENT_SOURCE_DIR}/src/animation/offline/tools/*.cc"  # Exclude tools that need json
+# "${CMAKE_CURRENT_SOURCE_DIR}/src/options/*.cc"
+# "${CMAKE_CURRENT_SOURCE_DIR}/extern/jsoncpp/dist/jsoncpp.cpp"
 )
 target_sources(ozz_animation_offline PRIVATE ${ANIMOFFLINE_CPP_FILES})
 

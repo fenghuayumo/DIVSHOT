@@ -49,12 +49,6 @@ void train_gaussian(const CLI::App& app)
     auto start = std::chrono::high_resolution_clock::now();
     GaussianTrainConfig train_config;
     train_config.sourcePath = source_path;
-    //train_config.poslrInit = pos_lr_init;
-    //train_config.poslrFinal = pos_lr_final;
-    //train_config.rotationlr = rot_lr;
-    //train_config.scalinglr = scaling_lr;
-    //train_config.featurelr = feature_lr;
-    //train_config.opacitylr = opacity_lr;
     train_config.growGrad2d = growGrad2d;
     train_config.warmupLength = warmupLength;
     train_config.refineEvery = refineEvery;
@@ -78,22 +72,38 @@ void train_gaussian(const CLI::App& app)
     train_config.maxImageWidth = app.get_option("--maxImageWidth")->as<int>();
     train_config.exportMesh = app.get_option("--exportMesh")->as<bool>();
     train_config.useMask = app.get_option("--useMask")->as<bool>();
+    train_config.cameraPosePath = app.get_option("--cameraPosePath")->as<std::string>(); 
+    train_config.pointCloudPath = app.get_option("--pointCloudPath")->as<std::string>();
+    train_config.outputSparsePoints = app.get_option("--exportSFM")->as<bool>();
+    // Determine dataset type from cameraPosePath if provided
+    if (!train_config.cameraPosePath.empty()) {
+        typedef int(*GetCameraPosTypeFunc)(const std::string&);
+        auto get_camera_pos_type = (GetCameraPosTypeFunc)plugin->get_symbol("get_camera_pos_type_from_file");
+        if (get_camera_pos_type) {
+            train_config.datasetType = get_camera_pos_type(train_config.cameraPosePath);
+        }
+    }
+    
     train_config.numIters = max_iteraion;
     train_config.normalConsistencyLoss = false;
     if(train_config.exportMesh) {
         train_config.normalConsistencyLoss = true;
         train_config.useMask = true;
     }
-    // train_config.visibleAdam = true;
-    train_config.verbose = true;
+     train_config.visibleAdam = true;
+    train_config.verbose = app.get_option("--verbose")->as<bool>();;
     train_config.capMax = 3000000;
     auto packLevel = app.get_option("--packLevel")->as<int>();
     if(packLevel == 0)
-        train_config.packLevel = 0;
+        train_config.packLevel = GSPackLevel::PackF32ToU8;
     else if(packLevel == 1)
         train_config.packLevel = GSPackLevel::PackF32ToU8;
-    else
+    else if(packLevel == 2)
         train_config.packLevel = GSPackLevel::PackF32ToU8 | GSPackLevel::PackTileID;
+    else if(packLevel == 3)
+        train_config.packLevel = GSPackLevel::PackF32ToU8 | GSPackLevel::PackTileID | GSPackLevel::PackSparseGrad;
+    else
+        train_config.packLevel = GSPackLevel::PackF32ToU8;
     train_config.noiselr = app.get_option("--noiselr")->as<float>();
     train_config.bestQuality = true;
     // train_config.packLevel = 3;
@@ -108,10 +118,17 @@ void train_gaussian(const CLI::App& app)
     typedef bool(*loadDataFunc)(GaussianTrainerScene* scene,const std::string& path);
     auto loadData = (loadDataFunc)plugin->get_symbol("load_train_data");
     if (loadData) {
-        auto ret = loadData(scene,source_path);
-        if (!ret)
+        try{
+            auto ret = loadData(scene,source_path);
+            if (!ret)
+            {
+                std::cout << "load data failed!, please check source_path \n";
+                exit(-1);
+            }
+        }
+        catch(const std::exception& e)
         {
-            std::cout << "load data failed!, please check source_path \n";
+            std::cerr << "load data failed!, error: " << e.what() << std::endl;
             exit(-1);
         }
     }
@@ -153,7 +170,14 @@ void train_gaussian(const CLI::App& app)
     {
         auto i = get_cur_step(scene);
         if( i >= max_iteraion) break;
-        train_step(scene);
+        try{
+            train_step(scene);
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << "train step failed!, error: " << e.what() << std::endl;
+            exit(-1);
+        }
         if (i % 500 == 0)
         {
             end = std::chrono::high_resolution_clock::now();

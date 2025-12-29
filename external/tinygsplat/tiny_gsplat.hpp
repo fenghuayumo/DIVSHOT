@@ -400,7 +400,7 @@ namespace tinygsplat
 		auto pack(const std::vector<glm::vec3>& gs_pos,
 			const std::vector<glm::vec3>& gs_scale,
 			const std::vector<glm::vec4>& gs_rot,
-			const std::vector<std::array<float, 48>>& gs_color,
+			const std::vector<std::array<float, 3>>& gs_color_dc,
 			const std::vector<float>& gs_opacity) -> std::tuple<glm::vec3, glm::vec3, glm::vec3, glm::vec3>
 		{
 			auto pack111011 = [=](f32 x, f32 y, f32 z)->u32 {
@@ -462,7 +462,8 @@ namespace tinygsplat
 					normalize(gs_scale[i].z, s_min.z, s_max.z)
 				);
 
-				color[idx] = packColor(gs_color[i][0], gs_color[i][1], gs_color[i][2], gs_opacity[i]);
+				// Only pack DC color (sh0), not higher-order SH
+				color[idx] = packColor(gs_color_dc[i][0], gs_color_dc[i][1], gs_color_dc[i][2], gs_opacity[i]);
 			}
 			return { p_min,p_max, s_min,s_max };
 		}
@@ -602,7 +603,8 @@ namespace tinygsplat
 	GS_EXPORT bool	save_ply(const std::string& file_path,
 		const std::vector<glm::vec3>& pos,
 		const std::vector<glm::vec3>& scales,
-		const std::vector<std::array<f32, 48>>& shs,
+		const std::vector<std::array<f32, 3>>& shs_0,
+		const std::vector<std::array<f32, 45>>& shs_n,
 		const std::vector<glm::vec4>& rot,
 		const std::vector<f32>& opacities,
 		bool antialiased = false);
@@ -610,14 +612,16 @@ namespace tinygsplat
 	GS_EXPORT bool	save_splat(const std::string& file_path,
 		const std::vector<glm::vec3>& pos, 
 		const std::vector<glm::vec3>& scales,
-		const std::vector<std::array<f32,48>>& shs,
+		const std::vector<std::array<f32, 3>>& shs_0,
+		const std::vector<std::array<f32, 45>>& shs_n,
 		const std::vector<glm::vec4>& rot,
 		const std::vector<f32>& opacities);
 	
 	GS_EXPORT bool	save_compress_ply(const std::string& file_path,
 		const std::vector<glm::vec3>& pos,
 		const std::vector<glm::vec3>& scales,
-		const std::vector<std::array<f32, 48>>& shs,
+		const std::vector<std::array<f32, 3>>& shs_0,
+		const std::vector<std::array<f32, 45>>& shs_n,
 		const std::vector<glm::vec4>& rot,
 		const std::vector<f32>& opacities,
 		bool antialiased = false);
@@ -680,9 +684,26 @@ namespace tinygsplat
 		const std::string& file_path,
 		const std::vector<glm::vec3>& pos,
 		const std::vector<glm::vec3>& scales,
-		const std::vector<std::array<f32, 48>>& shs,
+		const std::vector<std::array<f32, 3>>& shs_0,
+		const std::vector<std::array<f32, 45>>& shs_n,
 		const std::vector<glm::vec4>& rot,
 		const std::vector<f32>& opacities,
 		bool antialiased = false
+	);
+
+	// SOG format support
+	GS_EXPORT bool save_sog(
+		const std::string& file_path,
+		const std::vector<glm::vec3>& pos,
+		const std::vector<glm::vec3>& scales,
+		const std::vector<std::array<f32, 3>>& shs_0,
+		const std::vector<std::array<f32, 45>>& shs_n,
+		const std::vector<glm::vec4>& rot,
+		const std::vector<f32>& opacities
+	);
+
+	GS_EXPORT bool load_sog(
+		const std::string& file_path,
+		std::vector<RichPoint>& points
 	);
 }

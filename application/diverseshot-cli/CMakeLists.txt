@@ -1,5 +1,5 @@
 # Project definition
-project(diverseshot-cli)
+project(divshot-cli)
 
 # C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -12,7 +12,8 @@ file(GLOB_RECURSE SOURCES
     "source/*.cpp"
 )
 if (MSVC)
-    set(DIVERSESHOT_CLI_SOURCES ${SOURCES}  diverseshot.rc)
+    # diverseshot.rc doesn't exist for cli, skip it
+    set(DIVERSESHOT_CLI_SOURCES ${SOURCES})
 elseif (APPLE)
     set(DIVERSESHOT_CLI_SOURCES ${SOURCES} 
         ${WKS_LOCATION}/application/resource/app_icons/icon128.icns 
@@ -21,20 +22,22 @@ elseif (APPLE)
         ${WKS_LOCATION}/application/resource/app_icons/icon32.png
         ${WKS_LOCATION}/application/resource/app_icons/icon128.png
         )
+else()
+    set(DIVERSESHOT_CLI_SOURCES ${SOURCES})
 endif()
 
 # target_sources(diverseshot PRIVATE ${DIVERSESHOT_SOURCES})
-add_executable(diverseshot-cli ${DIVERSESHOT_CLI_SOURCES})
+add_executable(divshot-cli ${DIVERSESHOT_CLI_SOURCES})
 
 # Include directories
-target_include_directories(diverseshot-cli PUBLIC 
+target_include_directories(divshot-cli PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${WKS_LOCATION}/diverse/diverse_base/source
     ${CMAKE_CURRENT_SOURCE_DIR}/source
 )
 
 # External include directories
-target_include_directories(diverseshot-cli PUBLIC
+target_include_directories(divshot-cli PUBLIC
     ${ENTT_INCLUDE_DIR}
     ${CLI_INCLUDE_DIR}
     ${LUA_INCLUDE_DIR}
@@ -60,12 +63,12 @@ target_include_directories(diverseshot-cli PUBLIC
     ${PY3_INCLUDE_DIR}
 )
 
-# target_link_directories(diverseshot-cli PUBLIC
+# target_link_directories(divshot-cli PUBLIC
 #     ${OPENCV_LIB_DIR}
 # )
 
 # Link libraries
-target_link_libraries(diverseshot-cli PUBLIC
+target_link_libraries(divshot-cli PUBLIC
     diverse_base
     stbimage
     spdlog
@@ -75,7 +78,7 @@ target_link_libraries(diverseshot-cli PUBLIC
 )
 
 # Defines
-target_compile_definitions(diverseshot-cli PUBLIC
+target_compile_definitions(divshot-cli PUBLIC
     FREEIMAGE_LIB
     "IMGUI_USER_CONFIG=\ <imgui/ImUserConfig.h>\ "
     SPDLOG_COMPILED_LIB
@@ -88,18 +91,18 @@ target_compile_definitions(diverseshot-cli PUBLIC
 
 # Time trace option
 if(TIME_TRACE)
-    target_compile_options(diverseshot-cli PRIVATE -ftime-trace)
-    target_link_options(diverseshot-cli PRIVATE -ftime-trace)
+    target_compile_options(divshot-cli PRIVATE -ftime-trace)
+    target_link_options(divshot-cli PRIVATE -ftime-trace)
 endif()
 
 # Architecture specific
 # if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-#     target_compile_definitions(diverseshot-cli PUBLIC USE_VMA_ALLOCATOR)
+#     target_compile_definitions(divshot-cli PUBLIC USE_VMA_ALLOCATOR)
 # endif()
 
 # Platform specific settings
 if(WIN32)
-    target_compile_definitions(diverseshot-cli PUBLIC
+    target_compile_definitions(divshot-cli PUBLIC
         DS_PLATFORM_WINDOWS
         DS_RENDER_API_OPENGL
         DS_RENDER_API_VULKAN
@@ -115,7 +118,7 @@ if(WIN32)
         DS_USE_GLFW_WINDOWS
     )
 
-    target_link_libraries(diverseshot-cli PUBLIC
+    target_link_libraries(divshot-cli PUBLIC
         Dbghelp
         # glfw
         # OpenGL32
@@ -123,12 +126,12 @@ if(WIN32)
 		# opencv_world490
     )
 
-    target_compile_options(diverseshot-cli PRIVATE /bigobj)
+    target_compile_options(divshot-cli PRIVATE /bigobj)
     
 elseif(APPLE)
     if(IOS)
         # iOS specific settings
-        target_compile_definitions(diverseshot-cli PUBLIC
+        target_compile_definitions(divshot-cli PUBLIC
             DS_PLATFORM_IOS
             DS_PLATFORM_MOBILE
             DS_PLATFORM_UNIX
@@ -140,7 +143,7 @@ elseif(APPLE)
         )        
     else()
         # macOS specific settings
-        target_compile_definitions(diverseshot-cli PUBLIC
+        target_compile_definitions(divshot-cli PUBLIC
             DS_PLATFORM_MACOS
             DS_PLATFORM_UNIX
             DS_IMGUI
@@ -158,7 +161,7 @@ elseif(APPLE)
     find_library(COREVIDEO_FRAMEWORK CoreVideo REQUIRED)
     find_library(OPENAL_FRAMEWORK OpenAL REQUIRED)
     
-    target_link_libraries(diverseshot-cli PUBLIC
+    target_link_libraries(divshot-cli PUBLIC
         ${QUARTZCORE_FRAMEWORK}
         ${METAL_FRAMEWORK}
         ${COCOA_FRAMEWORK}
@@ -171,12 +174,12 @@ elseif(APPLE)
         # metalirconverter
     )
 
-    target_compile_options(diverseshot-cli PRIVATE
+    target_compile_options(divshot-cli PRIVATE
         -Wno-attributes
         -Wno-nullability-completeness
         -fdiagnostics-absolute-paths
     )
-    # set_target_properties(diverseshot-cli PROPERTIES
+    # set_target_properties(divshot-cli PROPERTIES
     #                   INSTALL_RPATH "@executable_path/../Frameworks")
 
 elseif(UNIX)
@@ -191,14 +194,14 @@ elseif(UNIX)
         DS_VOLK
         DS_OPENAL
     )
-    target_link_libraries(diverseshot-cli PUBLIC
+    target_link_libraries(divshot-cli PUBLIC
         glfw
         openal
         X11
         pthread
     )
 
-    target_compile_options(diverseshot-cli PRIVATE
+    target_compile_options(divshot-cli PRIVATE
         -fpermissive
         -fPIC
         -Wignored-attributes

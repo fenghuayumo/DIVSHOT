@@ -9,15 +9,16 @@ int main(int argc,const char *argv[])
 	CLI::App app("gaussian_train");
 	app.set_version_flag("--version", "1.0.0");
 	app.allow_config_extras(CLI::config_extras_mode::error);
-    uint32_t maxImageWidth  = 2048;
-    uint32_t maxImageHeight = 2048;
+    uint32_t maxImageWidth  = 4096;
+    uint32_t maxImageHeight = 4096;
 	app.add_option("--maxImageWidth", maxImageWidth, "set max image width")->capture_default_str();
 	app.add_option("--maxImageHeight", maxImageHeight, "set max image height")->capture_default_str();
 	bool eval = false;
 	app.add_flag("--eval", eval, "eval test set when trainning");
 	std::string source_path, model_path = "../out_put/iteration";
+	std::string camera_pose_path,point_cloud_path;
 	int max_iteration = 30000;
-	int model_type = 0, densifyStrategy = 1;
+	int model_type = 0, densifyStrategy = 2;
 	app.add_option("--inputPath", source_path, "set data set path");
 
 	// add ssim loss
@@ -47,7 +48,7 @@ int main(int argc,const char *argv[])
 	int warmupLength = 500;float refineEvery = 100;
 	int resetAlphaEvery = 3000;int refineStopIter = 15000, refineScale2dStopIter= refineStopIter;
 	float min_opacity = 0.005;
-	bool  verbose = true, revisedOpacity = true, mipAntiliased = false,normalLoss = false;
+	bool  verbose = false, revisedOpacity = true, mipAntiliased = false,normalLoss = false;
 	int pruneEvery = 70000;
 	int pruneStrategy = 1, packLevel = 1;
 	app.add_option("--growGrad2d",growGrad2d,"set densify grow grad threshold")->capture_default_str();
@@ -57,7 +58,7 @@ int main(int argc,const char *argv[])
 	app.add_option("--refineStopIter",refineStopIter,"stop refine after this steps")->capture_default_str();
 	app.add_option("--refineScale2dStopIter",refineScale2dStopIter)->capture_default_str();
 	app.add_option("--minOpacity", min_opacity,"set min opacity prune threshold")->capture_default_str();
-	//app.add_option("--verbose", verbose)->capture_default_str();
+	app.add_option("--verbose", verbose)->capture_default_str();
 	app.add_option("--pruneEvery", pruneEvery,"how many every step do prune")->capture_default_str();
 	app.add_option("--pruneStrategy", pruneStrategy,"set prune strategy, 0: reduce, 1: light")->capture_default_str();
 	app.add_option("--revisedOpacity", revisedOpacity)->capture_default_str();
@@ -68,6 +69,10 @@ int main(int argc,const char *argv[])
 	app.add_option("--noiselr", noiselr,"set noiselr")->capture_default_str();
 	bool useMask = false;
 	app.add_option("--useMask", useMask,"set use mask")->capture_default_str();
+	app.add_option("--cameraPosePath", camera_pose_path, "set cameraPosePath")->capture_default_str();
+	app.add_option("--pointCloudPath", point_cloud_path, "set pointCloudPath")->capture_default_str();
+	bool export_sfm = false;
+	app.add_option("--exportSFM", export_sfm, "set export SFM")->capture_default_str();
 	// Parse command line and update any requested settings
 	try
 	{
