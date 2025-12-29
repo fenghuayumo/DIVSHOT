@@ -42,6 +42,8 @@
 #include <spdlog/fmt/bundled/format.h>
 #include <utility/process_utils.hpp>
 #include "pivot.h"
+#include <scene/camera/editor_camera.h>
+
 namespace MM
 {
 #define PropertySet(name, getter, setter)                \
@@ -758,6 +760,7 @@ namespace MM
             }
             old_color_adjustment = splat_color_adjustment;
         }
+        ImGuiHelper::Property("Antialiased", gaussian.mip_antialiased, "Whether use mip antialiased rendering");
         ImGui::Columns(1);
         ImGui::Separator();
         ImGui::PopStyleVar();
@@ -813,7 +816,16 @@ namespace MM
                         gs->getTrainConfig().refineStopIter = maxIter * 0.5f;
                     });
                 }
-                
+                if(gsTrain->getTrainConfig().densifyStrategy == (int)(SplatDensifyType::SplatADCPlus))
+                {
+                    float growFraction = gsTrain->getTrainConfig().growFraction;
+                    if(ImGuiHelper::Property("GrowFraction", growFraction, 0.0f, 1.0f, 0.01f)) {
+                        Editor::get_editor()->enqueue_gs_train_update([growFraction](void* gs_ptr){
+                            auto* gs = static_cast<GaussianTrainerScene*>(gs_ptr);
+                            gs->getTrainConfig().growFraction = growFraction;
+                        });
+                    }
+                }
                 int refineStopIter = gsTrain->getTrainConfig().refineStopIter;
                 if(ImGuiHelper::Property("StopDensifyAt", refineStopIter, 100, 100000, "Stop densify gaussians that are larger than after these many steps"))
                 {
@@ -1047,11 +1059,7 @@ namespace MM
                gs_edit.clear_op_history();
             }
         }
-      /*  ImGui::SetCursorPosX(ButtonPos.x);
-        if (ImGui::Button("Save to file", buttonSize))
-        {
-            diverse::Editor::get_editor()->merge_select_splats();
-        }
+      /*  
         ImGui::SetCursorPosX(ButtonPos.x);
         if (gsTrain && ImGui::Button("Convert to Mesh", buttonSize))
         {
@@ -1071,10 +1079,17 @@ namespace MM
         auto& gaussian = reg.get<diverse::PointCloudComponent>(e);
 
         using namespace diverse;
-        //ImGui::Indent();
 
-        auto numGaussian = (u32)gaussian.ModelRef->get_num_points();
-        ImGuiHelper::Property("PointNum", numGaussian, nullptr, ImGuiHelper::PropertyFlag::ReadOnly);
+        if (gaussian.ModelRef)
+        {
+            auto numPoints = (u32)gaussian.ModelRef->get_num_points();
+            ImGuiHelper::Property("PointNum", numPoints, nullptr, ImGuiHelper::PropertyFlag::ReadOnly);
+        }
+        else
+        {
+            ImGui::TextDisabled("No point cloud loaded");
+        }
+        
         ImGui::Columns(1);
         ImGui::Separator();
         ImGui::PopStyleVar();
@@ -1270,12 +1285,109 @@ namespace MM
 
         using namespace diverse;
 
-        float aspect = camera.get_aspect_ratio();
-        if (ImGuiHelper::Property("Aspect", aspect, 0.0f, 10.0f))
-            camera.set_aspect_ratio(aspect);
+        auto* controller = reg.try_get<diverse::EditorCameraController>(e);
+        if(controller)
+        {                
+            // Camera view mode selection - 相机6视图和透视图切换
+            auto* transform = reg.try_get<diverse::maths::Transform>(e);
+            if (transform)
+            {
+                ImGui::TextUnformatted("View Mode");
+                ImGui::NextColumn();
+                ImGui::PushItemWidth(-1);
+                
+                const char* view_modes[] = { 
+                    "Perspective",
+                    "Front", "Back", 
+                    "Left", "Right", 
+                    "Top", "Bottom",
+                    "Fisheye",
+                };
+                
+                auto current_view_mode = camera.get_view_mode();
+                int current_idx = static_cast<int>(current_view_mode);
+                
+                // Fisheye only available in GUT render method
+                const bool isGutMode = (g_render_settings.splat_render_method == SplatRenderMethod::GUT);
+                int maxViewModes = isGutMode ? IM_ARRAYSIZE(view_modes) : IM_ARRAYSIZE(view_modes) - 1;
+                
+                // If not in GUT mode and Fisheye is selected, force to Perspective
+                if (!isGutMode && current_view_mode == diverse::Camera::CameraViewMode::Fisheye)
+                {
+                    current_idx = 0;
+                    camera.set_view_mode(diverse::Camera::CameraViewMode::Perspective);
+                    camera.set_camera_type(Camera::CameraType::Perspective);
+                }
+                
+                if (ImGui::Combo("##ViewMode", &current_idx, view_modes, maxViewModes))
+                {
+                    auto new_mode = static_cast<diverse::Camera::CameraViewMode>(current_idx);
+                    camera.set_view_mode(new_mode);
+                    
+                    // Set appropriate camera mode based on view selection
+                    if (new_mode == diverse::Camera::CameraViewMode::Perspective)
+                    {
+                        camera.set_camera_type(Camera::CameraType::Perspective);
+                        controller->set_current_mode(diverse::EditorCameraMode::ARCBALL);
+                        // Sync focal_point from ortho_view_center when switching back to 3D
+                        controller->sync_focal_point_from_ortho_view(*transform);
+                    }
+                    else if (new_mode == diverse::Camera::CameraViewMode::Fisheye)
+                    {
+                        // Fisheye camera mode
+                        camera.set_camera_type(Camera::CameraType::Fisheye);
+                        controller->set_current_mode(diverse::EditorCameraMode::ARCBALL);
+                        controller->sync_focal_point_from_ortho_view(*transform);
+                    }
+                    else
+                    {
+                        // Set orthographic for all other views
+                        camera.set_camera_type(Camera::CameraType::Orthographic);
+                        // Initialize ortho view center when switching from 3D view
+                        if (controller->get_current_mode() != EditorCameraMode::TWODIM)
+                        {
+                            controller->init_ortho_view_from_current(*transform);
+                        }
+                        controller->set_current_mode(diverse::EditorCameraMode::TWODIM);
+                        
+                        // Set the appropriate view orientation
+                        switch (new_mode)
+                        {
+                            case diverse::Camera::CameraViewMode::Front:
+                                controller->set_front_view(*transform);
+                                break;
+                            case diverse::Camera::CameraViewMode::Back:
+                                controller->set_back_view(*transform);
+                                break;
+                            case diverse::Camera::CameraViewMode::Left:
+                                controller->set_left_view(*transform);
+                                break;
+                            case diverse::Camera::CameraViewMode::Right:
+                                controller->set_right_view(*transform);
+                                break;
+                            case diverse::Camera::CameraViewMode::Top:
+                                controller->set_top_view(*transform);
+                                break;
+                            case diverse::Camera::CameraViewMode::Bottom:
+                                controller->set_buttom_view(*transform);
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                }
+                
+                ImGui::PopItemWidth();
+                ImGui::NextColumn();
+                // Camera controller speed
+                float speed = controller->get_speed();
+                if (ImGuiHelper::Property("Speed", speed, 0.1f, 200.0f,1.0f,ImGuiHelper::PropertyFlag::SliderValue))
+                    controller->set_speed(speed);
+            }
+        }
 
         float fov = camera.get_fov();
-        if (ImGuiHelper::Property("Fov", fov, 1.0f, 120.0f))
+        if (ImGuiHelper::Property("Fov", fov, 1.0f, 179.0f))
             camera.set_fov(fov);
 
         float n = camera.get_near();
@@ -1287,31 +1399,46 @@ namespace MM
             camera.set_far(f);
 
         float scale = camera.get_scale();
-        if (ImGuiHelper::Property("Scale", scale, 0.0f, 1000.0f))
+        if (ImGuiHelper::Property("Scale", scale, 0.0f, 100.0f))
             camera.set_scale(scale);
 
-        bool ortho = camera.is_orthographic();
-        if (ImGuiHelper::Property("Orthograhic", ortho))
-            camera.set_orthographic(ortho);
+        // Depth of Field, Focus Distance, Aperture - only enabled in GUT mode
+        const bool isGutModeForDof = (g_render_settings.splat_render_method == SplatRenderMethod::GUT);
+        ImGui::BeginDisabled(!isGutModeForDof);
+        
+        bool dofEnabled = camera.is_dof_enabled();
+        if (ImGuiHelper::Property("Depth Of Field", dofEnabled))
+            camera.set_dof_enabled(dofEnabled);
+
+        float focusDistance = camera.get_focus_distance();
+        if (ImGuiHelper::Property("Focus Distance", focusDistance, 0.1f, 1000.0f))
+            camera.set_focus_distance(focusDistance);
 
         float aperture = camera.get_aperture();
-        if (ImGuiHelper::Property("Aperture", aperture, 0.0f, 200.0f))
+        if (ImGuiHelper::Property("Aperture", aperture, 1.0f, 200.0f))
             camera.set_aperture(aperture);
+        
+        ImGui::EndDisabled();
 
-        float shutterSpeed = camera.get_shutter_speed();
-        if (ImGuiHelper::Property("Shutter Speed", shutterSpeed, 0.0f, 1.0f))
-            camera.set_shutter_speed(shutterSpeed);
+        // bool ortho = camera.is_orthographic();
+        // if (ImGuiHelper::Property("Orthograhic", ortho))
+        //     camera.set_orthographic(ortho);
 
-        float sensitivity = camera.get_sensitivity();
-        if (ImGuiHelper::Property("ISO", sensitivity, 0.0f, 5000.0f))
-            camera.set_sensitivity(sensitivity);
+        // float shutterSpeed = camera.get_shutter_speed();
+        // if (ImGuiHelper::Property("Shutter Speed", shutterSpeed, 0.0f, 1.0f))
+        //     camera.set_shutter_speed(shutterSpeed);
 
-        float exposure = camera.get_exposure();
-        ImGuiHelper::Property("Exposure", exposure, 0.0f, 0.0f, 0.0f, ImGuiHelper::PropertyFlag::ReadOnly);
+        // float sensitivity = camera.get_sensitivity();
+        // if (ImGuiHelper::Property("ISO", sensitivity, 0.0f, 5000.0f))
+        //     camera.set_sensitivity(sensitivity);
+
+        // float exposure = camera.get_exposure();
+        // ImGuiHelper::Property("Exposure", exposure, 0.0f, 0.0f, 0.0f, ImGuiHelper::PropertyFlag::ReadOnly);
 
         ImGui::Columns(1);
         ImGui::Separator();
     }
+    
 
 }
 namespace diverse
@@ -1351,8 +1478,9 @@ namespace diverse
         TRIVIAL_COMPONENT(GaussianComponent, "GaussianComponent");
         TRIVIAL_COMPONENT(PointCloudComponent, "PointCloudComponent");
         TRIVIAL_COMPONENT(GaussianCrop, "GaussianCrop");
-        //TRIVIAL_COMPONENT(Camera, "Camera");
+        TRIVIAL_COMPONENT(Camera, "Camera");
         TRIVIAL_COMPONENT(Environment, "Environment");
+        // TRIVIAL_COMPONENT(EditorCameraController, "Camera Controller");
         // TRIVIAL_COMPONENT(PointLightComponent, "PointLightComponent");
         // TRIVIAL_COMPONENT(RectLightComponent, "RectLightComponent");
         // TRIVIAL_COMPONENT(DirectionalLightComponent, "DirectionalLightComponent");

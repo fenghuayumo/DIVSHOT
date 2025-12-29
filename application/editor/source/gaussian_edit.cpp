@@ -397,7 +397,6 @@ namespace diverse
                     .dispatch({ (u32)num_gaussians,1,1 });
                 auto [sorted_key, sorted_value] = gpu_sort(rg, point_list_key_buffer, point_list_value_buffer, num_gaussians);
 
-                auto pickpass = rg.add_pass("pick pass");
                 std::vector<std::pair<std::string, std::string>> defines;
                 defines.push_back({ "GSPLAT_AA", std::to_string((u32)splat->ModelRef->antialiased()) });
                 defines.push_back({ "PICK_PASS", "1" });
@@ -410,53 +409,18 @@ namespace diverse
                     .with_vetex_attribute(false)
                     .with_depth_test(false)
                     .with_primitive_type(rhi::PrimitiveTopType::TriangleStrip);
-                auto pipeline = pickpass.register_raster_pipeline(
-                    {
-                        rhi::PipelineShaderDesc().with_stage(rhi::ShaderPipelineStage::Vertex).with_shader_source({"/shaders/gaussian/gsplat_pick_vs.hlsl","main",defines}),
-                        rhi::PipelineShaderDesc().with_stage(rhi::ShaderPipelineStage::Pixel).with_shader_source({"/shaders/gaussian/gsplat_pick_ps.hlsl","main",defines})
-                    },
-                    std::move(pipeline_desc)
-                );
-                pickpass.render([this,
-                    color_ref = pickpass.raster(pick_tex, rhi::AccessType::ColorAttachmentWrite),
-                    depth_ref = pickpass.raster(depth_img, rhi::AccessType::DepthAttachmentWriteStencilReadOnly),
-                    num_gaussians, gs_constants, bindless_set,
-                    sorted_buffer_ref = pickpass.read(sorted_value, rhi::AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer),
-                    pipeline_raster = std::move(pipeline)](rg::RenderPassApi& api) mutable {
-                        auto [width, height, _] = color_ref.desc.extent;
-
-                        auto dynamic_offset = api.dynamic_constants()
-                            ->push(gs_constants);
-
-                        api.begin_render_pass(
-                            *gs_pick_render_pass,
-                            { width, height },
-                        {
-                            std::pair{color_ref,rhi::GpuTextureViewDesc()},
-                        },
-                        std::pair{ depth_ref, rhi::GpuTextureViewDesc().with_aspect_mask(rhi::ImageAspectFlags::DEPTH) }
-                        );
-
-                        api.set_default_view_and_scissor({ width,height });
-                        //write sorted_value buffer
-                        std::vector<rg::RenderPassBinding> bindings = {
-                            rg::RenderPassBinding::DynamicConstants(dynamic_offset),
-                            sorted_buffer_ref.bind()
-                        };
-
-                        auto res = rg::RenderPassPipelineBinding<rg::RgRasterPipelineHandle>::from(pipeline_raster)
-                            .descriptor_set(0, &bindings)
-                            .raw_descriptor_set(1, bindless_set);
-                        auto bound_raster = api.bind_raster_pipeline(res);
-
-                        auto device = api.device();
-
-                        device->draw_instanced(api.cb, 4, num_gaussians, 0, 0);
-
-                        api.end_render_pass();
-                    });
-
-                pickpass.rg->record_pass(std::move(pickpass.pass));
+                rg::RenderPass::new_raster(
+                    rg.add_pass("pick pass"),
+                    std::move(pipeline_desc),
+                    rhi::ShaderSource{ "/shaders/gaussian/gsplat_pick_vs.hlsl","main",defines },
+                    rhi::ShaderSource{ "/shaders/gaussian/gsplat_pick_ps.hlsl","main",defines }
+                )
+                .raster_color(pick_tex)
+                .raster_depth(depth_img)
+                .constants(gs_constants)
+                .read(sorted_value)
+                .raw_descriptor_set(1, bindless_set)
+                .draw_instanced(*gs_pick_render_pass, 4, num_gaussians);
             }
             struct GaussianEditConstants {
                 u32 surface_width;

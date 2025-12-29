@@ -235,38 +235,24 @@ namespace diverse
         ImVec2 timeLinePos = ImVec2(canvas_pos.x, canvas_pos.y + toolbar_height + 10);
         ImVec2 timeLineSize = ImVec2(canvas_size.x, 12 * dpi);
         ImRect timeLineRect(timeLinePos, timeLinePos + timeLineSize);
-        draw_list->AddLine(timeLinePos, ImVec2(timeLinePos.x + canvas_size.x, timeLinePos.y), IM_COL32(64, 64, 64, 255));
+        
+        // Always use bright colors since the timeline panel background is always dark
+        ImU32 gridLineMinorColor = IM_COL32(140, 140, 140, 255);  // Minor grid lines
+        ImU32 gridLineMajorColor = IM_COL32(200, 200, 200, 255);  // Major grid lines (every 10)
+        ImU32 textColor = IM_COL32(240, 240, 240, 255);           // Time text
+        
+        draw_list->AddLine(timeLinePos, ImVec2(timeLinePos.x + canvas_size.x, timeLinePos.y), gridLineMinorColor);
         
         draw_list->AddRectFilled(timeLinePos, timeLinePos + timeLineSize, ImGui::GetColorU32(ImGuiCol_Button), 0);
 
-        const int timelineCnt = 100; // 固定显示200个时间线刻度
+        const int timelineCnt = 100; // 固定显示100个时间线刻度
         const float timePixelWidth = timeLineSize.x / (float)timelineCnt;
         const float timelineHeight = timeLineSize.y;
         ImVec2 contenSize = ImVec2(canvas_size.x, canvas_size.y - toolbar_height);
-        auto drawTimeLine = [&]() {
-            for (int i = 0; i <= timelineCnt; i++) {
-                float x = timeLinePos.x + i * timePixelWidth;
-                if (i % 10 == 0) 
-                {
-                    draw_list->AddLine(ImVec2(x, timeLinePos.y), ImVec2(x, timeLinePos.y + contenSize.y), IM_COL32(128, 128, 128, 255), 2.0f);
-                    // 根据起始时间计算实际时间点
-                    int64_t actualTime = timeline->startShowTime + (i * (timeline->endShowTime - timeline->startShowTime)) / timelineCnt;
-                    auto time_str = std::to_string(actualTime);
-                    ImGui::SetWindowFontScale(1.1);
-                    draw_list->AddText(ImVec2(x - 0.5f * timePixelWidth, timeLinePos.y - 12 * dpi), IM_COL32(224, 224, 224, 255), time_str.c_str());
-                    ImGui::SetWindowFontScale(1.0);
-                }
-                else 
-                {
-                    draw_list->AddLine(ImVec2(x, timeLinePos.y), ImVec2(x, timeLinePos.y + timelineHeight), IM_COL32(128, 128, 128, 255));
-                }
-            }
-        };
-        drawTimeLine();
 
         ImRect custom_view_rect(timeLinePos, timeLinePos + contenSize);
-        // 根据鼠标位置计算实际时间点
-        auto mouseTime = timeline->startShowTime + (int64_t)((io.MousePos.x - timeLinePos.x) / timePixelWidth) * (timeline->endShowTime - timeline->startShowTime) / timelineCnt;
+        // Calculate actual time point based on mouse position
+        int64_t mouseTime = timeline->startShowTime + (int64_t)((io.MousePos.x - timeLinePos.x) / timePixelWidth) * (timeline->endShowTime - timeline->startShowTime) / timelineCnt;
         menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu");
         if (custom_view_rect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
         {
@@ -300,7 +286,7 @@ namespace diverse
         {
             if (!timeline->bSeeking || ImGui::IsMouseDragging(ImGuiMouseButton_Left))
             {
-                // 根据鼠标位置计算时间点
+                // Calculate time point based on mouse position
                 float mouseRatio = (io.MousePos.x - timeLineRect.Min.x) / timeLineSize.x;
                 auto timepoint = timeline->startShowTime + (int64_t)(mouseRatio * (timeline->endShowTime - timeline->startShowTime));
                 if (timepoint < timeline->startShowTime)
@@ -328,17 +314,44 @@ namespace diverse
         }
         if (!is_draw_rect  && custom_view_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
         {
-            // 根据鼠标位置计算时间点
+            // Calculate time point based on mouse position
             float mouseRatio = (io.MousePos.x - timeLineRect.Min.x) / timeLineSize.x;
             auto timepoint = timeline->startShowTime + (int64_t)(mouseRatio * (timeline->endShowTime - timeline->startShowTime));
-            add_key_frame(mouseTime, timeline);
+            add_key_frame(timepoint, timeline);
         }
         ImGui::EndChildFrame();
+        
+        // Draw timeline time labels first (outside clip rect so they're not clipped)
+        for (int i = 0; i <= timelineCnt; i++) {
+            float x = timeLinePos.x + i * timePixelWidth;
+            if (i % 10 == 0) 
+            {
+                int64_t actualTime = timeline->startShowTime + (i * (timeline->endShowTime - timeline->startShowTime)) / timelineCnt;
+                auto time_str = std::to_string(actualTime);
+                ImGui::SetWindowFontScale(1.1f);
+                draw_list->AddText(ImVec2(x - 0.5f * timePixelWidth, timeLinePos.y - 12 * dpi), textColor, time_str.c_str());
+                ImGui::SetWindowFontScale(1.0f);
+            }
+        }
+        
+        // Draw timeline grid lines AFTER EndChildFrame to prevent being covered by child frame background
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
+        for (int i = 0; i <= timelineCnt; i++) {
+            float x = timeLinePos.x + i * timePixelWidth;
+            if (i % 10 == 0) 
+            {
+                draw_list->AddLine(ImVec2(x, timeLinePos.y), ImVec2(x, timeLinePos.y + contenSize.y), gridLineMajorColor, 2.0f);
+            }
+            else 
+            {
+                draw_list->AddLine(ImVec2(x, timeLinePos.y), ImVec2(x, timeLinePos.y + timelineHeight), gridLineMinorColor);
+            }
+        }
+        
+        // Draw current time cursor
         if (timeline->currentTime >= timeline->startShowTime && timeline->currentTime <= timeline->endShowTime)
         {
             static const float cursorWidth = 2.f * dpi;
-            // 根据当前时间计算光标位置
             float timeRatio = (float)(timeline->currentTime - timeline->startShowTime) / (float)(timeline->endShowTime - timeline->startShowTime);
             float x = timeLinePos.x + timeRatio * timeLineSize.x;
             draw_list->AddLine(ImVec2(x, timeLinePos.y), ImVec2(x, timeLinePos.y + contenSize.y), COL_CURSOR_LINE, cursorWidth);
@@ -370,7 +383,7 @@ namespace diverse
 
         for (auto key_frame : timeline->keyframes)
         {
-            // 根据关键帧时间计算位置
+            // Calculate position based on keyframe time
             float timeRatio = (float)(key_frame.timePoint - timeline->startShowTime) / (float)(timeline->endShowTime - timeline->startShowTime);
             int px = (int)(timeLinePos.x + timeRatio * timeLineSize.x);
             if (px <= keyframe_rect.Max.x && px >= keyframe_rect.Min.x)
@@ -499,16 +512,23 @@ namespace diverse
             return;
         auto play_time = std::max((time_point - timeline->start) / float(timeline->end - timeline->start), 0.0f);
         auto k = timeline->evalKeyFrame(play_time).cameraElement;
-        auto& camera_transform = editor->get_editor_camera_transform();
-        camera_transform.set_local_orientation(k.R);
-        // camera_transform.set_local_position(k.T);
-        editor->get_editor_camera_controller().update_focal_point(camera_transform, k.T);
-        camera_transform.set_world_matrix(glm::mat4(1.0f));
+        auto* camera_transform = editor->get_editor_camera_transform();
+        if (camera_transform)
+        {
+            camera_transform->set_local_orientation(k.R);
+            // camera_transform->set_local_position(k.T);
+            auto* controller = editor->get_editor_camera_controller();
+            if (controller)
+                controller->update_focal_point(*camera_transform, k.T);
+            camera_transform->set_world_matrix(glm::mat4(1.0f));
+        }
     }
 
     void KeyFramePanel::add_key_frame(int64 time_point,KeyFrameTimeLine* timeline)
     {
-        auto transMat = editor->get_editor_camera_transform().get_local_matrix();
+        auto* transform = editor->get_editor_camera_transform();
+        if (!transform) return;
+        auto transMat = transform->get_local_matrix();
         auto cam_key_frame_var = CameraKeyFrameVar(transMat, 1, 1, 1, 1);
 
         auto it = std::find_if(timeline->keyframes.begin(), timeline->keyframes.end(), [&](const KeyFrame& it)->bool { return it.timePoint >= time_point; });

@@ -113,7 +113,13 @@ namespace diverse
         {
             DS_PROFILE_SCOPE("Set Override Camera");
             camera = editor->get_camera();
-            transform = &editor->get_editor_camera_transform();
+            transform = editor->get_editor_camera_transform();
+
+            if (!camera || !transform)
+            {
+                ImGui::End();
+                return;
+            }
 
             app.set_override_camera(camera, transform);
         }
@@ -210,14 +216,14 @@ namespace diverse
             {
                 auto splat_model = splat_ent.get_component<GaussianComponent>().ModelRef;
                 auto& transform = splat_ent.get_component<maths::Transform>();
-                maths::Transform& cameraTransform = editor->get_editor_camera_transform();
+                maths::Transform* cameraTransform = editor->get_editor_camera_transform();
                 auto project = camera->get_projection_matrix();
                 glm::vec3 isect_point;
-                if (pick_splat(splat_model,
+                if (cameraTransform && pick_splat(splat_model,
                     clickPos,
                     ray,
                     transform.get_world_matrix(),
-                    cameraTransform,
+                    *cameraTransform,
                     project,
                     view_size.x,
                     view_size.y,
@@ -483,196 +489,6 @@ namespace diverse
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
         ImGui::SameLine();
 
-        if (ImGui::Button(U8CStr2CStr("Camera " ICON_MDI_CAMERA)))
-            ImGui::OpenPopup("CameraPopup");
-        if (ImGui::BeginPopup("CameraPopup"))
-        {
-            auto& camera = *editor->get_camera();
-            bool ortho = camera.is_orthographic();
-
-            ImGui::Columns(2);
-            selected = !ortho;
-            if (selected)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-            if (ImGui::Button(U8CStr2CStr(ICON_MDI_AXIS_ARROW " 3D")))
-            {
-                camera.set_view_mode(Camera::CameraViewMode::Perspective);
-                auto& cam_controller = editor->get_editor_camera_controller();
-                auto& transform = editor->get_editor_camera_transform();
-                
-                // Sync focal_point from ortho_view_center when switching back to 3D
-                cam_controller.sync_focal_point_from_ortho_view(transform);
-                
-                cam_controller.set_current_mode(EditorCameraMode::ARCBALL);
-            }
-            if (selected)
-                ImGui::PopStyleColor();
-            ImGui::NextColumn();
-
-            selected = ortho;
-            if (selected)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-            if (ImGui::Button(U8CStr2CStr(ICON_MDI_ANGLE_RIGHT "2D")))
-            {
-                if (!ortho)
-                {
-                    camera.set_orthographic(true);
-                    camera.set_near(-10.0f);
-                    editor->get_editor_camera_controller().set_current_mode(EditorCameraMode::TWODIM);
-                }
-            }
-            if (selected)
-                ImGui::PopStyleColor();
-            ImGui::NextColumn();
-            auto view_mode = camera.get_view_mode();
-            auto selected_mode = view_mode == Camera::CameraViewMode::Front;
-            if(selected_mode)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-            if (ImGui::Button("Front"))
-            {
-                camera.set_view_mode(Camera::CameraViewMode::Front);
-                auto& cam_controller = editor->get_editor_camera_controller();
-                auto& transform = editor->get_editor_camera_transform();
-                
-                // Initialize ortho view center when switching from 3D view
-                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
-                {
-                    cam_controller.init_ortho_view_from_current(transform);
-                }
-                
-                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
-                cam_controller.set_front_view(transform);
-            }
-            if(selected_mode)
-                ImGui::PopStyleColor();
-            ImGui::NextColumn();
-            selected_mode = view_mode == Camera::CameraViewMode::Back;
-            if(selected_mode)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-            if(ImGui::Button("Back"))
-            {
-                camera.set_view_mode(Camera::CameraViewMode::Back);
-                auto& cam_controller = editor->get_editor_camera_controller();
-                auto& transform = editor->get_editor_camera_transform();
-                
-                // Initialize ortho view center when switching from 3D view
-                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
-                {
-                    cam_controller.init_ortho_view_from_current(transform);
-                }
-                
-                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
-                cam_controller.set_back_view(transform);
-            }
-            if(selected_mode)
-                ImGui::PopStyleColor();
-            ImGui::NextColumn();
-            selected_mode = view_mode == Camera::CameraViewMode::Left;
-            if(selected_mode)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-            if (ImGui::Button("Left"))
-            {
-                camera.set_view_mode(Camera::CameraViewMode::Left);
-                auto& cam_controller = editor->get_editor_camera_controller();
-                auto& transform = editor->get_editor_camera_transform();
-                
-                // Initialize ortho view center when switching from 3D view
-                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
-                {
-                    cam_controller.init_ortho_view_from_current(transform);
-                }
-                
-                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
-                cam_controller.set_left_view(transform);
-            }
-            if(selected_mode)
-                ImGui::PopStyleColor();
-            ImGui::NextColumn();
-            selected_mode = view_mode == Camera::CameraViewMode::Right;
-            if(selected_mode)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-            if (ImGui::Button("Right"))
-            {
-                camera.set_view_mode(Camera::CameraViewMode::Right);
-                auto& cam_controller = editor->get_editor_camera_controller();
-                auto& transform = editor->get_editor_camera_transform();
-                
-                // Initialize ortho view center when switching from 3D view
-                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
-                {
-                    cam_controller.init_ortho_view_from_current(transform);
-                }
-                
-                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
-                cam_controller.set_right_view(transform);
-            }
-            if(selected_mode)
-                ImGui::PopStyleColor();
-            ImGui::NextColumn();
-            selected_mode = view_mode == Camera::CameraViewMode::Top;
-            if(selected_mode)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-            if (ImGui::Button("Top"))
-            {
-                camera.set_view_mode(Camera::CameraViewMode::Top);
-                auto& cam_controller = editor->get_editor_camera_controller();
-                auto& transform = editor->get_editor_camera_transform();
-                
-                // Initialize ortho view center when switching from 3D view
-                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
-                {
-                    cam_controller.init_ortho_view_from_current(transform);
-                }
-                
-                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
-                cam_controller.set_top_view(transform);
-            }
-            if(selected_mode)
-                ImGui::PopStyleColor();
-            ImGui::NextColumn();
-            selected_mode = view_mode == Camera::CameraViewMode::Bottom;
-            if(selected_mode)
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
-            if (ImGui::Button("Buttom"))
-            {
-                camera.set_view_mode(Camera::CameraViewMode::Bottom);
-                auto& cam_controller = editor->get_editor_camera_controller();
-                auto& transform = editor->get_editor_camera_transform();
-                
-                // Initialize ortho view center when switching from 3D view
-                if (cam_controller.get_current_mode() != EditorCameraMode::TWODIM)
-                {
-                    cam_controller.init_ortho_view_from_current(transform);
-                }
-                
-                cam_controller.set_current_mode(EditorCameraMode::TWODIM);
-                cam_controller.set_buttom_view(transform);
-            }
-            if(selected_mode)
-                ImGui::PopStyleColor();
-            ImGui::NextColumn();
-            ImGui::Columns(1);
-        /*    ImGui::SliderInt("Width", (int*) & m_Width, 128,2048);
-            ImGui::SliderInt("Height", (int*)&m_Height,128,2048);*/
-            auto fov = editor->get_camera()->get_fov();
-            if (ImGui::DragFloat("Fov",&fov,1.0f,0, 90.0f))
-                editor->get_camera()->set_fov(fov);
-            auto speed = editor->get_editor_camera_controller().get_speed();
-            if (ImGui::DragFloat("Speed", &speed,1.0f, 0, 100.0f))
-                editor->get_editor_camera_controller().set_speed(speed);
-            float Near = editor->get_camera()->get_near();
-            if (ImGui::DragFloat("Near", &Near))
-                editor->get_camera()->set_near(Near);
-            float Far = editor->get_camera()->get_far();
-            if (ImGui::DragFloat("Far", &Far))
-                editor->get_camera()->set_far(Far);
-            ImGui::EndPopup();
-        }
-       
-        ImGui::SameLine();
-        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-        ImGui::SameLine();
-
         if (ImGui::Button(U8CStr2CStr("Splat" ICON_MDI_TOOLBOX_OUTLINE)))
             ImGui::OpenPopup("SplatTool");
         if(ImGui::BeginPopup("SplatTool"))
@@ -690,6 +506,24 @@ namespace diverse
                     if (ImGui::MenuItem(SplatVisTypeStr[i]))
                     {
                         g_render_settings.gs_vis_type = i;
+                    }
+                    ImGui::Unindent();
+                    ImGui::Separator();
+                }
+                ImGui::EndMenu();
+            }
+            
+            // SplatRenderer submenu
+            static const char* splatRendererNames[] = { "Standard", "GUT" };
+            if (ImGui::BeginMenu(" SplatRenderer", true))
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    ImGui::Indent();
+                    bool isSelected = (static_cast<int>(g_render_settings.splat_render_method) == i);
+                    if (ImGui::MenuItem(splatRendererNames[i], nullptr, isSelected))
+                    {
+                        g_render_settings.splat_render_method = static_cast<SplatRenderMethod>(i);
                     }
                     ImGui::Unindent();
                     ImGui::Separator();
@@ -723,16 +557,16 @@ namespace diverse
         DS_PROFILE_FUNCTION();
         //editor->GetSettings().aspect_ratio = 1.0f;
         current_scene = scene;
-        Application::get().set_override_camera(editor->get_camera(), &editor->get_editor_camera_transform());
+        Application::get().set_override_camera(editor->get_camera(), editor->get_editor_camera_transform());
     }
 
     void SceneViewPanel::draw_gizmos(float width, float height, float xpos, float ypos, Scene* scene)
     {
         DS_PROFILE_FUNCTION();
         Camera* camera = editor->get_camera();
-        maths::Transform& cameraTransform = editor->get_editor_camera_transform();
+        maths::Transform* cameraTransform = editor->get_editor_camera_transform();
         auto& registry = scene->get_registry();
-        glm::mat4 view = glm::inverse(cameraTransform.get_world_matrix());
+        glm::mat4 view = glm::inverse(cameraTransform->get_world_matrix());
         glm::mat4 proj = camera->get_projection_matrix();
         glm::mat4 viewProj = proj * view;
         const maths::Frustum& f = camera->get_frustum(view);
@@ -1813,8 +1647,8 @@ namespace diverse
             }
             else if(editType == GaussianEdit::EditType::Box)
             {
-                //XScale,YScale,ZScale输入框
-                bool modify = false;
+                //XScale,YScale,ZScale input boxes
+                bool box_modify = false;
                 auto& edit_transform = splat_edit.get_edit_transform();
                 auto scale = edit_transform.get_local_scale();
                 ImGui::AlignTextToFramePadding();
@@ -1822,7 +1656,7 @@ namespace diverse
                 ImGui::SameLine();
                 ImGui::PushItemWidth(55);
                 if (ImGui::DragFloat("##XScale", &scale.x, 0.1f, 0, 400.0f))
-                    modify = true;
+                    box_modify = true;
                 ImGui::PopItemWidth();
 
                 ImGui::SameLine();
@@ -1832,9 +1666,9 @@ namespace diverse
                 ImGui::SameLine();
                 ImGui::PushItemWidth(55);
                 if(ImGui::DragFloat("##YScale", &scale.y, 0.1f, 0, 400.0f))
-                    modify = true;
+                    box_modify = true;
                 ImGui::PopItemWidth();
- 
+
                 ImGui::SameLine();
                 ImGui::Spacing();
                 ImGui::SameLine();
@@ -1842,9 +1676,9 @@ namespace diverse
                 ImGui::SameLine();
                 ImGui::PushItemWidth(55);
                 if(ImGui::DragFloat("##ZScale", &scale.z, 0.1f, 0, 400.0f))
-                    modify = true;
+                    box_modify = true;
                 ImGui::PopItemWidth();
-                if (modify)
+                if (box_modify)
                     edit_transform.set_local_scale(scale);
             }
             ImGui::End();

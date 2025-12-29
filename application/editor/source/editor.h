@@ -198,18 +198,51 @@ namespace diverse
 
         Camera* get_camera() const
         {
-            return editor_camera.get();
+            if (editor_camera_entity != entt::null && get_current_scene())
+            {
+                auto& reg = get_current_scene()->get_registry();
+                if (reg.valid(editor_camera_entity))
+                {
+                    return reg.try_get<Camera>(editor_camera_entity);
+                }
+            }
+            return nullptr;
         }
 
-        EditorCameraController& get_editor_camera_controller()
+        EditorCameraController* get_editor_camera_controller()
         {
-            return editor_camera_controller;
+            if (editor_camera_entity != entt::null && get_current_scene())
+            {
+                auto& reg = get_current_scene()->get_registry();
+                if (reg.valid(editor_camera_entity))
+                {
+                    return reg.try_get<EditorCameraController>(editor_camera_entity);
+                }
+            }
+            return nullptr;
         }
 
-        maths::Transform& get_editor_camera_transform()
+        maths::Transform* get_editor_camera_transform()
         {
-            return editor_camera_transform;
+            if (editor_camera_entity != entt::null && get_current_scene())
+            {
+                auto& reg = get_current_scene()->get_registry();
+                if (reg.valid(editor_camera_entity))
+                {
+                    return reg.try_get<maths::Transform>(editor_camera_entity);
+                }
+            }
+            return nullptr;
         }
+        
+        entt::entity get_editor_camera_entity() const
+        {
+            return editor_camera_entity;
+        }
+        
+    public:
+        // Editor Camera entity is now public for hierarchy/inspector panels
+        entt::entity editor_camera_entity = entt::null;
 
         struct EditorSettings
         {
@@ -320,13 +353,9 @@ namespace diverse
         FileBrowserPanel file_browser_panel;
         
         Camera* current_camera = nullptr;
-        EditorCameraController editor_camera_controller;
-        maths::Transform editor_camera_transform;
         float camera_transition_speed = 0.0f;
         bool is_transitioning_camera = false;
         glm::vec3 camera_destination;
-
-        SharedPtr<Camera> editor_camera = nullptr;
 
         std::string temp_scene_save_file_path;
         int auto_save_settings_time = 360000;

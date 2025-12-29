@@ -76,8 +76,12 @@ namespace diverse
 				node.name = "view" + std::to_string(preview_sets->previewImages.size());
 				editor->get_imgui_manager()->get_imgui_renderer()->blit_texture(renderTarget.get(), node.tex.get());
 
-				auto viewMat = editor->get_editor_camera_transform().get_local_matrix();
+			auto camTransform = editor->get_editor_camera_transform();
+			if (camTransform)
+			{
+				auto viewMat = camTransform->get_local_matrix();
 				node.cameraVar = CameraKeyFrameVar(viewMat, 1, 1, 1, 1);
+			}
 				preview_sets->previewImages.push_back(node);
 			}
 			if (ImGui::IsItemHovered())
@@ -172,14 +176,19 @@ namespace diverse
 		if (preview_state == CamLenPreviewState::Switching)
 		{
 			curPlayTime += 0.02;
-			auto viewMat = editor->get_editor_camera_transform().get_local_matrix();
-			auto curVar = CameraKeyFrameVar((viewMat), 1, 1, 1, 1);
+			auto camera_transform = editor->get_editor_camera_transform();
+			if (camera_transform)
+			{
+				auto viewMat = camera_transform->get_local_matrix();
+				auto curVar = CameraKeyFrameVar((viewMat), 1, 1, 1, 1);
 
-			auto k = lerp(curVar, select_node->cameraVar, curPlayTime, 0.0f, 1.0f);
-			auto& camera_transform = editor->get_editor_camera_transform();
-			editor->get_editor_camera_controller().update_focal_point(camera_transform, k.T);
-			camera_transform.set_local_orientation(k.R);
-			camera_transform.set_world_matrix(glm::mat4(1.0f));
+				auto k = lerp(curVar, select_node->cameraVar, curPlayTime, 0.0f, 1.0f);
+				auto controller = editor->get_editor_camera_controller();
+				if (controller)
+					controller->update_focal_point(*camera_transform, k.T);
+				camera_transform->set_local_orientation(k.R);
+				camera_transform->set_world_matrix(glm::mat4(1.0f));
+			}
 		}
 	}
 
