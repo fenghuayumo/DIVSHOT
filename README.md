@@ -43,6 +43,7 @@ Operating systems:
 
 For general users, you can directly use the latest [Release](https://github.com/fenghuayumo/DIVSHOT/releases) installation package, which includes all dependencies and can be run directly.
 
+Note: The training source code does not provide SFM calculation for camera poses and point clouds. Please use third-party software to process and obtain them, then drag the corresponding files to the viewport. Currently supports Colmap, RealityCapture, NerfStudio, MetaShape.
 ## Project structure
 <!-- 
 *  diverse
@@ -58,11 +59,6 @@ For general users, you can directly use the latest [Release](https://github.com/
 |[/application/diverseshot-cli][diverseshot-cli]                |gsplat training console exe             |
 |[/diverse_utils/gstrain][gstrain]                        |the core gsplat training lib which use gsplatrast lib to forward and backward render, contains data loader process                                   |
 |[/external][external]                      |external lib                            |
-## Building and running
-```
-git clone https://github.com/fenghuayumo/DIVSHOT.git
-git submodule update --init --recursive
-```
 
 ### Build
 #### Windows
