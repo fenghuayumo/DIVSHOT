@@ -43,8 +43,6 @@ Operating systems:
 
 For general users, you can directly use the latest [Release](https://github.com/fenghuayumo/DIVSHOT/releases) installation package, which includes all dependencies and can be run directly.
 
-For users who want to compile and deploy from source code, I currently only provide the rendering/editing part of the code. The training part has not been open-sourced yet and will be released after some time.
-
 ## Project structure
 <!-- 
 *  diverse
