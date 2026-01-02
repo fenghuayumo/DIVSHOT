@@ -74,10 +74,10 @@ you should install compile build tools and package firstly
 5. Python
 
 Set PY3_PATH="Python3 install directory"  and VCPKG_ROOT="vcpkg.exe directory" enviroment variable
-ADD "D:\XXXX\Pyton3\Lib\site-packages\torch\lib" to PATH enviroment variable
+and ADD "D:\XXXX\Pyton3\Lib\site-packages\torch\lib" to PATH enviroment variable
 ## Building and running
 ```
-git clone https://github.com/fenghuayumo/diverse.git
+git clone https://github.com/fenghuayumo/DIVSHOT.git
 git submodule update --init --recursive
 
 $env:VCPKG_ROOT\vcpkg.exe install opencv[core,contrib,ffmpeg]:x64-windows
