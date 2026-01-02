@@ -1777,7 +1777,7 @@ namespace diverse
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
         ImGui::Columns(2);
         ImGui::Separator();
-        static bool useExternalCamPose = false;
+        static bool useExternalCamPose = true;
         ImGuiHelper::Property("external camera poses", useExternalCamPose);
         ImGuiHelper::Tooltip("whether use external camera poses data!");
         ImGui::PopStyleVar();
@@ -1839,43 +1839,43 @@ namespace diverse
         }
         diverse::ImGuiHelper::PushID();
         ImGui::Separator();
-        if (!useExternalCamPose)
-        {
-            ImGui::Columns(1);
-            if (ImGui::TreeNodeEx("Camera", ImGuiTreeNodeFlags_Framed))
-            {
-                ImGui::Columns(2);
-                ImGui::TextUnformatted("Camera Model");
-                ImGui::NextColumn();
-                ImGui::PushItemWidth(-1);
-                const char* camera_str[] = { "PINHOLE","SIMPLE_PINHOLE","OPENCV_PINHOLE","OPENCV_FISHEYE" };
-                if (ImGui::BeginCombo("camera model", camera_str[trainConfig.cameraModel], 0)) // The
-                {
-                    for (int n = 0; n < 4; n++) //now not support sparse grad
-                    {
-                        bool is_selected = (n == trainConfig.cameraModel);
-                        if (ImGui::Selectable(camera_str[n]))
-                        {
-                            trainConfig.cameraModel = n;
-                        }
-                        if (is_selected)
-                            ImGui::SetItemDefaultFocus();
-                    }
-                    ImGui::EndCombo();
-                }
-                ImGui::PopItemWidth();
-                ImGui::NextColumn();
-                // static bool glomapper = trainConfig.mapperType == 2;
-                ImGuiHelper::Property("Sfm Quality", trainConfig.quality, 0, 3, "set sparse reconstruct quality");
-                // ImGuiHelper::Property("Use Glomapper", glomapper);
-                // ImGuiHelper::Tooltip("whether use global bundle adjustment to estimate camera pose which will speed up the solution process but reduce accuracy.");
-                ImGuiHelper::Property("Export Sfm", trainConfig.outputSparsePoints);
-                ImGuiHelper::Tooltip("whether ouput colmap sparse point!");
-                ImGuiHelper::Property("Share Single Camera",trainConfig.singleCamera);
-                // trainConfig.mapperType = glomapper ? 2 : 0;
-                ImGui::TreePop();
-            }
-        }
+        // if (!useExternalCamPose)
+        // {
+        //     ImGui::Columns(1);
+        //     if (ImGui::TreeNodeEx("Camera", ImGuiTreeNodeFlags_Framed))
+        //     {
+        //         ImGui::Columns(2);
+        //         ImGui::TextUnformatted("Camera Model");
+        //         ImGui::NextColumn();
+        //         ImGui::PushItemWidth(-1);
+        //         const char* camera_str[] = { "PINHOLE","SIMPLE_PINHOLE","OPENCV_PINHOLE","OPENCV_FISHEYE" };
+        //         if (ImGui::BeginCombo("camera model", camera_str[trainConfig.cameraModel], 0)) // The
+        //         {
+        //             for (int n = 0; n < 4; n++) //now not support sparse grad
+        //             {
+        //                 bool is_selected = (n == trainConfig.cameraModel);
+        //                 if (ImGui::Selectable(camera_str[n]))
+        //                 {
+        //                     trainConfig.cameraModel = n;
+        //                 }
+        //                 if (is_selected)
+        //                     ImGui::SetItemDefaultFocus();
+        //             }
+        //             ImGui::EndCombo();
+        //         }
+        //         ImGui::PopItemWidth();
+        //         ImGui::NextColumn();
+        //         // static bool glomapper = trainConfig.mapperType == 2;
+        //         ImGuiHelper::Property("Sfm Quality", trainConfig.quality, 0, 3, "set sparse reconstruct quality");
+        //         // ImGuiHelper::Property("Use Glomapper", glomapper);
+        //         // ImGuiHelper::Tooltip("whether use global bundle adjustment to estimate camera pose which will speed up the solution process but reduce accuracy.");
+        //         ImGuiHelper::Property("Export Sfm", trainConfig.outputSparsePoints);
+        //         ImGuiHelper::Tooltip("whether ouput colmap sparse point!");
+        //         ImGuiHelper::Property("Share Single Camera",trainConfig.singleCamera);
+        //         // trainConfig.mapperType = glomapper ? 2 : 0;
+        //         ImGui::TreePop();
+        //     }
+        // }
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
 
         ImGui::Columns(2);
@@ -1998,7 +1998,7 @@ namespace diverse
             ImGui::Columns(2);
             ImGuiHelper::Property("Create Sky Model",trainConfig.enableBg,"whether sky model!");
             ImGuiHelper::Property("Mask", trainConfig.useMask,"whether use mask!");
-            ImGuiHelper::Property("ExportMesh", trainConfig.exportMesh,"whether create mesh model!");
+            // ImGuiHelper::Property("ExportMesh", trainConfig.exportMesh,"whether create mesh model!");
             ImGuiHelper::Property("Anti-Alias", trainConfig.mipAntiliased, "whether enable antialias!");
             ImGuiHelper::Property("QualityMode", trainConfig.bestQuality, "whether use quality or performance mode!");
             ImGui::Unindent();
