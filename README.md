@@ -1,6 +1,8 @@
 <div align="center">
 
 # DIVSHOT 
+
+**Official Website:** [https://divshot.app/](https://divshot.app/)
 </div>
 
 ### Introduction
@@ -21,11 +23,14 @@ splat -->  mesh --> texturemesh
 ![DIVSHOT](/screenshots/video.mp4?) -->
 
 ## User Guide
+- [Official Website](https://divshot.app/)
 - [UserGuide][UserGuide] user documentation
 ## Video Examples
 - [DIVSHOT Demo on Bilibili](https://www.bilibili.com/video/BV1KEsZzXEPd/?spm_id_from=333.1387.homepage.video_card.click)
 - [DIVSHOT Demo on Youtube](https://www.youtube.com/watch?v=MJsJNsayIco)
-   
+
+- [Online Docs](https://divshot.app/docs.html)
+
 <!-- * 4. Python3 -->
 **Note:** Please ensure you update to the latest graphics card driver, otherwise there may be some issues.
 
@@ -95,6 +100,15 @@ $env:VCPKG_ROOT       # vcpkg PATH: D:\XXXX\vcpkg）
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
+## Problem
+
+If you have any questions or ideas about 3D reconstruction and graphics, feel free to join the following communities. If you speak Chinese, you can join the QQ group or WeChat group below.
+
+**QQ Group:**
+![QQ Group](/screenshots/qq_group.jpg?raw=true)
+
+**WeChat Group:**
+![WeChat Group](/screenshots/wecaht_gropu.jpg?raw=true)
 
 # Credits
 
