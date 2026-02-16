@@ -104,11 +104,9 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 
 If you have any questions or ideas about 3D reconstruction and graphics, feel free to join the following communities. If you speak Chinese, you can join the QQ group or WeChat group below.
 
-**QQ Group:**
-![QQ Group](/screenshots/qq_group.jpg?raw=true)
-
-**WeChat Group:**
-![WeChat Group](/screenshots/wecaht_gropu.jpg?raw=true)
+| **QQ Group** | **WeChat Group** |
+|:---:|:---:|
+| ![QQ Group](/screenshots/qq_group.jpg?raw=true) | ![WeChat Group](/screenshots/wecaht_gropu.jpg?raw=true) |
 
 # Credits
 
