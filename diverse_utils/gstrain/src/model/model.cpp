@@ -749,14 +749,6 @@ void GaussianTrainModel::optimizersStep(torch::Tensor visiblity){
       static_cast<SparseAdam*>(featuresRestOpt.get())->step();
       static_cast<SparseAdam*>(opacitiesOpt.get())->step();
   }
-  else if (trainConfig.visibleAdam) {
-      static_cast<SelectiveAdam*>(meansOpt.get())->step(visiblity);
-      static_cast<SelectiveAdam*>(scalesOpt.get())->step(visiblity);
-      static_cast<SelectiveAdam*>(quatsOpt.get())->step(visiblity);
-      static_cast<SelectiveAdam*>(featuresDcOpt.get())->step(visiblity);
-      static_cast<SelectiveAdam*>(featuresRestOpt.get())->step(visiblity,!trainConfig.bestQuality,trainConfig.numIters);
-      static_cast<SelectiveAdam*>(opacitiesOpt.get())->step(visiblity);
-  }
   else {
       static_cast<FusedAdam*>(meansOpt.get())->step(visiblity);
       static_cast<FusedAdam*>(scalesOpt.get())->step(visiblity);
@@ -799,14 +791,6 @@ void GaussianTrainModel::trainSetup(float sceneExtent){
         featuresDcOpt.reset(new SparseAdam({ featuresDc }, torch::optim::AdamOptions(featurelr * sqrt_batch).eps(eps_f).betas(beta_f)));
         featuresRestOpt.reset(new SparseAdam({ featuresRest }, torch::optim::AdamOptions(featureRestlr * sqrt_batch).eps(eps_f).betas(beta_f)));
         opacitiesOpt.reset(new SparseAdam({ opacities }, torch::optim::AdamOptions(opacitylr * sqrt_batch).eps(eps_f).betas(beta_f)));
-    }
-    else if (trainConfig.visibleAdam) {
-        meansOpt.reset(new SelectiveAdam({ means }, torch::optim::AdamOptions(poslrInit * sqrt_batch).eps(eps_f).betas(beta_f)));
-        scalesOpt.reset(new SelectiveAdam({ scales }, torch::optim::AdamOptions(scalinglr * sqrt_batch).eps(eps_f).betas(beta_f)));
-        quatsOpt.reset(new SelectiveAdam({ quats }, torch::optim::AdamOptions(rotationlr * sqrt_batch).eps(eps_f).betas(beta_f)));
-        featuresDcOpt.reset(new SelectiveAdam({ featuresDc }, torch::optim::AdamOptions(featurelr * sqrt_batch).eps(eps_f).betas(beta_f)));
-        featuresRestOpt.reset(new SelectiveAdam({ featuresRest }, torch::optim::AdamOptions(featureRestlr * sqrt_batch).eps(eps_f).betas(beta_f)));
-        opacitiesOpt.reset(new SelectiveAdam({ opacities }, torch::optim::AdamOptions(opacitylr * sqrt_batch).eps(eps_f).betas(beta_f)));
     }
     else{
         meansOpt.reset(new FusedAdam({ means }, torch::optim::AdamOptions(poslrInit * sqrt_batch).eps(eps_f).betas(beta_f)));

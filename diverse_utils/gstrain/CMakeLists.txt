@@ -138,6 +138,8 @@ if(WIN32)
     )
 
     target_compile_options(gstrain PRIVATE /bigobj /FS)
+    # Resolve LNK2005: spdlog symbols duplicated (our spdlog + PyTorch's bundled spdlog)
+    target_link_options(gstrain PRIVATE /FORCE:MULTIPLE)
     
 elseif(APPLE)
     if(IOS)

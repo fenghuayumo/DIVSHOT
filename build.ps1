@@ -4,7 +4,7 @@
 param(
     [Parameter(Mandatory=$false)]
     [ValidateSet("Debug", "Release", "Production")]
-    [string]$Config = "Release",
+    [string]$Config = "Production",
     
     [Parameter(Mandatory=$false)]
     [switch]$Clean,

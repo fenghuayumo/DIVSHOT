@@ -75,9 +75,10 @@ you should install compile build tools and package firstly
 5. Python
 
 Set PY3_PATH="Python3 install directory"  and VCPKG_ROOT="vcpkg.exe directory" enviroment variable
-and ADD "D:\XXXX\Pyton3\Lib\site-packages\torch\lib" to PATH enviroment variable
 ## Building and running
 ```
+pip3 install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
+
 git clone https://github.com/fenghuayumo/DIVSHOT.git
 git submodule update --init --recursive
 
@@ -86,12 +87,10 @@ $env:VCPKG_ROOT\vcpkg.exe install \
     glm:x64-windows \
     tinyply:x64-windows \
     libarchive:x64-windows \
-    webp:x64-windows \
+    libwebp:x64-windows \
     zlib:x64-windows \
     nlohmann-json:x64-windows \
     tl-expected:x64-windows
-
-pip3 install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
 
 $env:PY3_PATH         # Python PATH
 $env:CUDA_PATH        # CUDA PATH  
@@ -99,7 +98,7 @@ $env:VK_SDK_PATH      # Vulkan SDK PATH
 $env:VCPKG_ROOT       # vcpkg PATH: D:\XXXX\vcpkg）
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
-
+Note: Please set "D:\XXXX\Pyton3\Lib\site-packages\torch\lib" to PATH enviroment variable
 ## Problem
 
 If you have any questions or ideas about 3D reconstruction and graphics, feel free to join the following communities. If you speak Chinese, you can join the QQ group or WeChat group below.

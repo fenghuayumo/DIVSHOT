@@ -3,7 +3,6 @@
 
 void SelectiveAdam::step(torch::Tensor visibility,bool skip_sh,const int num_steps) {
     torch::NoGradGuard nograd;
-    int64_t N = visibility.numel();
     const int stopStep = num_steps * 2 / 3;
     for (auto& group : param_groups()) {
         auto* adam_options = dynamic_cast<torch::optim::AdamOptions*>(&group.options());
@@ -23,7 +22,6 @@ void SelectiveAdam::step(torch::Tensor visibility,bool skip_sh,const int num_ste
             auto paramState = std::make_unique<AdamCustomParamState>();
             paramState->exp_avg() = torch::zeros_like(param,torch::MemoryFormat::Preserve);
             paramState->exp_avg_sq() = torch::zeros_like(param,torch::MemoryFormat::Preserve);
-            paramState->step_per_gaussian() = torch::zeros_like(param,torch::MemoryFormat::Preserve);
             paramState->step() = 0;
             state_[pId] = std::move(paramState);
             state_ptr = state_.find(pId);
@@ -31,25 +29,26 @@ void SelectiveAdam::step(torch::Tensor visibility,bool skip_sh,const int num_ste
         auto& stored_state = static_cast<AdamCustomParamState&>(*state_ptr->second);
         auto& exp_avg = stored_state.exp_avg();
         auto& exp_avg_sq = stored_state.exp_avg_sq();
-        auto& step_per_gaussian = stored_state.step_per_gaussian();
         auto& state_step = stored_state.step();
         state_step++;
         if(skip_sh && state_step <= 1000)
             continue;
         if(skip_sh && state_step % 2 != 0 && state_step <= stopStep)
             continue;
-        gsplat::adam(
+
+        auto bias_correction1_rcp = 1.0 / (1.0 - std::pow(beta1, state_step));
+        auto bias_correction2_sqrt_rcp = 1.0 / std::sqrt(1.0 - std::pow(beta2, state_step));
+        gsplat::adam_step(
             param,
-            param.grad(),
             exp_avg,
             exp_avg_sq,
-            visibility,
-            step_per_gaussian,
-            lr,
-            beta1,
-            beta2,
-            eps
-        );
+            param.grad(),
+            static_cast<float>(lr),
+            static_cast<float>(beta1),
+            static_cast<float>(beta2),
+            static_cast<float>(eps),
+            static_cast<float>(bias_correction1_rcp),
+            static_cast<float>(bias_correction2_sqrt_rcp));
     }
 }
 
@@ -81,7 +80,7 @@ torch::Tensor CustomAdam::step(LossClosure closure) {
 
 void FusedAdam::step(torch::Tensor visibility,bool skip_sh,const int num_steps) {
     torch::NoGradGuard nograd;
-    int64_t N = visibility.numel();
+    const int stopStep = num_steps * 2 / 3;
     auto adam_options = static_cast<torch::optim::AdamOptions*>(&defaults());
     for (auto& group : param_groups()) {
         auto& param = group.params()[0];
@@ -100,7 +99,6 @@ void FusedAdam::step(torch::Tensor visibility,bool skip_sh,const int num_steps) 
             auto paramState = std::make_unique<AdamCustomParamState>();
             paramState->exp_avg() = torch::zeros_like(param,torch::MemoryFormat::Preserve);
             paramState->exp_avg_sq() = torch::zeros_like(param,torch::MemoryFormat::Preserve);
-            paramState->step_per_gaussian() = torch::zeros_like(param,torch::MemoryFormat::Preserve);
             paramState->step() = 0;
             state_[pId] = std::move(paramState);
             state_ptr = state_.find(pId);
@@ -108,13 +106,12 @@ void FusedAdam::step(torch::Tensor visibility,bool skip_sh,const int num_steps) 
         auto& stored_state = static_cast<AdamCustomParamState&>(*state_ptr->second);
         auto& exp_avg = stored_state.exp_avg();
         auto& exp_avg_sq = stored_state.exp_avg_sq();
-        auto& step_per_gaussian = stored_state.step_per_gaussian();
         auto& state_step = stored_state.step();
         state_step++;
         if(skip_sh && state_step <= 1000)
             continue;
-        // if(skip_sh && state_step % 2 != 0 && state_step <= 25000)
-        //     continue;
+        if(skip_sh && state_step % 2 != 0 && state_step <= stopStep)
+            continue;
 
         auto bias_correction1_rcp = 1.0 / (1.0 - std::pow(beta1, state_step));
         auto bias_correction2_sqrt_rcp = 1.0 / std::sqrt(1.0 - std::pow(beta2, state_step));
