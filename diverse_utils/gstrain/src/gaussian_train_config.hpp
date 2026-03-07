@@ -142,7 +142,7 @@ struct GaussianTrainConfig
     bool    evalOnTraining = false;
     //  Use visible adam from Taming 3DGS. (experimental)
     bool    visibleAdam = false;
-    int     densifyStrategy = 1;
+    int     densifyStrategy = 2;
     bool    enableBg = false;
     bool    useBilateralGrid = false;
     int     bilateralGridX = 16;

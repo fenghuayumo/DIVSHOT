@@ -4,6 +4,7 @@
 #include "quatized_model.hpp"
 #include "default.hpp"
 #include "mcmc.hpp"
+#include "splat_adc_plus.hpp"
 #include "tile_bounds.hpp"
 #include "project_gaussians.hpp"
 #include "rasterize_gaussians.hpp"
@@ -192,6 +193,15 @@ auto GaussianTrainModel::setDensifyStrategy(int type)->void
             densifyStrategy = std::make_unique<MCMCDensify>(this);
         }
         std::cout << "select SplatMCMC Densify Strategy!\n";
+    }
+    else if (type == (int)(SplatDensifyType::SplatADCPlus)) {
+        if (!densifyStrategy) {
+            densifyStrategy = std::make_unique<SplatADCPlusDensify>(this);
+        }
+        else if (densifyStrategy && densifyStrategy->type != (int)(SplatDensifyType::SplatADCPlus)) {
+            densifyStrategy = std::make_unique<SplatADCPlusDensify>(this);
+        }
+        std::cout << "select SplatADCPlus Densify Strategy!\n";
     }
     else if (type == (int)(SplatDensifyType::SplatADC)) {
         if( !densifyStrategy){
