@@ -524,6 +524,68 @@ namespace diverse
 		matprop.ao_map = image_handle_or_default(pbr_tex.ao, WHITE_TEX_ID);
 	}
 
+	auto DeferedRenderer::upload_mesh_materials(MeshModel* model)->int
+	{
+		int upload_material_num = 0;
+		for (auto& mesh : model->get_meshes())
+		{
+			auto material = mesh->get_material().get();
+			if(!material) continue;
+			auto& matprop = material->get_properties();
+			auto& pbr_tex = material->get_textures();
+			if(!pbr_tex.is_upload_2_gpu()) continue;
+			//if(material.is_flag_set(AssetFlag::UploadedGpu) && !material.dirty_flag()) continue;
+			auto has_binded = [&](const SharedPtr<asset::Texture>& texture)->bool{
+				if(!texture) return true; //no texture, use default
+				if(texture->is_flag_set(AssetFlag::UploadedGpu) && 
+					bindless_image_ids.find(texture->gpu_texture.get()) != bindless_image_ids.end())
+					return true;
+				return false;
+			};
+			auto has_binded_pbr_tex = [&](PBRMataterialTextures& texures) {
+				return has_binded(texures.albedo) &&
+						has_binded(texures.emissive) &&
+						has_binded(texures.normal) &&
+						has_binded(texures.metallic) &&
+						has_binded(texures.roughness) &&
+						has_binded(texures.ao);
+			};
+			if (!material->is_flag_set(AssetFlag::UploadedGpu) || !has_binded_pbr_tex(pbr_tex))
+			{
+				mat_2_mat_buf_id[material] = material_datas.size();
+				material_datas.push_back(&matprop);
+				update_material_texture_bindings(matprop, pbr_tex);
+				upload_material(&matprop);
+				material->set_flag(AssetFlag::UploadedGpu);
+			}
+			else if (material->dirty_flag())
+			{
+				update_material_texture_bindings(matprop, pbr_tex);
+				upload_material(&matprop);
+			}
+			upload_material_num++;
+		}
+		return upload_material_num;
+	}
+
+	auto DeferedRenderer::record_mesh_instance_gpu_state(MeshModel* model, u32 entity_id, const maths::Transform& transform)->void
+	{
+		u32 model_id = model_2_blas_id[model];
+		ent_2_model_id.push_back(model_id);
+		instantce_transforms.push_back({});
+		auto world_transform = glm::transpose(transform.get_world_matrix());
+		instantce_transforms.back().transform = world_transform;
+		if (previous_transforms.find(entity_id) == previous_transforms.end())
+			instantce_transforms.back().previous_transform = world_transform;
+		else
+			instantce_transforms.back().previous_transform = glm::transpose(previous_transforms[entity_id]);
+		
+		instance_dynamic_constants.push_back(InstanceDynamicConstants{});
+		auto& instance = instance_dynamic_constants.back();
+		instance.gemoetry_offset = model_2_mesh_buf_id[model];
+		instance.emissive_multiplier = 1.0f;
+	}
+
 	auto DeferedRenderer::upload_mesh_gpu_buffers()->void
 	{
 		auto& registry = current_scene->get_registry();
@@ -534,45 +596,7 @@ namespace diverse
 			const auto& [model, t] = mmesh_group.get<MeshModelComponent, maths::Transform>(ent);
 			if (!model.ModelRef) continue;
 			if (!model.ModelRef->is_flag_set(AssetFlag::Loaded)) continue;
-			int upload_material_num = 0;
-			for (auto& mesh : model.ModelRef->get_meshes())
-			{
-				auto material = mesh->get_material().get();
-				if(!material) continue;
-				auto& matprop = material->get_properties();
-				auto& pbr_tex = material->get_textures();
-				if(!pbr_tex.is_upload_2_gpu()) continue;
-				//if(material.is_flag_set(AssetFlag::UploadedGpu) && !material.dirty_flag()) continue;
-				auto has_binded = [&](const SharedPtr<asset::Texture>& texture)->bool{
-					if(!texture) return true; //no texture, use default
-					if(texture->is_flag_set(AssetFlag::UploadedGpu) && 
-						bindless_image_ids.find(texture->gpu_texture.get()) != bindless_image_ids.end())
-						return true;
-					return false;
-				};
-				auto has_binded_pbr_tex = [&](PBRMataterialTextures& texures) {
-					return has_binded(texures.albedo) &&
-							has_binded(texures.emissive) &&
-							has_binded(texures.normal) &&
-							has_binded(texures.metallic) &&
-							has_binded(texures.roughness) &&
-							has_binded(texures.ao);
-				};
-				if (!material->is_flag_set(AssetFlag::UploadedGpu) || !has_binded_pbr_tex(pbr_tex))
-				{
-					mat_2_mat_buf_id[material] = material_datas.size();
-					material_datas.push_back(&matprop);
-					update_material_texture_bindings(matprop, pbr_tex);
-					upload_material(&matprop);
-					material->set_flag(AssetFlag::UploadedGpu);
-				}
-				else if (material->dirty_flag())
-				{
-					update_material_texture_bindings(matprop, pbr_tex);
-					upload_material(&matprop);
-				}
-				upload_material_num++;
-			}
+			auto upload_material_num = upload_mesh_materials(model.ModelRef);
 			if (model.ModelRef->is_flag_set(AssetFlag::Loaded) && 
 				!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu)
 				&& upload_material_num == model.ModelRef->get_meshes().size())
@@ -583,20 +607,7 @@ namespace diverse
 			}
 			if (model.ModelRef->is_flag_set(AssetFlag::UploadedGpu))
 			{
-				u32 model_id = model_2_blas_id[model.ModelRef.get()];
-				ent_2_model_id.push_back(model_id);
-				instantce_transforms.push_back({});
-				auto world_transform = glm::transpose(t.get_world_matrix());
-				instantce_transforms.back().transform = world_transform;
-				if (previous_transforms.find((u32)ent) == previous_transforms.end())
-					instantce_transforms.back().previous_transform = world_transform;
-				else
-					instantce_transforms.back().previous_transform = glm::transpose(previous_transforms[(u32)ent]);
-				
-				instance_dynamic_constants.push_back(InstanceDynamicConstants{});
-				auto& instance = instance_dynamic_constants.back();
-				instance.gemoetry_offset = model_2_mesh_buf_id[model.ModelRef.get()];
-				instance.emissive_multiplier = 1.0f;
+				record_mesh_instance_gpu_state(model.ModelRef, (u32)ent, t);
 			}
 		}
 	}
