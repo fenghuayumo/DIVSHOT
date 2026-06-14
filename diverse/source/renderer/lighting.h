@@ -58,7 +58,6 @@ namespace diverse
             const rg::Handle<rhi::GpuTexture>& reproject_tex,
             const rg::Handle<rhi::GpuTexture>& sky_cube,
             const rg::Handle<rhi::GpuTexture>& convolved_sky_cube,
-            rg::Handle<rhi::GpuRayTracingAcceleration>& tlas,
             rhi::DescriptorSet*  bindless_descriptor_set,
             u32 debug_shading_mode)->void;
         auto sample_light_rendering(

@@ -740,7 +740,6 @@ namespace diverse
 				reprojection_map,
 				sky_cube,
 				convolved_sky_cube,
-				*tlas,
 				bindless_descriptor_set.get(),
 				(int)g_render_settings.shade_mode
 			);

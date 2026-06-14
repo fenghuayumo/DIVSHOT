@@ -21,6 +21,13 @@ namespace diverse
 					auto& [resource, access_type] = state.Inert();
 					if (resource.ty == TemporalResource::Type::Image)
 					{
+						if (resource.Image()->desc != desc)
+						{
+							auto new_resource = device->create_texture(desc, {}, key.c_str());
+							auto handle = this->import_res(new_resource, rhi::AccessType::Nothing);
+							temporal_state.resources[key] = TemporalResourceState::Imported({ TemporalResource::Image(new_resource), ExportableGraphResource::Image(handle) });
+							return handle;
+						}
 						auto handle = this->import_res(resource.Image(), access_type);
 
 						state = TemporalResourceState::Imported({resource,ExportableGraphResource::Image(handle) });
@@ -57,6 +64,14 @@ namespace diverse
 					auto& [resource, access_type] = state.Inert();
 					if (resource.ty == TemporalResource::Type::Buffer)
 					{
+						if (resource.Buffer()->desc != desc)
+						{
+							auto init_data = std::vector<u8>(desc.size, 0);
+							auto new_resource = device->create_buffer(desc, key.c_str(), init_data.data());
+							auto handle = this->import_res(new_resource, rhi::AccessType::Nothing);
+							temporal_state.resources[key] = TemporalResourceState::Imported({ TemporalResource::Buffer(new_resource), ExportableGraphResource::Buffer(handle) });
+							return handle;
+						}
 						auto handle = this->import_res(resource.Buffer(), access_type);
 
 						state = TemporalResourceState::Imported({ resource,ExportableGraphResource::Buffer(handle) });

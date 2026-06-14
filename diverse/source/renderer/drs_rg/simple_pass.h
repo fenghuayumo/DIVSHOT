@@ -122,9 +122,15 @@ namespace diverse
                          std::derived_from<Ref<Res,GpuSrv>, BindRgRef>
             auto read(const Handle<Res>& handle) -> SimpleRenderPass&
             {
+                auto access_type = rhi::AccessType::AnyShaderReadOther;
+                if constexpr (std::same_as<Res, rhi::GpuTexture>)
+                {
+                    access_type = rhi::AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer;
+                }
+
                 auto handle_ref = pass.read(
                     handle,
-                    rhi::AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer
+                    access_type
                 );
 
                 state.bindings.push_back(handle_ref.bind());

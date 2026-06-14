@@ -10,19 +10,21 @@ auto diverse::rhi::buffer_access_type_to_usage_flags(AccessType access_type) -> 
 		return BufferUsageFlags::INDEX_BUFFER;
 	case diverse::rhi::VertexBuffer:
 	case diverse::rhi::VertexShaderReadSampledImageOrUniformTexelBuffer:
-	case diverse::rhi::VertexShaderReadOther:
 	case diverse::rhi::TessellationControlShaderReadSampledImageOrUniformTexelBuffer:
-	case diverse::rhi::TessellationControlShaderReadOther:
 	case diverse::rhi::TessellationEvaluationShaderReadSampledImageOrUniformTexelBuffer:
-	case diverse::rhi::TessellationEvaluationShaderReadOther:
 	case diverse::rhi::GeometryShaderReadSampledImageOrUniformTexelBuffer:
-	case diverse::rhi::GeometryShaderReadOther:
 	case diverse::rhi::ComputeShaderReadSampledImageOrUniformTexelBuffer:
-	case diverse::rhi::ComputeShaderReadOther:
 	case diverse::rhi::AnyShaderReadSampledImageOrUniformTexelBuffer:
-	case diverse::rhi::AnyShaderReadOther:
 	case diverse::rhi::FragmentShaderReadSampledImageOrUniformTexelBuffer:
 		return BufferUsageFlags::UNIFORM_TEXEL_BUFFER;
+	case diverse::rhi::VertexShaderReadOther:
+	case diverse::rhi::TessellationControlShaderReadOther:
+	case diverse::rhi::TessellationEvaluationShaderReadOther:
+	case diverse::rhi::GeometryShaderReadOther:
+	case diverse::rhi::ComputeShaderReadOther:
+	case diverse::rhi::AnyShaderReadOther:
+	case diverse::rhi::FragmentShaderReadOther:
+		return BufferUsageFlags::STORAGE_BUFFER;
 
 	case diverse::rhi::VertexShaderReadUniformBuffer:
 	case diverse::rhi::TessellationControlShaderReadUniformBuffer:
