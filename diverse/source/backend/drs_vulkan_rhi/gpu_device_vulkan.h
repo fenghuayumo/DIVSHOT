@@ -112,6 +112,9 @@ namespace diverse
             VmaAllocator		global_allocator{};
             DeviceFrameVulkan		frames[DYNAMIC_CONSTANTS_BUFFER_COUNT];
             u32                     current_frame = 0;
+            u32                     active_frame = 0;
+            u32                     last_submitted_frame = DYNAMIC_CONSTANTS_BUFFER_COUNT - 1;
+            bool                    frame_active = false;
             std::mutex			cb_mutex;
             std::mutex			frame_mutex[DYNAMIC_CONSTANTS_BUFFER_COUNT];
             std::vector<DeferedReleaseResource>  destroy_queue;

@@ -626,7 +626,7 @@ namespace diverse
 
         auto GpuDeviceVulkan::initialize()->void
         {
-            for (int i = 0; i < 2; i++)
+            for (u32 i = 0; i < DYNAMIC_CONSTANTS_BUFFER_COUNT; i++)
             {
                 auto main_cmd = std::make_shared<GpuCommandBufferVulkan>(device, universe_queue);
                 set_label((u64)main_cmd->handle, VK_OBJECT_TYPE_COMMAND_BUFFER, std::format("main_cmd_{}", i).c_str());
@@ -2755,9 +2755,9 @@ namespace diverse
 
         auto GpuDeviceVulkan::defer_release(VkDescriptorPool pool)->void
         {
-            cb_mutex.lock();
-            frames[0].pending_resource_releases.descriptor_pools.push_back(pool);
-            cb_mutex.unlock();
+            std::lock_guard<std::mutex> lock(cb_mutex);
+            auto release_frame = frame_active ? active_frame : last_submitted_frame;
+            frames[release_frame].pending_resource_releases.descriptor_pools.push_back(pool);
         }
 
         VmaPool GpuDeviceVulkan::get_or_create_small_alloc_pool(uint32_t memTypeIndex)
@@ -2839,26 +2839,38 @@ namespace diverse
 	
         auto GpuDeviceVulkan::begin_frame()->DeviceFrame*
         {
-            std::lock_guard<std::mutex>	lock(frame_mutex[0]);
-            auto& frame0 = frames[0];
-            VkFence	fences[2] = { dynamic_pointer_cast<GpuCommandBufferVulkan>(frame0.main_cmd_buf)->submit_done_fence , 
-                                dynamic_pointer_cast<GpuCommandBufferVulkan>(frame0.presentation_cmd_buf)->submit_done_fence};
+            u32 frame_index = 0;
+            {
+                std::lock_guard<std::mutex> lock(cb_mutex);
+                frame_index = current_frame;
+            }
+            std::lock_guard<std::mutex>	lock(frame_mutex[frame_index]);
+            auto& frame = frames[frame_index];
+            VkFence	fences[2] = { dynamic_pointer_cast<GpuCommandBufferVulkan>(frame.main_cmd_buf)->submit_done_fence ,
+                                dynamic_pointer_cast<GpuCommandBufferVulkan>(frame.presentation_cmd_buf)->submit_done_fence};
             vkWaitForFences(device, 2, fences, true, UINT64_MAX);
     
-            frame0.pending_resource_releases.release_all(device);
-           // if( swapchain->current_frame_index() % 12 == 0)
-            release_resources();
-            for (auto& res : destroy_queue)
-                res.frame_counter++;
-            return &frame0;
+            {
+                std::lock_guard<std::mutex> lock(cb_mutex);
+                active_frame = frame_index;
+                frame_active = true;
+                frame.pending_resource_releases.release_all(device);
+               // if( swapchain->current_frame_index() % 12 == 0)
+                release_resources();
+                for (auto& res : destroy_queue)
+                    res.frame_counter++;
+            }
+            return &frame;
         }
 
         void GpuDeviceVulkan::end_frame(DeviceFrame* frameRes)
         {
-            std::lock_guard<std::mutex>	lock0(frame_mutex[0]);
-            auto& frame0 = frames[0];
-            auto& frame1 = frames[1];
-            std::swap(frame0, frame1);
+            auto submitted_frame = static_cast<u32>(static_cast<DeviceFrameVulkan*>(frameRes) - frames);
+            assert(submitted_frame < DYNAMIC_CONSTANTS_BUFFER_COUNT);
+            std::lock_guard<std::mutex> lock(cb_mutex);
+            last_submitted_frame = submitted_frame;
+            frame_active = false;
+            current_frame = (submitted_frame + 1) % DYNAMIC_CONSTANTS_BUFFER_COUNT;
         }
 
         auto GpuDeviceVulkan::begin_cmd(CommandBuffer* cb)->void

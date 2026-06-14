@@ -35,6 +35,7 @@ namespace diverse
 			rhi::DynamicConstants dynamic_constants;
 			std::shared_ptr<rhi::DescriptorSet>	frame_descriptor_set;
 			FrameConstantsLayout	frame_constants_layout;
+			rhi::DeviceFrame* current_frame = nullptr;
 
 			TemporalRenderGraphState	temporal_rg_state;
 			//TemporalGraph				temporal_rg;

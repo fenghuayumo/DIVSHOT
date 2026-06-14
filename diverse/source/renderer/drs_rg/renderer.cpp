@@ -39,7 +39,8 @@ namespace diverse
         auto Renderer::draw_frame(TemporalGraph& rg,
                         rhi::Swapchain* swapchain) -> void
         {
-            auto current_frame = device->begin_frame();
+            if (!current_frame)
+                current_frame = device->begin_frame();
             for (auto cb : {current_frame->main_cmd_buf, current_frame->presentation_cmd_buf }) {
                 cb->begin();
             }
@@ -83,11 +84,14 @@ namespace diverse
 
            dynamic_constants.advance_frame();
            device->end_frame(current_frame);
+           current_frame = nullptr;
            frame_alloctor().free();
         }
 
         auto Renderer::prepare_frame_constants(TemporalGraph& rg,std::function<FrameConstantsLayout(rhi::DynamicConstants&)> prepare_frame_constants) -> void
         {
+            if (!current_frame)
+                current_frame = device->begin_frame();
             frame_constants_layout = prepare_frame_constants(dynamic_constants);
             register_render_graph(rg);
         }
