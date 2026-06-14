@@ -508,6 +508,22 @@ namespace diverse
 		}
 	}
 
+	auto DeferedRenderer::update_material_texture_bindings(MaterialProperties& matprop, const PBRMataterialTextures& pbr_tex)->void
+	{
+		auto image_handle_or_default = [this](const SharedPtr<asset::Texture>& texture, u32 default_id)->u32 {
+			if (!texture || !texture->gpu_texture)
+				return default_id;
+			return upload_image(texture->gpu_texture).handle;
+		};
+
+		matprop.albedo_map = image_handle_or_default(pbr_tex.albedo, WHITE_TEX_ID);
+		matprop.emissive_map = image_handle_or_default(pbr_tex.emissive, WHITE_TEX_ID);
+		matprop.normal_map = image_handle_or_default(pbr_tex.normal, NORMAL_TEX_ID);
+		matprop.metallic_map = image_handle_or_default(pbr_tex.metallic, WHITE_TEX_ID);
+		matprop.roughness_map = image_handle_or_default(pbr_tex.roughness, WHITE_TEX_ID);
+		matprop.ao_map = image_handle_or_default(pbr_tex.ao, WHITE_TEX_ID);
+	}
+
 	auto DeferedRenderer::upload_mesh_gpu_buffers()->void
 	{
 		auto& registry = current_scene->get_registry();
@@ -546,23 +562,13 @@ namespace diverse
 				{
 					mat_2_mat_buf_id[material] = material_datas.size();
 					material_datas.push_back(&matprop);
-					matprop.albedo_map = pbr_tex.albedo ? (pbr_tex.albedo->gpu_texture ? upload_image(pbr_tex.albedo->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
-					matprop.emissive_map = pbr_tex.emissive ? (pbr_tex.emissive->gpu_texture ? upload_image(pbr_tex.emissive->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
-					matprop.normal_map = pbr_tex.normal ? (pbr_tex.normal->gpu_texture ? upload_image(pbr_tex.normal->gpu_texture).handle : NORMAL_TEX_ID) : NORMAL_TEX_ID;
-					matprop.metallic_map = pbr_tex.metallic ? (pbr_tex.metallic->gpu_texture ? upload_image(pbr_tex.metallic->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
-					matprop.roughness_map = pbr_tex.roughness ? (pbr_tex.roughness->gpu_texture ? upload_image(pbr_tex.roughness->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
-					matprop.ao_map = pbr_tex.ao ? (pbr_tex.ao->gpu_texture ? upload_image(pbr_tex.ao->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
+					update_material_texture_bindings(matprop, pbr_tex);
 					upload_material(&matprop);
 					material->set_flag(AssetFlag::UploadedGpu);
 				}
 				else if (material->dirty_flag())
 				{
-					matprop.albedo_map = pbr_tex.albedo ? (pbr_tex.albedo->gpu_texture ? upload_image(pbr_tex.albedo->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
-					matprop.emissive_map = pbr_tex.emissive ? (pbr_tex.emissive->gpu_texture ? upload_image(pbr_tex.emissive->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
-					matprop.normal_map = pbr_tex.normal ? (pbr_tex.normal->gpu_texture ? upload_image(pbr_tex.normal->gpu_texture).handle : NORMAL_TEX_ID) : NORMAL_TEX_ID;
-					matprop.metallic_map = pbr_tex.metallic ? (pbr_tex.metallic->gpu_texture ? upload_image(pbr_tex.metallic->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
-					matprop.roughness_map = pbr_tex.roughness ? (pbr_tex.roughness->gpu_texture ? upload_image(pbr_tex.roughness->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
-					matprop.ao_map = pbr_tex.ao ? (pbr_tex.ao->gpu_texture ? upload_image(pbr_tex.ao->gpu_texture).handle : WHITE_TEX_ID) : WHITE_TEX_ID;
+					update_material_texture_bindings(matprop, pbr_tex);
 					upload_material(&matprop);
 				}
 				upload_material_num++;

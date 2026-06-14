@@ -21,6 +21,8 @@ namespace diverse
 	class PointCloud;
 	class MeshModel;
 	struct Material;
+	struct MaterialProperties;
+	struct PBRMataterialTextures;
 	class  Mesh;
 	struct PostProcessRenderer;
 	struct TaaRenderer;
@@ -186,6 +188,7 @@ namespace diverse
 		auto	upload_gaussian_gpu_buffers()->void;
 		auto	upload_point_cloud_gpu_buffers()->void;
 		auto	upload_mesh_gpu_buffers()->void;
+		auto	update_material_texture_bindings(MaterialProperties& material, const PBRMataterialTextures& textures)->void;
 		auto	upload_mesh_model(class MeshModel* model)->void;
 		auto	upload_material(const struct MaterialProperties* material)->void;
 		auto	upload_image(const std::shared_ptr<rhi::GpuTexture>& image)-> BindlessImageHandle;
