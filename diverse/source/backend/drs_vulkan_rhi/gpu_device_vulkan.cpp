@@ -12,6 +12,7 @@
 #endif
 
 #include <ranges>
+#include <cstring>
 #include "core/ds_log.h"
 #define SMALL_ALLOCATION_MAX_SIZE 4096
 
@@ -127,45 +128,66 @@ namespace diverse
             {
                 vkEnumerateDeviceExtensionProperties(pdevice.handle, nullptr, &extCount, &supported_extensions.front());
             }
-            auto device_extension_names = std::vector<const char*>{
-                VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-                VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME,
-                VK_KHR_MAINTENANCE1_EXTENSION_NAME,
-                VK_KHR_MAINTENANCE2_EXTENSION_NAME,
-                VK_KHR_MAINTENANCE3_EXTENSION_NAME,
-                VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
-                VK_KHR_IMAGELESS_FRAMEBUFFER_EXTENSION_NAME,
-                VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
-                VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME,
-                VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
-                "VK_KHR_synchronization2",
-                "VK_KHR_buffer_device_address",
-    #if defined(DS_PLATFORM_MACOS)
-        "VK_KHR_portability_subset",
-//        "VK_KHR_maintenance4",
-//        "VK_EXT_descriptor_buffer",
-//            "VK_EXT_shader_atomic_float",
-//            "VK_EXT_shader_demote_to_helper_invocation",
-//            "VK_EXT_shader_stencil_export",
-//            "VK_EXT_shader_subgroup_ballot",
-//            "VK_EXT_shader_subgroup_vote",
-//            "VK_EXT_shader_viewport_index_layer",
-//            "VK_EXT_subgroup_size_control",
-//            "VK_KHR_shader_draw_parameters",
-//            "VK_KHR_shader_float_controls",
-//            "VK_KHR_shader_float16_int8",
-//            "VK_KHR_shader_integer_dot_product",
-//            "VK_KHR_shader_non_semantic_info",
-//            "VK_KHR_shader_subgroup_extended_types",
-//            "VK_KHR_spirv_1_4",
-//            "VK_KHR_storage_buffer_storage_class",
-    #endif
-    #if DLSS
-                "VK_NVX_binary_import",
-                "VK_KHR_push_descriptor",
-                VK_NVX_IMAGE_VIEW_HANDLE_EXTENSION_NAME
-    #endif
+            auto device_extension_names = std::vector<const char*>{};
+            auto supports_vulkan_version = [&](uint32_t major, uint32_t minor)->bool {
+                const auto api_version = pdevice.properties.apiVersion;
+                return VK_API_VERSION_MAJOR(api_version) > major ||
+                    (VK_API_VERSION_MAJOR(api_version) == major && VK_API_VERSION_MINOR(api_version) >= minor);
             };
+            const auto vulkan_1_1 = supports_vulkan_version(1, 1);
+            const auto vulkan_1_2 = supports_vulkan_version(1, 2);
+            auto has_device_extension = [&](const char* extension)->bool {
+                return checkExtensionSupport(extension, supported_extensions);
+            };
+            auto add_device_extension = [&](const char* extension)->void {
+                auto already_enabled = std::find_if(device_extension_names.begin(), device_extension_names.end(),
+                    [&](const char* enabled_extension) {
+                        return std::strcmp(enabled_extension, extension) == 0;
+                    });
+                if (already_enabled == device_extension_names.end())
+                    device_extension_names.push_back(extension);
+            };
+            auto require_extension_or_core = [&](const char* extension, bool promoted_to_core, const char* reason)->bool {
+                if (promoted_to_core)
+                    return true;
+                if (has_device_extension(extension))
+                {
+                    add_device_extension(extension);
+                    return true;
+                }
+                DS_LOG_ERROR("Required Vulkan device extension not supported: {} ({})", extension, reason);
+                return false;
+            };
+            auto enable_optional_extension = [&](const char* extension)->bool {
+                if (!has_device_extension(extension))
+                    return false;
+                add_device_extension(extension);
+                return true;
+            };
+
+            bool required_extensions_ok = true;
+            required_extensions_ok &= require_extension_or_core(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, vulkan_1_2, "bindless descriptors");
+            required_extensions_ok &= require_extension_or_core(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME, vulkan_1_2, "scalar block layout");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_MAINTENANCE1_EXTENSION_NAME, vulkan_1_1, "maintenance1");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_MAINTENANCE2_EXTENSION_NAME, vulkan_1_1, "maintenance2");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_MAINTENANCE3_EXTENSION_NAME, vulkan_1_1, "maintenance3");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME, vulkan_1_1, "memory requirements2");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_IMAGELESS_FRAMEBUFFER_EXTENSION_NAME, vulkan_1_2, "imageless framebuffer");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME, vulkan_1_2, "image format list");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME, vulkan_1_1, "descriptor update template");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME, vulkan_1_2, "shader int8");
+            required_extensions_ok &= require_extension_or_core(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME, vulkan_1_2, "buffer device address");
+
+            const auto synchronization2_supported = enable_optional_extension(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME);
+
+#if defined(DS_PLATFORM_MACOS)
+            enable_optional_extension("VK_KHR_portability_subset");
+#endif
+#if DLSS
+            enable_optional_extension("VK_NVX_binary_import");
+            enable_optional_extension("VK_KHR_push_descriptor");
+            enable_optional_extension(VK_NVX_IMAGE_VIEW_HANDLE_EXTENSION_NAME);
+#endif
 
             auto ray_tracing_extension_names = std::vector<const char*>{
                 VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME,
@@ -175,11 +197,14 @@ namespace diverse
                 VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
                 VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
             };
-            // Check ALL ray tracing extensions - all must be supported to enable RT
+            // Check ALL ray tracing extensions - all must be supported to enable RT.
             gpu_limits.ray_tracing_enabled = true;
             for (auto ext : ray_tracing_extension_names)
             {
-                if (!checkExtensionSupport(ext, supported_extensions))
+                const auto promoted_to_core = vulkan_1_2 &&
+                    (std::strcmp(ext, VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME) == 0 ||
+                     std::strcmp(ext, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME) == 0);
+                if (!promoted_to_core && !has_device_extension(ext))
                 {
                     DS_LOG_INFO("Ray tracing extension not supported: {}", ext);
                     gpu_limits.ray_tracing_enabled = false;
@@ -190,48 +215,51 @@ namespace diverse
             // Check if the extension is supported
             VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT topologyRestartFeatures = {};
             topologyRestartFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIMITIVE_TOPOLOGY_LIST_RESTART_FEATURES_EXT;
-            if (checkExtensionSupport("VK_EXT_primitive_topology_list_restart", supported_extensions)){
+            const auto topology_list_restart_supported = enable_optional_extension("VK_EXT_primitive_topology_list_restart");
+            if (topology_list_restart_supported){
                 topologyRestartFeatures.primitiveTopologyListRestart = VK_TRUE;
-                device_extension_names.push_back("VK_EXT_primitive_topology_list_restart");
             }
             VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures = {};
             rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
             // Ray query requires all other ray tracing extensions to be supported
-            if (gpu_limits.ray_tracing_enabled && checkExtensionSupport(VK_KHR_RAY_QUERY_EXTENSION_NAME, supported_extensions)){
+            if (gpu_limits.ray_tracing_enabled && enable_optional_extension(VK_KHR_RAY_QUERY_EXTENSION_NAME)){
                 rayQueryFeatures.rayQuery = VK_TRUE;
-                device_extension_names.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
             }
             VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures = {};
             meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
-            if (checkExtensionSupport(VK_EXT_MESH_SHADER_EXTENSION_NAME, supported_extensions)){
+            const auto mesh_shader_extension_supported = enable_optional_extension(VK_EXT_MESH_SHADER_EXTENSION_NAME);
+            if (mesh_shader_extension_supported){
                 gpu_limits.mesh_shader_enabled = true;
                 meshShaderFeatures.meshShader = VK_TRUE;
                 meshShaderFeatures.taskShader = VK_TRUE;
-                device_extension_names.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
                 DS_LOG_INFO("Mesh shader extension is supported");
             }
             
             // Check shader_demote_to_helper_invocation extension support
-            bool shader_demote_supported = checkExtensionSupport(VK_EXT_SHADER_DEMOTE_TO_HELPER_INVOCATION_EXTENSION_NAME, supported_extensions);
+            bool shader_demote_supported = enable_optional_extension(VK_EXT_SHADER_DEMOTE_TO_HELPER_INVOCATION_EXTENSION_NAME);
             if (shader_demote_supported) {
-                device_extension_names.push_back(VK_EXT_SHADER_DEMOTE_TO_HELPER_INVOCATION_EXTENSION_NAME);
+                DS_LOG_INFO("Shader demote extension is supported");
             }
             if (gpu_limits.ray_tracing_enabled)
             {
                 DS_LOG_INFO("All ray tracing extensions are supported");
-                device_extension_names.insert(device_extension_names.end(), ray_tracing_extension_names.begin(), ray_tracing_extension_names.end());
+                for (auto ext : ray_tracing_extension_names)
+                {
+                    const auto promoted_to_core = vulkan_1_2 &&
+                        (std::strcmp(ext, VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME) == 0 ||
+                         std::strcmp(ext, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME) == 0);
+                    if (!promoted_to_core)
+                        add_device_extension(ext);
+                }
             }
             if (pdevice.presentation_requested)
             {
-                device_extension_names.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+                required_extensions_ok &= require_extension_or_core(VK_KHR_SWAPCHAIN_EXTENSION_NAME, false, "swapchain presentation");
             }
-            for (auto ext : device_extension_names)
+            if (!required_extensions_ok)
             {
-                if (!checkExtensionSupport(ext, supported_extensions))
-                {
-                    DS_LOG_ERROR("Device extension not supported: {}", ext);
-                    exit(-1);
-                }
+                DS_LOG_ERROR("GPU does not support required Vulkan device extensions. Please update your graphics driver or use a different GPU.");
+                exit(-1);
             }
             float priorities = 1.0;
             // 1. Find Graphics queue family (required)
@@ -306,51 +334,59 @@ namespace diverse
             get_buffer_device_address_features.bufferDeviceAddress = VK_TRUE;
 
             VkPhysicalDeviceFeatures2	feature2 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+            feature2.pNext = nullptr;
             VkPhysicalDeviceSynchronization2Features synchronization2Features = {};
             synchronization2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
-            synchronization2Features.synchronization2 = VK_TRUE;
-            feature2.pNext = &synchronization2Features;
-            // Only include shader_demote_to_helper_invocation in chain if extension is supported
-            if (shader_demote_supported) {
-                synchronization2Features.pNext = &shader_demote_to_helper_invocation;
-                shader_demote_to_helper_invocation.pNext = &scalar_block;
-            } else {
-                synchronization2Features.pNext = &scalar_block;
-            }
-            scalar_block.pNext = &descriptor_indexing;
-            descriptor_indexing.pNext = &imageless_framebuffer;
-            imageless_framebuffer.pNext = &shader_float16_int8;
-            shader_float16_int8.pNext = &vulkan_memory_model;
-            vulkan_memory_model.pNext = &get_buffer_device_address_features;
+            synchronization2Features.synchronization2 = synchronization2_supported ? VK_TRUE : VK_FALSE;
+
+            auto* feature_chain_tail = reinterpret_cast<VkBaseOutStructure*>(&feature2);
+            auto append_feature = [&](auto& feature)->void {
+                feature.pNext = nullptr;
+                feature_chain_tail->pNext = reinterpret_cast<VkBaseOutStructure*>(&feature);
+                feature_chain_tail = reinterpret_cast<VkBaseOutStructure*>(&feature);
+            };
+
+            if (synchronization2_supported)
+                append_feature(synchronization2Features);
+            if (shader_demote_supported)
+                append_feature(shader_demote_to_helper_invocation);
+            append_feature(scalar_block);
+            append_feature(descriptor_indexing);
+            append_feature(imageless_framebuffer);
+            append_feature(shader_float16_int8);
+            if (vulkan_1_2 || has_device_extension(VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME))
+                append_feature(vulkan_memory_model);
+            append_feature(get_buffer_device_address_features);
             
-            void* lastFeatureInChain = &get_buffer_device_address_features;
             if (gpu_limits.ray_tracing_enabled)
             {
-                get_buffer_device_address_features.pNext = &acceleration_structure_features;
-                acceleration_structure_features.pNext = &ray_tracing_pipeline_features;
-                ray_tracing_pipeline_features.pNext = &rayQueryFeatures;
-                lastFeatureInChain = &rayQueryFeatures;
+                append_feature(acceleration_structure_features);
+                append_feature(ray_tracing_pipeline_features);
+                if (rayQueryFeatures.rayQuery)
+                    append_feature(rayQueryFeatures);
             }
-            if (topologyRestartFeatures.primitiveTopologyListRestart)
-            {
-                static_cast<VkBaseOutStructure*>(lastFeatureInChain)->pNext = reinterpret_cast<VkBaseOutStructure*>(&topologyRestartFeatures);
-                lastFeatureInChain = &topologyRestartFeatures;
-            }
+            if (topology_list_restart_supported)
+                append_feature(topologyRestartFeatures);
             if (gpu_limits.mesh_shader_enabled)
-            {
-                static_cast<VkBaseOutStructure*>(lastFeatureInChain)->pNext = reinterpret_cast<VkBaseOutStructure*>(&meshShaderFeatures);
-                lastFeatureInChain = &meshShaderFeatures;
-            }
+                append_feature(meshShaderFeatures);
             
             vkGetPhysicalDeviceFeatures2(pdevice.handle, &feature2);
-            gpu_limits.rayQuery = rayQueryFeatures.rayQuery;
+            gpu_limits.rayQuery = gpu_limits.ray_tracing_enabled && rayQueryFeatures.rayQuery;
             
             // Disable mesh shader features that have unmet dependencies
             // multiviewMeshShader requires multiview, primitiveFragmentShadingRateMeshShader requires primitiveFragmentShadingRate
             if (gpu_limits.mesh_shader_enabled)
             {
-                meshShaderFeatures.multiviewMeshShader = VK_FALSE;
-                meshShaderFeatures.primitiveFragmentShadingRateMeshShader = VK_FALSE;
+                if (!meshShaderFeatures.meshShader || !meshShaderFeatures.taskShader)
+                {
+                    DS_LOG_WARN("Mesh shader extension is present, but required mesh/task shader features are not supported. Mesh shader path disabled.");
+                    gpu_limits.mesh_shader_enabled = false;
+                }
+                else
+                {
+                    meshShaderFeatures.multiviewMeshShader = VK_FALSE;
+                    meshShaderFeatures.primitiveFragmentShadingRateMeshShader = VK_FALSE;
+                }
             }
             // Verify required device features are supported
             {
@@ -376,17 +412,30 @@ namespace diverse
                 check_feature(descriptor_indexing.runtimeDescriptorArray, "runtimeDescriptorArray");
                 check_feature(imageless_framebuffer.imagelessFramebuffer, "imagelessFramebuffer");
                 check_feature(shader_float16_int8.shaderInt8, "shaderInt8");
+                check_feature(get_buffer_device_address_features.bufferDeviceAddress, "bufferDeviceAddress");
 
                 if (gpu_limits.ray_tracing_enabled)
                 {
-                    check_feature(descriptor_indexing.shaderUniformBufferArrayNonUniformIndexing, "shaderUniformBufferArrayNonUniformIndexing");
-                    check_feature(descriptor_indexing.shaderStorageBufferArrayNonUniformIndexing, "shaderStorageBufferArrayNonUniformIndexing");
-                    check_feature(vulkan_memory_model.vulkanMemoryModel, "vulkanMemoryModel");
-                    check_feature(acceleration_structure_features.accelerationStructure, "accelerationStructure");
-                    check_feature(acceleration_structure_features.descriptorBindingAccelerationStructureUpdateAfterBind, "descriptorBindingAccelerationStructureUpdateAfterBind");
-                    check_feature(ray_tracing_pipeline_features.rayTracingPipeline, "rayTracingPipeline");
-                    check_feature(ray_tracing_pipeline_features.rayTracingPipelineTraceRaysIndirect, "rayTracingPipelineTraceRaysIndirect");
-                    check_feature(get_buffer_device_address_features.bufferDeviceAddress, "bufferDeviceAddress");
+                    bool rt_features_ok = true;
+                    auto check_rt_feature = [&rt_features_ok](VkBool32 feature, const char* name) {
+                        if (!feature) {
+                            DS_LOG_WARN("Ray tracing feature not supported: {}", name);
+                            rt_features_ok = false;
+                        }
+                    };
+                    check_rt_feature(descriptor_indexing.shaderUniformBufferArrayNonUniformIndexing, "shaderUniformBufferArrayNonUniformIndexing");
+                    check_rt_feature(descriptor_indexing.shaderStorageBufferArrayNonUniformIndexing, "shaderStorageBufferArrayNonUniformIndexing");
+                    check_rt_feature(vulkan_memory_model.vulkanMemoryModel, "vulkanMemoryModel");
+                    check_rt_feature(acceleration_structure_features.accelerationStructure, "accelerationStructure");
+                    check_rt_feature(acceleration_structure_features.descriptorBindingAccelerationStructureUpdateAfterBind, "descriptorBindingAccelerationStructureUpdateAfterBind");
+                    check_rt_feature(ray_tracing_pipeline_features.rayTracingPipeline, "rayTracingPipeline");
+                    check_rt_feature(ray_tracing_pipeline_features.rayTracingPipelineTraceRaysIndirect, "rayTracingPipelineTraceRaysIndirect");
+                    if (!rt_features_ok)
+                    {
+                        DS_LOG_WARN("Ray tracing path disabled; raster/hybrid non-RT rendering can continue.");
+                        gpu_limits.ray_tracing_enabled = false;
+                        gpu_limits.rayQuery = false;
+                    }
                 }
                 
                 if (!features_ok) {
@@ -394,6 +443,7 @@ namespace diverse
                     exit(-1);
                 }
             }
+            gpu_limits.rayQuery = gpu_limits.ray_tracing_enabled && rayQueryFeatures.rayQuery;
             
             VkDeviceCreateInfo	device_create_info = {};
             device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -404,7 +454,12 @@ namespace diverse
             device_create_info.enabledExtensionCount = static_cast<uint32_t>(device_extension_names.size());
             device_create_info.pEnabledFeatures = nullptr;
             device_create_info.enabledLayerCount = 0;
-            VK_CHECK_RESULT(vkCreateDevice(pdevice.handle, &device_create_info, nullptr, &device));
+            auto create_device_result = vkCreateDevice(pdevice.handle, &device_create_info, nullptr, &device);
+            if (create_device_result != VK_SUCCESS)
+            {
+                DS_LOG_ERROR("[VULKAN] vkCreateDevice failed: {}", vk_error_string(create_device_result));
+                exit(-1);
+            }
 
             VkPhysicalDeviceMemoryProperties memoryProperties;
             vkGetPhysicalDeviceMemoryProperties(physcial_device.handle, &memoryProperties);
