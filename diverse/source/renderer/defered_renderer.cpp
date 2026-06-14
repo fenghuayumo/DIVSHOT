@@ -508,6 +508,25 @@ namespace diverse
 		}
 	}
 
+	auto DeferedRenderer::is_material_texture_bound(const SharedPtr<asset::Texture>& texture)->bool
+	{
+		if (!texture)
+			return true;
+
+		return texture->is_flag_set(AssetFlag::UploadedGpu) &&
+			bindless_image_ids.find(texture->gpu_texture.get()) != bindless_image_ids.end();
+	}
+
+	auto DeferedRenderer::are_material_textures_bound(const PBRMataterialTextures& textures)->bool
+	{
+		return is_material_texture_bound(textures.albedo) &&
+			is_material_texture_bound(textures.emissive) &&
+			is_material_texture_bound(textures.normal) &&
+			is_material_texture_bound(textures.metallic) &&
+			is_material_texture_bound(textures.roughness) &&
+			is_material_texture_bound(textures.ao);
+	}
+
 	auto DeferedRenderer::update_material_texture_bindings(MaterialProperties& matprop, const PBRMataterialTextures& pbr_tex)->void
 	{
 		auto image_handle_or_default = [this](const SharedPtr<asset::Texture>& texture, u32 default_id)->u32 {
@@ -535,22 +554,7 @@ namespace diverse
 			auto& pbr_tex = material->get_textures();
 			if(!pbr_tex.is_upload_2_gpu()) continue;
 			//if(material.is_flag_set(AssetFlag::UploadedGpu) && !material.dirty_flag()) continue;
-			auto has_binded = [&](const SharedPtr<asset::Texture>& texture)->bool{
-				if(!texture) return true; //no texture, use default
-				if(texture->is_flag_set(AssetFlag::UploadedGpu) && 
-					bindless_image_ids.find(texture->gpu_texture.get()) != bindless_image_ids.end())
-					return true;
-				return false;
-			};
-			auto has_binded_pbr_tex = [&](PBRMataterialTextures& texures) {
-				return has_binded(texures.albedo) &&
-						has_binded(texures.emissive) &&
-						has_binded(texures.normal) &&
-						has_binded(texures.metallic) &&
-						has_binded(texures.roughness) &&
-						has_binded(texures.ao);
-			};
-			if (!material->is_flag_set(AssetFlag::UploadedGpu) || !has_binded_pbr_tex(pbr_tex))
+			if (!material->is_flag_set(AssetFlag::UploadedGpu) || !are_material_textures_bound(pbr_tex))
 			{
 				mat_2_mat_buf_id[material] = material_datas.size();
 				material_datas.push_back(&matprop);

@@ -16,6 +16,10 @@
 namespace diverse
 {
 	class  Scene;
+	namespace asset
+	{
+		struct Texture;
+	}
 	
 	struct GaussianModel;
 	class PointCloud;
@@ -189,6 +193,8 @@ namespace diverse
 		auto	upload_point_cloud_gpu_buffers()->void;
 		auto	upload_mesh_gpu_buffers()->void;
 		auto	upload_mesh_materials(MeshModel* model)->int;
+		auto	is_material_texture_bound(const SharedPtr<asset::Texture>& texture)->bool;
+		auto	are_material_textures_bound(const PBRMataterialTextures& textures)->bool;
 		auto	update_material_texture_bindings(MaterialProperties& material, const PBRMataterialTextures& textures)->void;
 		auto	record_mesh_instance_gpu_state(MeshModel* model, u32 entity_id, const maths::Transform& transform)->void;
 		auto	upload_mesh_model(class MeshModel* model)->void;
