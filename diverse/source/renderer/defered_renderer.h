@@ -147,7 +147,6 @@ namespace diverse
 
 		void	init();
 		void	render();
-		auto	upload_gpu_buffers()->void;
 		auto	prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc, const EnvironmentFrameParams& environment) -> rg::Handle<rhi::GpuTexture>;
 		auto	retire_frame(const std::vector<MeshFrameState>& mesh_frame_states) -> void;
 		auto	prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, const CameraFrameParams& camera_params, f32 delta_t) -> rg::FrameConstantsLayout;
@@ -185,6 +184,7 @@ namespace diverse
 		auto	extract_frame_packet(f32 delta_t)->std::optional<RenderFramePacket>;
 		auto	render_frame_packet(RenderFramePacket&& packet)->void;
 		auto	apply_environment_frame(const EnvironmentFrameParams& environment)->void;
+		auto	upload_gpu_buffers()->void;
 		auto	upload_gaussian_gpu_buffers()->void;
 		auto	upload_point_cloud_gpu_buffers()->void;
 		auto	upload_mesh_gpu_buffers()->void;
