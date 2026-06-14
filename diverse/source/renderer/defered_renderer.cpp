@@ -462,6 +462,13 @@ namespace diverse
 
 	auto DeferedRenderer::upload_gpu_buffers()->void
 	{
+		upload_gaussian_gpu_buffers();
+		upload_point_cloud_gpu_buffers();
+		upload_mesh_gpu_buffers();
+	}
+
+	auto DeferedRenderer::upload_gaussian_gpu_buffers()->void
+	{
 		auto& registry = current_scene->get_registry();
 		auto group = registry.group<GaussianComponent>(entt::get<maths::Transform>);
 		for (auto gs_ent : group)
@@ -482,7 +489,11 @@ namespace diverse
 				skip_gs_render = false;
 			}
 		}
-		//
+	}
+
+	auto DeferedRenderer::upload_point_cloud_gpu_buffers()->void
+	{
+		auto& registry = current_scene->get_registry();
 		auto pointcloud_group = registry.group<PointCloudComponent>(entt::get<maths::Transform>);
 		for (auto pcd_ent : pointcloud_group)
 		{
@@ -495,6 +506,11 @@ namespace diverse
 				model_2_point_buf_id[model.ModelRef] = v_buf_id;
 			}
 		}
+	}
+
+	auto DeferedRenderer::upload_mesh_gpu_buffers()->void
+	{
+		auto& registry = current_scene->get_registry();
 		auto mmesh_group = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
 		ent_2_model_id.clear(); instantce_transforms.clear();instance_dynamic_constants.clear();
 		for (auto ent : mmesh_group)

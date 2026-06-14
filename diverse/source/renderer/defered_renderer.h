@@ -183,6 +183,9 @@ namespace diverse
 		auto	extract_frame_packet(f32 delta_t)->std::optional<RenderFramePacket>;
 		auto	render_frame_packet(RenderFramePacket&& packet)->void;
 		auto	apply_environment_frame(const EnvironmentFrameParams& environment)->void;
+		auto	upload_gaussian_gpu_buffers()->void;
+		auto	upload_point_cloud_gpu_buffers()->void;
+		auto	upload_mesh_gpu_buffers()->void;
 		auto	upload_mesh_model(class MeshModel* model)->void;
 		auto	upload_material(const struct MaterialProperties* material)->void;
 		auto	upload_image(const std::shared_ptr<rhi::GpuTexture>& image)-> BindlessImageHandle;
