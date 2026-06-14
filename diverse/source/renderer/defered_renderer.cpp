@@ -229,8 +229,9 @@ namespace diverse
 		if (!packet)
 			return;
 
+		auto mesh_frame_states = std::move(packet->mesh_frame_states);
 		render_frame_packet(std::move(*packet));
-		retire_frame();
+		retire_frame(mesh_frame_states);
 	}
 
 	auto DeferedRenderer::extract_frame_packet(f32 delta_dt)->std::optional<RenderFramePacket>
@@ -272,6 +273,11 @@ namespace diverse
 			view,
 			invView
 		};
+		packet.camera_params.fov_rad = glm::radians(camera->get_fov());
+		packet.camera_params.dof_enabled = camera->is_dof_enabled() ? 1.0f : 0.0f;
+		packet.camera_params.focus_distance = camera->get_focus_distance();
+		packet.camera_params.aperture = camera->get_aperture() * 0.001f;
+		packet.camera_params.camera_type = camera->get_camera_type() == Camera::CameraType::Fisheye ? 1u : 0u;
 
 		if( prev_camera_matrix && prev_camera_matrix->world_to_view != packet.frame_desc.camera_matrices.world_to_view )
 			reset_pt = true;
@@ -330,20 +336,22 @@ namespace diverse
 		// 	build_ray_tracing_top_level_acceleration();
 		for (auto mesh_ent : meshgroup)
 		{
-			if (!Entity(mesh_ent, current_scene).active())
-				continue;
-
 			const auto& [model, trans] = meshgroup.get<MeshModelComponent, maths::Transform>(mesh_ent);
+			packet.mesh_frame_states.push_back(MeshFrameState{ (u32)mesh_ent, trans.get_world_matrix() });
 			if (!model.ModelRef) continue;
 			if(!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu)) continue;
+			auto mesh_instance_id = (u32)packet.rt_instance_masks.size();
+			auto mesh_active = Entity(mesh_ent, current_scene).active();
+			packet.rt_instance_masks.push_back(mesh_active ? 0xff : 0);
+			if (!mesh_active)
+				continue;
+
 			const auto& meshes = model.ModelRef->get_meshes();
-			auto idx = meshgroup.find(mesh_ent) - meshgroup.begin();
 			for (auto mesh : meshes)
 			{
-				auto& worldTransform = trans.get_world_matrix();
 				RenderMeshCommand command;
 				command.material_id = mat_2_mat_buf_id[mesh->get_material().get()];
-				command.mesh_instance_id = idx;
+				command.mesh_instance_id = mesh_instance_id;
 				command.mesh_id = mesh_2_mesh_buf_id[mesh.get()];
 				packet.mesh_commands.push_back(command);
 				//mesh light
@@ -354,7 +362,7 @@ namespace diverse
 					if(emissive.x > 0 || emissive.y > 0 || emissive.z > 0)
 					{
 						TriangleLight triangle_light = {};
-						triangle_light.instance_id = idx;
+						triangle_light.instance_id = mesh_instance_id;
 						triangle_light.mesh_id = mesh_2_mesh_buf_id[mesh.get()];
 						triangle_light.triangle_count = mesh->get_index_count() / 3;
 						packet.triangle_lights.push_back(triangle_light);
@@ -371,16 +379,18 @@ namespace diverse
 		mesh_command_queue = std::move(packet.mesh_commands);
 		point_command_queue = std::move(packet.point_commands);
 		triangle_lights = std::move(packet.triangle_lights);
+		rt_instance_masks = std::move(packet.rt_instance_masks);
 		skip_gs_render = packet.skip_gs_render;
 
 		auto rg = rg_renderer->temporal_graph();
 		const auto frame_desc = packet.frame_desc;
+		const auto camera_params = packet.camera_params;
 		const auto delta_dt = packet.delta_t;
 		const auto swapchain_extent = packet.swapchain_extent;
 
 		rg_renderer->prepare_frame_constants(rg,
-			[this, frame_desc, delta_dt](rhi::DynamicConstants& dynamic_constants)->rg::FrameConstantsLayout {
-				return prepare_frame_constants(dynamic_constants, frame_desc, delta_dt);
+			[this, frame_desc, camera_params, delta_dt](rhi::DynamicConstants& dynamic_constants)->rg::FrameConstantsLayout {
+				return prepare_frame_constants(dynamic_constants, frame_desc, camera_params, delta_dt);
 			}
 		);
 		rg_renderer->prepare_frame(rg,
@@ -835,24 +845,21 @@ namespace diverse
 		}
 		return accum_img;
 	}
-	auto DeferedRenderer::retire_frame() -> void
+	auto DeferedRenderer::retire_frame(const std::vector<MeshFrameState>& mesh_frame_states) -> void
 	{
 		frame_idx += 1;
-		auto& registry = current_scene->get_registry();
-		auto mmesh_group = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
-		if(previous_transforms.size() != mmesh_group.size())
+		if(previous_transforms.size() != mesh_frame_states.size())
 		{
 			previous_transforms.clear();
 			invalidate_pt_state();
 		}
-		for (auto ent : mmesh_group)
+		for (auto& mesh_frame_state : mesh_frame_states)
 		{
-			const auto& [model, t] = mmesh_group.get<MeshModelComponent, maths::Transform>(ent);
-			previous_transforms[(u32)ent] = t.get_world_matrix();
+			previous_transforms[mesh_frame_state.entity_id] = mesh_frame_state.world_transform;
 		}
 	}
 
-	auto DeferedRenderer::prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, f32 delta_t) -> rg::FrameConstantsLayout
+	auto DeferedRenderer::prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, const CameraFrameParams& camera_params, f32 delta_t) -> rg::FrameConstantsLayout
 	{
 		ViewConstants view_constants(frame_desc.camera_matrices, prev_camera_matrix.value_or(frame_desc.camera_matrices), frame_desc.render_extent);
 		view_constants.set_pixel_offset(taa->current_supersample_offset, frame_desc.render_extent);
@@ -865,21 +872,6 @@ namespace diverse
 		u32 scene_lights_count = scene_lights.size();
 		RenderOverride	render_overrides;
 		f32 real_sun_angular_radius = glm::radians(0.53f) * 0.5f;
-		// Get camera and DOF parameters from camera
-		f32 fov_rad_val = glm::radians(60.0f);
-		f32 dof_enabled_val = 0.0f;
-		f32 focus_distance_val = 10.0f;
-		f32 aperture_val = 0.0f;
-		u32 camera_type_val = 0;
-		if (camera)
-		{
-			fov_rad_val = glm::radians(camera->get_fov());
-			dof_enabled_val = camera->is_dof_enabled() ? 1.0f : 0.0f;
-			focus_distance_val = camera->get_focus_distance();
-			aperture_val = camera->get_aperture() * 0.001f; // Convert to reasonable range
-			auto cam_type = camera->get_camera_type();
-			camera_type_val = (cam_type == Camera::CameraType::Fisheye) ? 1u : 0u;
-		}
 		
 		auto global_offset = dynamic_constants.push(FrameConstants{
 			view_constants.transpose(),
@@ -895,11 +887,11 @@ namespace diverse
 			post->expos_state.pre_mult_delta,
 			scene_lights_count,
 			render_overrides,
-			fov_rad_val,
-			dof_enabled_val,
-			focus_distance_val,
-			aperture_val,
-			camera_type_val,
+			camera_params.fov_rad,
+			camera_params.dof_enabled,
+			camera_params.focus_distance,
+			camera_params.aperture,
+			camera_params.camera_type,
 			{0.0f, 0.0f, 0.0f},
 			glm::vec4(irache->get_grid_center(),1.0),
 			irache->constants()
@@ -1062,14 +1054,11 @@ namespace diverse
 		auto top_level_as = rg.import_res<rhi::GpuRayTracingAcceleration>(tlas, rhi::AccessType::AnyShaderReadOther);
 		std::vector<rhi::RayTracingInstanceDesc>    rt_instance_desc(ent_2_model_id.size());
 
-		auto& registry = current_scene->get_registry();
-		auto meshgroup = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
         //parallel_for<size_t>(0, ent_2_model_id.size(), [&](size_t idx){
 		for (auto idx = 0; idx < ent_2_model_id.size(); idx++) {
             const auto& inst = instantce_transforms[idx];
             auto model_id = ent_2_model_id[idx];
-            auto entity = *(meshgroup.begin() + idx);
-            u8 mask = Entity(entity,current_scene).active() ? 0xff : 0;
+			u8 mask = idx < rt_instance_masks.size() ? rt_instance_masks[idx] : 0xff;
             rt_instance_desc[idx] =
                 rhi::RayTracingInstanceDesc{
                     mesh_blas[model_id],
@@ -1103,24 +1092,18 @@ namespace diverse
 	{
 		if( !g_device->gpu_limits.ray_tracing_enabled ) return;
 		std::vector<rhi::RayTracingInstanceDesc>    rt_instance_desc(instantce_transforms.size());
-		if(current_scene )
-		{ 
-			auto& registry = current_scene->get_registry();
-			auto meshgroup = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
-            parallel_for<size_t>(0,meshgroup.size(),[&](size_t idx){
-                const auto& inst = instantce_transforms[idx];
-                auto model_id = ent_2_model_id[idx];
-                auto entity = *(meshgroup.begin() + idx);
-                u8 mask = Entity(entity, current_scene).active() ? 0xff : 0;
-                rt_instance_desc[idx] =
-                    rhi::RayTracingInstanceDesc{
-                        mesh_blas[model_id],
-                        inst.transform,
-                        model_id,
-                        mask
-                };
-            });
-		}
+        parallel_for<size_t>(0, instantce_transforms.size(), [&](size_t idx) {
+            const auto& inst = instantce_transforms[idx];
+            auto model_id = ent_2_model_id[idx];
+			u8 mask = idx < rt_instance_masks.size() ? rt_instance_masks[idx] : 0xff;
+            rt_instance_desc[idx] =
+                rhi::RayTracingInstanceDesc{
+                    mesh_blas[model_id],
+                    inst.transform,
+                    model_id,
+                    mask
+            };
+        });
 		//if( !tlas && rt_instance_desc.size() > 0)
 		{
 			tlas = g_device->create_ray_tracing_top_acceleration(

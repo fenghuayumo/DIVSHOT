@@ -75,6 +75,21 @@ namespace diverse
 		std::array<u32, 2> render_extent;
 	};
 
+	struct CameraFrameParams
+	{
+		f32 fov_rad = 1.0471975512f;
+		f32 dof_enabled = 0.0f;
+		f32 focus_distance = 10.0f;
+		f32 aperture = 0.0f;
+		u32 camera_type = 0;
+	};
+
+	struct MeshFrameState
+	{
+		u32 entity_id = 0;
+		glm::mat4x4 world_transform = glm::mat4x4(1.0f);
+	};
+
 	struct FrameContext
 	{
 		std::array<u32, 2> render_extent;
@@ -89,6 +104,7 @@ namespace diverse
 	struct RenderFramePacket
 	{
 		FrameParamDesc frame_desc;
+		CameraFrameParams camera_params;
 		std::array<u32, 2> swapchain_extent = { 0, 0 };
 		f32 delta_t = 0.0f;
 		bool skip_gs_render = false;
@@ -97,6 +113,8 @@ namespace diverse
 		std::vector<RenderMeshCommand> mesh_commands;
 		std::vector<RenderPointCommand> point_commands;
 		std::vector<TriangleLight> triangle_lights;
+		std::vector<MeshFrameState> mesh_frame_states;
+		std::vector<u8> rt_instance_masks;
 	};
 
 	struct BindlessImageHandle
@@ -113,8 +131,8 @@ namespace diverse
 		void	render();
 		auto	upload_gpu_buffers()->void;
 		auto	prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc) -> rg::Handle<rhi::GpuTexture>;
-		auto	retire_frame() -> void;
-		auto	prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, f32 delta_t) -> rg::FrameConstantsLayout;
+		auto	retire_frame(const std::vector<MeshFrameState>& mesh_frame_states) -> void;
+		auto	prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, const CameraFrameParams& camera_params, f32 delta_t) -> rg::FrameConstantsLayout;
 		auto	release()->void;
 
 		auto 	debug_pass(rg::TemporalGraph& rg, rg::Handle<rhi::GpuTexture>& color_img, rg::Handle<rhi::GpuTexture>& depth_img)->void;
@@ -196,6 +214,7 @@ namespace diverse
 		std::unordered_map<MeshModel*,u32>			model_2_mesh_buf_id;
 		std::unordered_map<GaussianModel*,u32>		model_2_gs_buf_id;
 		std::unordered_map<PointCloud*,u32>			model_2_point_buf_id;
+		std::vector<u8>								rt_instance_masks;
 		std::unordered_map<struct Material*, u32>	mat_2_mat_buf_id;
 		std::unordered_map<Mesh*, u32>				mesh_2_mesh_buf_id;
 		std::unordered_map<rhi::GpuTexture*,u32> 	bindless_image_ids;
