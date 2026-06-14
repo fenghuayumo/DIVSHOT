@@ -2288,6 +2288,7 @@ namespace diverse
             else 
 #endif
             {
+#ifdef DS_SPLAT_TRAIN
                 auto& reg = get_current_scene()->get_registry();
                 auto gsGroup = reg.view<GaussianTrainerScene, GaussianComponent>();
                 
@@ -2303,6 +2304,7 @@ namespace diverse
                 
                 // Wait a bit for any pending updates to complete
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#endif
                 GaussianModel gs_model;
                 if(exportType == 1)
                 {
@@ -2339,6 +2341,7 @@ namespace diverse
                 {
                     gs_model.save_to_file(filepath);
                 }
+#ifdef DS_SPLAT_TRAIN
                 // Restore original training states
                 for (const auto& [entity, was_training] : original_train_states)
                 {
@@ -2349,6 +2352,7 @@ namespace diverse
                         }
                     }
                 }
+#endif
             }
             ImGui::CloseCurrentPopup();
         }
@@ -3461,6 +3465,7 @@ namespace diverse
 
     void Editor::export_webview()
     {
+#ifdef DS_SPLAT_TRAIN
         // Thread safety: Ensure no concurrent updates to GaussianComponent during export
         // Store original training states
         auto& reg = get_current_scene()->get_registry();
@@ -3478,6 +3483,7 @@ namespace diverse
         
         // Wait a bit for any pending updates to complete
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#endif
         
         auto group = get_current_scene()->get_entity_manager()->get_entities_with_type<GaussianComponent>();
         GaussianModel gs_model;
@@ -3493,6 +3499,7 @@ namespace diverse
             gs_model.merge(copy_gs.ModelRef.get());
         }
         
+#ifdef DS_SPLAT_TRAIN
         // Restore original training states
         for (const auto& [entity, was_training] : original_train_states)
         {
@@ -3503,6 +3510,7 @@ namespace diverse
                 }
             }
         }
+#endif
         if(gs_model.position().size() > 0)
         { 
             auto data = gs_model.get_compressed_data();

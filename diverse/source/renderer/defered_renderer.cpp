@@ -224,6 +224,20 @@ namespace diverse
 		if(!current_scene) return;
 		upload_gpu_buffers();
 
+		float delta_dt = 1.0f / 60.0f; //TODO
+		auto packet = extract_frame_packet(delta_dt);
+		if (!packet)
+			return;
+
+		render_frame_packet(std::move(*packet));
+		retire_frame();
+	}
+
+	auto DeferedRenderer::extract_frame_packet(f32 delta_dt)->std::optional<RenderFramePacket>
+	{
+		if (!current_scene)
+			return std::nullopt;
+
 		auto& registry = current_scene->get_registry();
 		if (override_camera)
 		{
@@ -241,31 +255,25 @@ namespace diverse
 		}
 
 		if(!camera || !camera_transform)
-			return;
+			return std::nullopt;
 
-		FrameParamDesc frame_desc;
-
-		auto rg = rg_renderer->temporal_graph();
-		float delta_dt = 1.0f / 60.0f; //TODO
-		auto swapchain_extent = Application::get().get_window_size();
-		frame_desc.render_extent = main_render_tex->desc.extent_2d();//swapchain_extent;
+		RenderFramePacket packet;
+		packet.delta_t = delta_dt;
+		packet.swapchain_extent = Application::get().get_window_size();
+		packet.frame_desc.render_extent = main_render_tex->desc.extent_2d();//swapchain_extent;
 		auto projection = camera->get_projection_matrix();
 		auto invProj = glm::inverse(projection);
 		auto invView = camera_transform->get_world_matrix();
 		auto view = glm::inverse(invView);
 
-		frame_desc.camera_matrices = CameraMatrices{
+		packet.frame_desc.camera_matrices = CameraMatrices{
 			projection,
 			invProj,
 			view,
 			invView
 		};
-		gs_command_queue.clear();
-		mesh_command_queue.clear();
-		point_command_queue.clear();
-		triangle_lights.clear();
 
-		if( prev_camera_matrix && prev_camera_matrix->world_to_view != frame_desc.camera_matrices.world_to_view )
+		if( prev_camera_matrix && prev_camera_matrix->world_to_view != packet.frame_desc.camera_matrices.world_to_view )
 			reset_pt = true;
 
 		auto group = registry.group<GaussianComponent>(entt::get<maths::Transform>);
@@ -282,7 +290,7 @@ namespace diverse
 			{ 
 				auto offset = -gs_com.black_point + gs_com.brightness;
 				auto scale = 1.0f / (gs_com.white_point - gs_com.black_point);
-				gs_command_queue.push_back(RenderGSCommand{ trans, 
+				packet.gs_commands.push_back(RenderGSCommand{ trans,
 											gs_com.ModelRef.get(), 
 											(u32)gs_com.sh_degree,
 											g_render_settings.select_color,
@@ -296,12 +304,12 @@ namespace diverse
 				{
 					for (auto& crop_data : crop->get_crop_data())
 					{
-						gs_command_queue.back().crop_data.push_back(&crop_data);
+						packet.gs_commands.back().crop_data.push_back(&crop_data);
 					}
 				}
 			}
 		}
-		skip_gs_render = skip_render;
+		packet.skip_gs_render = skip_render;
 		//pointcloud
 		auto pointcloud_group = registry.group<PointCloudComponent>(entt::get<maths::Transform>);
 		for(auto pcd : pointcloud_group)
@@ -313,7 +321,7 @@ namespace diverse
 			if(!pcd_com.ModelRef->is_flag_set(AssetFlag::UploadedGpu) ) continue;
 			if (pcd_com.ModelRef->vertex_buffer && model_2_point_buf_id.find(pcd_com.ModelRef.get()) != model_2_point_buf_id.end())
 			{ 
-				point_command_queue.push_back(RenderPointCommand{ trans, 
+				packet.point_commands.push_back(RenderPointCommand{ trans,
 											pcd_com.ModelRef});
 			}
 		}
@@ -337,7 +345,7 @@ namespace diverse
 				command.material_id = mat_2_mat_buf_id[mesh->get_material().get()];
 				command.mesh_instance_id = idx;
 				command.mesh_id = mesh_2_mesh_buf_id[mesh.get()];
-				mesh_command_queue.push_back(command);
+				packet.mesh_commands.push_back(command);
 				//mesh light
 				auto material = mesh->get_material().get();
 				if (material)
@@ -349,18 +357,34 @@ namespace diverse
 						triangle_light.instance_id = idx;
 						triangle_light.mesh_id = mesh_2_mesh_buf_id[mesh.get()];
 						triangle_light.triangle_count = mesh->get_index_count() / 3;
-						triangle_lights.push_back(triangle_light);
+						packet.triangle_lights.push_back(triangle_light);
 					}
 				}
 			}
 		}
+		return packet;
+	}
+
+	auto DeferedRenderer::render_frame_packet(RenderFramePacket&& packet)->void
+	{
+		gs_command_queue = std::move(packet.gs_commands);
+		mesh_command_queue = std::move(packet.mesh_commands);
+		point_command_queue = std::move(packet.point_commands);
+		triangle_lights = std::move(packet.triangle_lights);
+		skip_gs_render = packet.skip_gs_render;
+
+		auto rg = rg_renderer->temporal_graph();
+		const auto frame_desc = packet.frame_desc;
+		const auto delta_dt = packet.delta_t;
+		const auto swapchain_extent = packet.swapchain_extent;
+
 		rg_renderer->prepare_frame_constants(rg,
-			[&](rhi::DynamicConstants& dynamic_constants)->rg::FrameConstantsLayout {
+			[this, frame_desc, delta_dt](rhi::DynamicConstants& dynamic_constants)->rg::FrameConstantsLayout {
 				return prepare_frame_constants(dynamic_constants, frame_desc, delta_dt);
 			}
 		);
 		rg_renderer->prepare_frame(rg,
-			[&](rg::TemporalGraph& rg) {
+			[this, frame_desc, swapchain_extent](rg::TemporalGraph& rg) {
 				auto main_img = prepare_render_graph(rg, frame_desc);
 				auto ui_img = ui_renderer->prepare_render_graph(rg);
 				auto swap_chain = rg.get_swap_chain();
@@ -383,7 +407,6 @@ namespace diverse
 
 		rg_renderer->draw_frame(rg,
 			rg_renderer->swap_chain);
-		retire_frame();
 	}
 
 	auto DeferedRenderer::upload_gpu_buffers()->void

@@ -43,6 +43,8 @@ endif()
 set(CMAKE_EXE_LINKER_FLAGS_PRODUCTION "${CMAKE_EXE_LINKER_FLAGS_RELEASE}" CACHE STRING "Flags used by the linker during Production builds." FORCE)
 set(CMAKE_SHARED_LINKER_FLAGS_PRODUCTION "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}" CACHE STRING "Flags used by the linker during Production builds." FORCE)
 
+option(DS_SPLAT_TRAIN "Build Gaussian splat training tools and Torch/CUDA training dependencies" OFF)
+
 # Production optimizations (Full optimization like Premake)
 if(MSVC)
     # /Ox: Full optimization (includes /Ob2 /Oi /Ot /Oy /GF /Gy) - matches Premake's optimize "Full"
@@ -75,7 +77,9 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86")
 endif()
 
 # Set GPU_RUNTIME based on platform
-if(APPLE)
+if(NOT DS_SPLAT_TRAIN)
+    set(GPU_RUNTIME "CPU" CACHE STRING "HIP or CUDA or MPS" FORCE)
+elseif(APPLE)
     set(GPU_RUNTIME "MPS" CACHE STRING "HIP or CUDA or MPS")
 elseif(WIN32 OR UNIX)
     set(GPU_RUNTIME "CUDA" CACHE STRING "HIP or CUDA or MPS")
@@ -104,7 +108,7 @@ if(MSVC)
     add_compile_options(/MP)
 endif()
 # CUDA support for Windows and Linux
-if(WIN32 OR UNIX AND NOT APPLE)
+if(DS_SPLAT_TRAIN AND (WIN32 OR UNIX AND NOT APPLE))
     find_package(CUDA REQUIRED)
     message(STATUS "CUDA Version: ${CUDA_VERSION}")
 endif()
@@ -192,10 +196,14 @@ set(RAPIDCSV_INCLUDE_DIR ${WKS_LOCATION}/external/rapidcsv/)
 set(GSTRAIN_INCLUDE_DIR ${WKS_LOCATION}/diverse_utils/gstrain/src)
 set(GSPLATRAST_INCLUDE_DIR ${WKS_LOCATION}/diverse_utils/gsplatrast/src)
 set(PY3_INCLUDE_DIR ${PY3_PATH}/include)
-set(CUDA_INCLUDE_DIR ${CUDA_PATH}/include)
+if(DS_SPLAT_TRAIN AND CUDA_PATH)
+    set(CUDA_INCLUDE_DIR ${CUDA_PATH}/include)
+else()
+    set(CUDA_INCLUDE_DIR "")
+endif()
 
 # Auto-detect Torch from PY3_PATH environment variable
-if(NOT DEFINED Torch_DIR AND PY3_PATH)
+if(DS_SPLAT_TRAIN AND NOT DEFINED Torch_DIR AND PY3_PATH)
     if(WIN32)
         set(Torch_DIR "${PY3_PATH}/Lib/site-packages/torch/share/cmake/Torch")
     elseif(APPLE)
@@ -235,29 +243,37 @@ endforeach()
 message(STATUS "OpenCV configured to use Release libraries for all build configurations")
 
 # Find Torch after OpenCV
-find_package(Torch REQUIRED)
+if(DS_SPLAT_TRAIN)
+    # Fix CUDA 12.x compatibility: nvToolsExt was removed in CUDA 12
+    if(NOT TARGET CUDA::nvToolsExt)
+        add_library(CUDA::nvToolsExt INTERFACE IMPORTED)
+    endif()
+    find_package(Torch REQUIRED)
+endif()
 
 # Find FFmpeg components
-find_package(PkgConfig)
-if(PKG_CONFIG_FOUND)
-    pkg_check_modules(FFMPEG REQUIRED 
-        libavcodec 
-        libavformat 
-        libswscale
-        libavutil
-    )
-    message(STATUS "FFmpeg found via pkg-config")
-    message(STATUS "  avcodec: ${FFMPEG_libavcodec_VERSION}")
-    message(STATUS "  avformat: ${FFMPEG_libavformat_VERSION}")
-    message(STATUS "  swscale: ${FFMPEG_libswscale_VERSION}")
-else()
-    # Fallback: try to find FFmpeg manually (vcpkg usually provides pkg-config)
-    message(WARNING "pkg-config not found, FFmpeg detection may be incomplete")
+if(DS_SPLAT_TRAIN)
+    find_package(PkgConfig)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(FFMPEG REQUIRED
+            libavcodec
+            libavformat
+            libswscale
+            libavutil
+        )
+        message(STATUS "FFmpeg found via pkg-config")
+        message(STATUS "  avcodec: ${FFMPEG_libavcodec_VERSION}")
+        message(STATUS "  avformat: ${FFMPEG_libavformat_VERSION}")
+        message(STATUS "  swscale: ${FFMPEG_libswscale_VERSION}")
+    else()
+        # Fallback: try to find FFmpeg manually (vcpkg usually provides pkg-config)
+        message(WARNING "pkg-config not found, FFmpeg detection may be incomplete")
+    endif()
 endif()
 
 find_package(ZLIB)
 
-if (NOT WIN32 AND NOT APPLE)
+if (DS_SPLAT_TRAIN AND NOT WIN32 AND NOT APPLE)
     set(CMAKE_CUDA_COMPILER "${CUDA_TOOLKIT_ROOT_DIR}/bin/nvcc")
 endif()
 

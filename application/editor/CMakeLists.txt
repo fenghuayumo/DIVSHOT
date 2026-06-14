@@ -161,9 +161,12 @@ target_compile_definitions(divshot PUBLIC
     GS_DYNAMIC
     DS_EDITOR
     USE_OPENMP
-    DS_SPLAT_TRAIN
     SPLAT_EDIT
 )
+
+if(DS_SPLAT_TRAIN)
+    target_compile_definitions(divshot PUBLIC DS_SPLAT_TRAIN)
+endif()
 
 # OpenMP support
 find_package(OpenMP)
@@ -206,7 +209,7 @@ if(WIN32)
     if(PY3_PATH)
         target_link_directories(divshot PUBLIC ${PY3_PATH}/libs)
     endif()
-    if(CUDA_PATH)
+    if(DS_SPLAT_TRAIN AND CUDA_PATH)
         target_link_directories(divshot PUBLIC ${CUDA_PATH}/lib/x64)
     endif()
     target_link_directories(divshot PUBLIC ${WKS_LOCATION}/external/OpenAL/libs/Win32)
@@ -216,12 +219,15 @@ if(WIN32)
         glfw
         OpenGL32
         OpenAL32
-        gstrain
         ${OpenCV_LIBS}
     )
+
+    if(DS_SPLAT_TRAIN)
+        target_link_libraries(divshot PUBLIC gstrain)
+    endif()
     
     # Link FFmpeg libraries if available
-    if(FFMPEG_FOUND)
+    if(DS_SPLAT_TRAIN AND FFMPEG_FOUND)
         target_include_directories(divshot PRIVATE ${FFMPEG_INCLUDE_DIRS})
         target_link_libraries(divshot PUBLIC ${FFMPEG_LIBRARIES})
         target_link_directories(divshot PUBLIC ${FFMPEG_LIBRARY_DIRS})
@@ -303,7 +309,7 @@ elseif(APPLE)
     )
     
     # Link FFmpeg libraries if available
-    if(FFMPEG_FOUND)
+    if(DS_SPLAT_TRAIN AND FFMPEG_FOUND)
         target_include_directories(divshot PRIVATE ${FFMPEG_INCLUDE_DIRS})
         target_link_libraries(divshot PUBLIC ${FFMPEG_LIBRARIES})
         target_link_directories(divshot PUBLIC ${FFMPEG_LIBRARY_DIRS})

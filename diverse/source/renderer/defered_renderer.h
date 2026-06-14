@@ -11,6 +11,7 @@
 #include "debug_render_pass.h"
 #include "sky_pass.h"
 #include "light.h"
+#include <optional>
 
 namespace diverse
 {
@@ -85,6 +86,19 @@ namespace diverse
 		}
 	};
 
+	struct RenderFramePacket
+	{
+		FrameParamDesc frame_desc;
+		std::array<u32, 2> swapchain_extent = { 0, 0 };
+		f32 delta_t = 0.0f;
+		bool skip_gs_render = false;
+
+		std::vector<RenderGSCommand> gs_commands;
+		std::vector<RenderMeshCommand> mesh_commands;
+		std::vector<RenderPointCommand> point_commands;
+		std::vector<TriangleLight> triangle_lights;
+	};
+
 	struct BindlessImageHandle
 	{
 		u32 handle;
@@ -132,6 +146,8 @@ namespace diverse
 		auto 	build_ray_tracing_top_level_acceleration() -> void;
 		auto 	build_ray_tracing_buttom_level_acceleration(MeshModel* mesh)->void;
 	protected:
+		auto	extract_frame_packet(f32 delta_t)->std::optional<RenderFramePacket>;
+		auto	render_frame_packet(RenderFramePacket&& packet)->void;
 		auto	upload_mesh_model(class MeshModel* model)->void;
 		auto	upload_material(const struct MaterialProperties* material)->void;
 		auto	upload_image(const std::shared_ptr<rhi::GpuTexture>& image)-> BindlessImageHandle;
