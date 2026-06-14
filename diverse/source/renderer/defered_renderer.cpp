@@ -279,6 +279,31 @@ namespace diverse
 		packet.camera_params.aperture = camera->get_aperture() * 0.001f;
 		packet.camera_params.camera_type = camera->get_camera_type() == Camera::CameraType::Fisheye ? 1u : 0u;
 
+		auto enviroment_view = current_scene->get_entity_manager()->get_entities_with_type<diverse::Environment>();
+		if (!enviroment_view.empty())
+		{
+			auto ent = enviroment_view.front().get_component<Environment>();
+			packet.environment.has_environment = true;
+			packet.environment.dirty = ent.dirty_flag;
+			packet.environment.mode = (f32)ent.mode;
+			packet.environment.color = ent.get_color();
+			packet.environment.sun_color = ent.mode == Environment::Mode::Pure ? glm::vec3(0.0f) : ent.sun_color;
+			packet.environment.sun_size_multiplier = ent.sun_size_multiplier;
+			packet.environment.sky_ambient = glm::vec4(ent.sky_ambient, ent.intensity);
+			packet.environment.hdr_img = ent.mode == Environment::Mode::HDR ? ent.get_enviroment_map() : nullptr;
+			packet.environment.ibl_params = { ent.theta, ent.phi };
+			packet.environment.cube_resolution = ent.cubeResolution;
+			packet.environment.sun_direction = sun_direction;
+			if (ent.mode == Environment::Mode::SunSky)
+			{
+				auto* sun_controller = enviroment_view.front().try_get_component<SunController>();
+				if (sun_controller)
+				{
+					packet.environment.sun_direction = sun_controller->towards_sun();
+				}
+			}
+		}
+
 		if( prev_camera_matrix && prev_camera_matrix->world_to_view != packet.frame_desc.camera_matrices.world_to_view )
 			reset_pt = true;
 
@@ -385,8 +410,10 @@ namespace diverse
 		auto rg = rg_renderer->temporal_graph();
 		const auto frame_desc = packet.frame_desc;
 		const auto camera_params = packet.camera_params;
+		const auto environment = packet.environment;
 		const auto delta_dt = packet.delta_t;
 		const auto swapchain_extent = packet.swapchain_extent;
+		apply_environment_frame(environment);
 
 		rg_renderer->prepare_frame_constants(rg,
 			[this, frame_desc, camera_params, delta_dt](rhi::DynamicConstants& dynamic_constants)->rg::FrameConstantsLayout {
@@ -394,8 +421,8 @@ namespace diverse
 			}
 		);
 		rg_renderer->prepare_frame(rg,
-			[this, frame_desc, swapchain_extent](rg::TemporalGraph& rg) {
-				auto main_img = prepare_render_graph(rg, frame_desc);
+			[this, frame_desc, environment, swapchain_extent](rg::TemporalGraph& rg) {
+				auto main_img = prepare_render_graph(rg, frame_desc, environment);
 				auto ui_img = ui_renderer->prepare_render_graph(rg);
 				auto swap_chain = rg.get_swap_chain();
 
@@ -417,6 +444,20 @@ namespace diverse
 
 		rg_renderer->draw_frame(rg,
 			rg_renderer->swap_chain);
+	}
+
+	auto DeferedRenderer::apply_environment_frame(const EnvironmentFrameParams& environment)->void
+	{
+		if (!environment.has_environment)
+			return;
+
+		if (environment.dirty)
+			invalidate_pt_state();
+
+		sun_color = environment.sun_color;
+		sun_size_multiplier = environment.sun_size_multiplier;
+		sky_ambient = environment.sky_ambient;
+		sun_direction = environment.sun_direction;
 	}
 
 	auto DeferedRenderer::upload_gpu_buffers()->void
@@ -538,7 +579,7 @@ namespace diverse
 		}
 	}
 
-	auto DeferedRenderer::prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc) -> rg::Handle<rhi::GpuTexture>
+	auto DeferedRenderer::prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc, const EnvironmentFrameParams& environment) -> rg::Handle<rhi::GpuTexture>
 	{	
 		rg.predefined_descriptor_set_layouts.insert({ 1, rg::PredefinedDescriptorSet{BINDLESS_DESCRIPTOR_SET_LAYOUT} });
      	
@@ -563,22 +604,22 @@ namespace diverse
 			if(!take_photon.get_value<bool>())
 				taa->current_supersample_offset = supersample_offsets[frame_idx % supersample_offsets.size()];
 
-			output =  prepare_render_graph_hybrid(rg, frame_desc,accum_img,depth_img);
+			output =  prepare_render_graph_hybrid(rg, frame_desc, environment, accum_img,depth_img);
 		}break;
 		case RenderMode::PT:
 		{
 			taa->current_supersample_offset = glm::vec2(0);
-			output = prepare_render_graph_pt(rg, frame_desc,accum_img,depth_img);
+			output = prepare_render_graph_pt(rg, frame_desc, environment, accum_img,depth_img);
 		}break;
 		default:
 		{
 			taa->current_supersample_offset = glm::vec2(0);
-			output = prepare_render_graph_pt(rg, frame_desc,accum_img,depth_img);
+			output = prepare_render_graph_pt(rg, frame_desc, environment, accum_img,depth_img);
 		}break;
 		}
 #elif DS_PLATFORM_MACOS
 		taa->current_supersample_offset = glm::vec2(0);
-		output = prepare_render_graph_pt(rg, frame_desc,accum_img,depth_img);
+		output = prepare_render_graph_pt(rg, frame_desc, environment, accum_img,depth_img);
 #endif
 		gpu_events.clear();
 		return output;
@@ -586,11 +627,11 @@ namespace diverse
 	auto DeferedRenderer::prepare_render_graph_hybrid(
 			rg::TemporalGraph& rg, 
 			const FrameParamDesc& frame_desc,
+			const EnvironmentFrameParams& environment,
 			rg::Handle<rhi::GpuTexture>& accum_img,
 			rg::Handle<rhi::GpuTexture>& depth_img)->rg::Handle<rhi::GpuTexture>
 	{
-		auto enviroment_view = current_scene->get_entity_manager()->get_entities_with_type<diverse::Environment>();
-		if (!enviroment_view.empty())
+		if (environment.has_environment)
 		{
 			auto desc = rhi::GpuTextureDesc::new_2d(PixelFormat::R16G16B16A16_Float, frame_desc.render_extent).with_usage(
 				rhi::TextureUsageFlags::SAMPLED |
@@ -598,25 +639,8 @@ namespace diverse
 				rhi::TextureUsageFlags::TRANSFER_DST);
 			auto hybrid_accum_img = rg.get_or_create_temporal("root.accum", desc);
 
-			auto ent = enviroment_view.front().get_component<Environment>();
-			if (ent.dirty_flag)
-				invalidate_pt_state();
-			const auto color = ent.get_color();
-			sun_color = ent.mode == Environment::Mode::Pure ? glm::vec3(0.0f) : ent.sun_color;
-			sun_size_multiplier = ent.sun_size_multiplier;
-			sky_ambient = glm::vec4(ent.sky_ambient, ent.intensity);
-			std::shared_ptr<rhi::GpuTexture>	hdr_img = ent.mode == Environment::Mode::HDR ? ent.get_enviroment_map() : nullptr;
-			if (ent.mode == Environment::Mode::SunSky)
-			{
-				auto* sun_controller = enviroment_view.front().try_get_component<SunController>();
-				if (sun_controller)
-				{
-					sun_direction = sun_controller->towards_sun();
-				}
-			}
-
-			auto ibl_tex = ibl->render(rg, hdr_img, { ent.theta, ent.phi });
-			auto sky_cube = ibl_tex ? ibl_tex.value() : sky::render_sky_cube(rg, glm::vec4(color, (f32)ent.mode), ent.cubeResolution);
+			auto ibl_tex = ibl->render(rg, environment.hdr_img, environment.ibl_params);
+			auto sky_cube = ibl_tex ? ibl_tex.value() : sky::render_sky_cube(rg, glm::vec4(environment.color, environment.mode), environment.cube_resolution);
 			auto convolved_sky_cube = sky::convolve_cube(rg, sky_cube);
 
 			std::optional<rg::Handle<rhi::GpuRayTracingAcceleration>> tlas = this->prepare_top_level_acceleration(rg);
@@ -777,6 +801,7 @@ namespace diverse
 	auto DeferedRenderer::prepare_render_graph_pt(
 		rg::TemporalGraph& rg, 
 		const FrameParamDesc& frame_desc,
+		const EnvironmentFrameParams& environment,
 		rg::Handle<rhi::GpuTexture>& accum_img,
 		rg::Handle<rhi::GpuTexture>& depth_img)->rg::Handle<rhi::GpuTexture>
 	{
@@ -785,28 +810,10 @@ namespace diverse
 			rhi::TextureUsageFlags::STORAGE |
 			rhi::TextureUsageFlags::TRANSFER_DST);
 		auto pt_img = rg.get_or_create_temporal("pt.accum", desc);
-		auto enviroment_view = current_scene->get_entity_manager()->get_entities_with_type<diverse::Environment>();
-		if (!enviroment_view.empty())
+		if (environment.has_environment)
 		{
-			auto ent = enviroment_view.front().get_component<Environment>();
-			if (ent.dirty_flag)
-				invalidate_pt_state();
-			const auto color = ent.get_color();
-			sun_color = ent.mode == Environment::Mode::Pure ? glm::vec3(0.0f) : ent.sun_color;
-			sun_size_multiplier = ent.sun_size_multiplier;
-			sky_ambient = glm::vec4(ent.sky_ambient, ent.intensity);
-			std::shared_ptr<rhi::GpuTexture>	hdr_img = ent.mode == Environment::Mode::HDR ? ent.get_enviroment_map() : nullptr;
-			if (ent.mode == Environment::Mode::SunSky)
-			{
-				auto* sun_controller = enviroment_view.front().try_get_component<SunController>();
-				if (sun_controller)
-				{
-					sun_direction = sun_controller->towards_sun();
-				}
-			}
-
-			auto ibl_tex = ibl->render(rg, hdr_img, { ent.theta, ent.phi });
-			auto sky_cube = ibl_tex ? ibl_tex.value() : sky::render_sky_cube(rg,glm::vec4(color, (f32)ent.mode));//ibl_tex.value_or(sky::render_sky_cube(rg));
+			auto ibl_tex = ibl->render(rg, environment.hdr_img, environment.ibl_params);
+			auto sky_cube = ibl_tex ? ibl_tex.value() : sky::render_sky_cube(rg, glm::vec4(environment.color, environment.mode));//ibl_tex.value_or(sky::render_sky_cube(rg));
 			//auto convoled_sky_cube = sky::convolve_cube(rg, sky_cube);
 
 			if (reset_pt)

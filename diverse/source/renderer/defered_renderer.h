@@ -90,6 +90,21 @@ namespace diverse
 		glm::mat4x4 world_transform = glm::mat4x4(1.0f);
 	};
 
+	struct EnvironmentFrameParams
+	{
+		bool has_environment = false;
+		bool dirty = false;
+		f32 mode = 0.0f;
+		glm::vec3 color = glm::vec3(0.0f);
+		glm::vec3 sun_color = glm::vec3(1.0f);
+		f32 sun_size_multiplier = 1.0f;
+		glm::vec4 sky_ambient = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		glm::vec3 sun_direction = glm::vec3(0.0f);
+		IblRenderParameter ibl_params;
+		int cube_resolution = 256;
+		std::shared_ptr<rhi::GpuTexture> hdr_img;
+	};
+
 	struct FrameContext
 	{
 		std::array<u32, 2> render_extent;
@@ -105,6 +120,7 @@ namespace diverse
 	{
 		FrameParamDesc frame_desc;
 		CameraFrameParams camera_params;
+		EnvironmentFrameParams environment;
 		std::array<u32, 2> swapchain_extent = { 0, 0 };
 		f32 delta_t = 0.0f;
 		bool skip_gs_render = false;
@@ -130,7 +146,7 @@ namespace diverse
 		void	init();
 		void	render();
 		auto	upload_gpu_buffers()->void;
-		auto	prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc) -> rg::Handle<rhi::GpuTexture>;
+		auto	prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc, const EnvironmentFrameParams& environment) -> rg::Handle<rhi::GpuTexture>;
 		auto	retire_frame(const std::vector<MeshFrameState>& mesh_frame_states) -> void;
 		auto	prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, const CameraFrameParams& camera_params, f32 delta_t) -> rg::FrameConstantsLayout;
 		auto	release()->void;
@@ -166,17 +182,20 @@ namespace diverse
 	protected:
 		auto	extract_frame_packet(f32 delta_t)->std::optional<RenderFramePacket>;
 		auto	render_frame_packet(RenderFramePacket&& packet)->void;
+		auto	apply_environment_frame(const EnvironmentFrameParams& environment)->void;
 		auto	upload_mesh_model(class MeshModel* model)->void;
 		auto	upload_material(const struct MaterialProperties* material)->void;
 		auto	upload_image(const std::shared_ptr<rhi::GpuTexture>& image)-> BindlessImageHandle;
 		auto	prepare_render_graph_hybrid(
 				rg::TemporalGraph& rg, 
 				const FrameParamDesc& frame_desc,
+				const EnvironmentFrameParams& environment,
 				rg::Handle<rhi::GpuTexture>& accum_img,
 				rg::Handle<rhi::GpuTexture>& depth_img) -> rg::Handle<rhi::GpuTexture>;
 		auto	prepare_render_graph_pt(
 				rg::TemporalGraph& rg, 
 				const FrameParamDesc& frame_desc,
+				const EnvironmentFrameParams& environment,
 				rg::Handle<rhi::GpuTexture>& accum_img,
 				rg::Handle<rhi::GpuTexture>& depth_img) -> rg::Handle<rhi::GpuTexture>;
 	public:
