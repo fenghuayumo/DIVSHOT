@@ -35,7 +35,7 @@ namespace diverse
 
 	struct GaussianRenderPass
 	{
-        GaussianRenderPass(struct DeferedRenderer* renderer);
+        GaussianRenderPass(class DeferedRenderer* renderer);
         GaussianRenderPass();
 
 		auto render(rg::TemporalGraph& rg,
@@ -71,7 +71,7 @@ namespace diverse
 			rg::Handle<rhi::GpuTexture>& depth_img) -> GSplatRenderOutput;
 
 	protected:
-        struct DeferedRenderer* renderer;
+        class DeferedRenderer* renderer;
 
 		std::shared_ptr<rhi::RenderPass> gs_point_render_pass;
 		std::shared_ptr<rhi::RenderPass> gsplat_render_pass;

@@ -9,7 +9,7 @@ namespace diverse
     class RasterizeMesh
     {
     public:
-        RasterizeMesh(struct DeferedRenderer* renderer);
+        RasterizeMesh(class DeferedRenderer* renderer);
         ~RasterizeMesh();
 
         auto raster_gbuffer(rg::RenderGraph& rg, 
@@ -24,7 +24,7 @@ namespace diverse
             rg::Handle<rhi::GpuTexture>& color_img,
             rg::Handle<rhi::GpuTexture>& depth_img)->void;
     private:
-        struct DeferedRenderer* renderer;
+        class DeferedRenderer* renderer;
         
 		std::shared_ptr<rhi::RenderPass> raster_render_pass;
         std::shared_ptr<rhi::RenderPass> wire_render_pass;

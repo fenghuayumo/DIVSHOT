@@ -24,7 +24,7 @@ namespace diverse
 	struct GaussianModel;
 	class PointCloud;
 	class MeshModel;
-	struct Material;
+	class Material;
 	struct MaterialProperties;
 	struct PBRMataterialTextures;
 	class  Mesh;
@@ -248,7 +248,7 @@ namespace diverse
 		std::unordered_map<GaussianModel*,u32>		model_2_gs_buf_id;
 		std::unordered_map<PointCloud*,u32>			model_2_point_buf_id;
 		std::vector<u8>								rt_instance_masks;
-		std::unordered_map<struct Material*, u32>	mat_2_mat_buf_id;
+		std::unordered_map<Material*, u32>	mat_2_mat_buf_id;
 		std::unordered_map<Mesh*, u32>				mesh_2_mesh_buf_id;
 		std::unordered_map<rhi::GpuTexture*,u32> 	bindless_image_ids;
 		std::vector<struct MaterialProperties*>		material_datas;

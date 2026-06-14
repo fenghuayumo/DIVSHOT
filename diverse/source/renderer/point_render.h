@@ -12,14 +12,14 @@ namespace diverse
 {
     struct PointRenderPass
 	{
-        PointRenderPass(struct DeferedRenderer* renderer);
+        PointRenderPass(class DeferedRenderer* renderer);
         PointRenderPass();
 
 		auto render(rg::TemporalGraph& rg,
 			rg::Handle<rhi::GpuTexture>& color_img,
 			rg::Handle<rhi::GpuTexture>& depth_img) -> rg::Handle<rhi::GpuTexture>;
 	protected:
-        struct DeferedRenderer* renderer;
+        class DeferedRenderer* renderer;
 
 		std::shared_ptr<rhi::RenderPass> point_render_pass;
     };    

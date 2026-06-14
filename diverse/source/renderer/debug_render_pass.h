@@ -49,7 +49,7 @@ namespace diverse
 
     struct DebugRenderPass
     {
-        DebugRenderPass(struct DeferedRenderer* render);
+        DebugRenderPass(class DeferedRenderer* render);
         ~DebugRenderPass();
 
         auto render(rg::TemporalGraph& rg,rg::Handle<rhi::GpuTexture>& color_img,rg::Handle<rhi::GpuTexture>& depth_img)->void;
@@ -98,8 +98,8 @@ namespace diverse
 		std::vector<LineVertexData*>		line_buffer;
 		std::vector<PointVertexData*>		point_buffers;
 		std::vector<VertexData*>		    quad_buffers;
-		friend	struct DeferedRenderer;
+		friend	class DeferedRenderer;
     protected:
-        struct DeferedRenderer* renderer;
+        class DeferedRenderer* renderer;
     };
 }

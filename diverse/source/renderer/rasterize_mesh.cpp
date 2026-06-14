@@ -3,7 +3,7 @@
 #include "assets/mesh.h"
 namespace diverse
 {
-    RasterizeMesh::RasterizeMesh(struct DeferedRenderer* render)
+    RasterizeMesh::RasterizeMesh(class DeferedRenderer* render)
         : renderer(render)
     {
         rhi::RenderPassDesc desc = {

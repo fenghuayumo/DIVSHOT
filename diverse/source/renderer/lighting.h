@@ -39,7 +39,7 @@ namespace diverse
     class LightingPass
     {
     public:
-        LightingPass(struct DeferedRenderer* render);
+        LightingPass(class DeferedRenderer* render);
         ~LightingPass();
         auto gather_lights(
             std::vector<LightShaderData>& lights,
@@ -87,7 +87,7 @@ namespace diverse
             RtxDiResouceHandle& rtxdi_resource)->void;
     private:
         std::shared_ptr<rhi::GpuBuffer>    neighbor_offsets_buf;
-        struct DeferedRenderer* renderer;
+        class DeferedRenderer* renderer;
         std::unique_ptr<rtxdi::ImportanceSamplingContext> rtxdi_sampling_context;
         std::unordered_map<const LightComponent*, uint32_t> primitive_light_buffer_offsets;
         std::unordered_map<size_t, uint32_t>    instance_light_buffer_offsets;
