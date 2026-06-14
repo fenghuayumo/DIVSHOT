@@ -317,7 +317,7 @@ namespace diverse
 			const auto& [gs_com, trans] = group.get<GaussianComponent, maths::Transform>(gs_ent);
 			if(!gs_com.ModelRef->is_flag_set(AssetFlag::UploadedGpu) || !gs_com.participate_render) continue;
 			skip_render |= gs_com.skip_render;
-			if (gs_com.ModelRef->gaussians_buf && model_2_gs_buf_id.find(gs_com.ModelRef.get()) != model_2_gs_buf_id.end())
+			if (gs_com.ModelRef->gaussians_buf && gpu_scene.model_2_gs_buf_id.find(gs_com.ModelRef.get()) != gpu_scene.model_2_gs_buf_id.end())
 			{ 
 				auto offset = -gs_com.black_point + gs_com.brightness;
 				auto scale = 1.0f / (gs_com.white_point - gs_com.black_point);
@@ -350,14 +350,14 @@ namespace diverse
 
 			const auto& [pcd_com, trans] = pointcloud_group.get<PointCloudComponent, maths::Transform>(pcd);
 			if(!pcd_com.ModelRef->is_flag_set(AssetFlag::UploadedGpu) ) continue;
-			if (pcd_com.ModelRef->vertex_buffer && model_2_point_buf_id.find(pcd_com.ModelRef.get()) != model_2_point_buf_id.end())
+			if (pcd_com.ModelRef->vertex_buffer && gpu_scene.model_2_point_buf_id.find(pcd_com.ModelRef.get()) != gpu_scene.model_2_point_buf_id.end())
 			{ 
 				packet.point_commands.push_back(RenderPointCommand{ trans,
 											pcd_com.ModelRef});
 			}
 		}
 		auto meshgroup = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
-		// if (!tlas && instantce_transforms.size() > 0 && ent_2_model_id.size() == meshgroup.size())
+		// if (!tlas && gpu_scene.instance_transforms.size() > 0 && gpu_scene.ent_2_model_id.size() == meshgroup.size())
 		// 	build_ray_tracing_top_level_acceleration();
 		for (auto mesh_ent : meshgroup)
 		{
@@ -375,9 +375,9 @@ namespace diverse
 			for (auto mesh : meshes)
 			{
 				RenderMeshCommand command;
-				command.material_id = mat_2_mat_buf_id[mesh->get_material().get()];
+				command.material_id = gpu_scene.mat_2_mat_buf_id[mesh->get_material().get()];
 				command.mesh_instance_id = mesh_instance_id;
-				command.mesh_id = mesh_2_mesh_buf_id[mesh.get()];
+				command.mesh_id = gpu_scene.mesh_2_mesh_buf_id[mesh.get()];
 				packet.mesh_commands.push_back(command);
 				//mesh light
 				auto material = mesh->get_material().get();
@@ -388,7 +388,7 @@ namespace diverse
 					{
 						TriangleLight triangle_light = {};
 						triangle_light.instance_id = mesh_instance_id;
-						triangle_light.mesh_id = mesh_2_mesh_buf_id[mesh.get()];
+						triangle_light.mesh_id = gpu_scene.mesh_2_mesh_buf_id[mesh.get()];
 						triangle_light.triangle_count = mesh->get_index_count() / 3;
 						packet.triangle_lights.push_back(triangle_light);
 					}
@@ -404,7 +404,7 @@ namespace diverse
 		mesh_command_queue = std::move(packet.mesh_commands);
 		point_command_queue = std::move(packet.point_commands);
 		triangle_lights = std::move(packet.triangle_lights);
-		rt_instance_masks = std::move(packet.rt_instance_masks);
+		gpu_scene.rt_instance_masks = std::move(packet.rt_instance_masks);
 		skip_gs_render = packet.skip_gs_render;
 
 		auto rg = rg_renderer->temporal_graph();
@@ -475,8 +475,8 @@ namespace diverse
 		{
 			const auto& [model, trans] = group.get<GaussianComponent, maths::Transform>(gs_ent);
 			if (!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu)) continue;
-			u32 v_buf_id = model_2_gs_buf_id.size();
-			if (model.ModelRef->gaussians_buf && model_2_gs_buf_id.find(model.ModelRef.get()) == model_2_gs_buf_id.end())
+			u32 v_buf_id = gpu_scene.model_2_gs_buf_id.size();
+			if (model.ModelRef->gaussians_buf && gpu_scene.model_2_gs_buf_id.find(model.ModelRef.get()) == gpu_scene.model_2_gs_buf_id.end())
 			{
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_buf.get(), v_buf_id * 4 + 0);
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_0_buf.get(), v_buf_id * 4 + 1);
@@ -484,7 +484,7 @@ namespace diverse
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->splat_transforms.splat_transform_buffer.get(), v_buf_id * 4 + 3);
 
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model.ModelRef->gaussian_state_buf.get(), v_buf_id);
-				model_2_gs_buf_id[model.ModelRef] = v_buf_id;
+				gpu_scene.model_2_gs_buf_id[model.ModelRef] = v_buf_id;
 				model.mip_antialiased = model.ModelRef->antialiased();
 				skip_gs_render = false;
 			}
@@ -499,11 +499,11 @@ namespace diverse
 		{
 			const auto& [model, trans] = pointcloud_group.get<PointCloudComponent, maths::Transform>(pcd_ent);
 			if (!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu)) continue;
-			u32 v_buf_id = model_2_point_buf_id.size();
-			if (model.ModelRef->vertex_buffer && model_2_point_buf_id.find(model.ModelRef.get()) == model_2_point_buf_id.end())
+			u32 v_buf_id = gpu_scene.model_2_point_buf_id.size();
+			if (model.ModelRef->vertex_buffer && gpu_scene.model_2_point_buf_id.find(model.ModelRef.get()) == gpu_scene.model_2_point_buf_id.end())
 			{
 				g_device->write_descriptor_set(bindless_descriptor_set.get(), POINT_BUF_BINDING_ID, model.ModelRef->vertex_buffer.get(), v_buf_id);
-				model_2_point_buf_id[model.ModelRef] = v_buf_id;
+				gpu_scene.model_2_point_buf_id[model.ModelRef] = v_buf_id;
 			}
 		}
 	}
@@ -514,7 +514,7 @@ namespace diverse
 			return true;
 
 		return texture->is_flag_set(AssetFlag::UploadedGpu) &&
-			bindless_image_ids.find(texture->gpu_texture.get()) != bindless_image_ids.end();
+			gpu_scene.bindless_image_ids.find(texture->gpu_texture.get()) != gpu_scene.bindless_image_ids.end();
 	}
 
 	auto DeferedRenderer::are_material_textures_bound(const PBRMataterialTextures& textures)->bool
@@ -556,8 +556,8 @@ namespace diverse
 			//if(material.is_flag_set(AssetFlag::UploadedGpu) && !material.dirty_flag()) continue;
 			if (!material->is_flag_set(AssetFlag::UploadedGpu) || !are_material_textures_bound(pbr_tex))
 			{
-				mat_2_mat_buf_id[material] = material_datas.size();
-				material_datas.push_back(&matprop);
+				gpu_scene.mat_2_mat_buf_id[material] = gpu_scene.material_datas.size();
+				gpu_scene.material_datas.push_back(&matprop);
 				update_material_texture_bindings(matprop, pbr_tex);
 				upload_material(&matprop);
 				material->set_flag(AssetFlag::UploadedGpu);
@@ -574,19 +574,19 @@ namespace diverse
 
 	auto DeferedRenderer::record_mesh_instance_gpu_state(MeshModel* model, u32 entity_id, const maths::Transform& transform)->void
 	{
-		u32 model_id = model_2_blas_id[model];
-		ent_2_model_id.push_back(model_id);
-		instantce_transforms.push_back({});
+		u32 model_id = gpu_scene.model_2_blas_id[model];
+		gpu_scene.ent_2_model_id.push_back(model_id);
+		gpu_scene.instance_transforms.push_back({});
 		auto world_transform = glm::transpose(transform.get_world_matrix());
-		instantce_transforms.back().transform = world_transform;
-		if (previous_transforms.find(entity_id) == previous_transforms.end())
-			instantce_transforms.back().previous_transform = world_transform;
+		gpu_scene.instance_transforms.back().transform = world_transform;
+		if (gpu_scene.previous_transforms.find(entity_id) == gpu_scene.previous_transforms.end())
+			gpu_scene.instance_transforms.back().previous_transform = world_transform;
 		else
-			instantce_transforms.back().previous_transform = glm::transpose(previous_transforms[entity_id]);
+			gpu_scene.instance_transforms.back().previous_transform = glm::transpose(gpu_scene.previous_transforms[entity_id]);
 		
-		instance_dynamic_constants.push_back(InstanceDynamicConstants{});
-		auto& instance = instance_dynamic_constants.back();
-		instance.gemoetry_offset = model_2_mesh_buf_id[model];
+		gpu_scene.instance_dynamic_constants.push_back(InstanceDynamicConstants{});
+		auto& instance = gpu_scene.instance_dynamic_constants.back();
+		instance.gemoetry_offset = gpu_scene.model_2_mesh_buf_id[model];
 		instance.emissive_multiplier = 1.0f;
 	}
 
@@ -594,7 +594,7 @@ namespace diverse
 	{
 		auto& registry = current_scene->get_registry();
 		auto mmesh_group = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
-		ent_2_model_id.clear(); instantce_transforms.clear();instance_dynamic_constants.clear();
+		gpu_scene.ent_2_model_id.clear(); gpu_scene.instance_transforms.clear();gpu_scene.instance_dynamic_constants.clear();
 		for (auto ent : mmesh_group)
 		{
 			const auto& [model, t] = mmesh_group.get<MeshModelComponent, maths::Transform>(ent);
@@ -607,7 +607,7 @@ namespace diverse
 			{
 				upload_mesh_model(model.ModelRef);
 				model.ModelRef->set_flag(AssetFlag::UploadedGpu);
-				model_2_blas_id[model.ModelRef.get()] = mesh_blas.size() - 1;
+				gpu_scene.model_2_blas_id[model.ModelRef.get()] = gpu_scene.mesh_blas.size() - 1;
 			}
 			if (model.ModelRef->is_flag_set(AssetFlag::UploadedGpu))
 			{
@@ -891,14 +891,14 @@ namespace diverse
 	auto DeferedRenderer::retire_frame(const std::vector<MeshFrameState>& mesh_frame_states) -> void
 	{
 		frame_idx += 1;
-		if(previous_transforms.size() != mesh_frame_states.size())
+		if(gpu_scene.previous_transforms.size() != mesh_frame_states.size())
 		{
-			previous_transforms.clear();
+			gpu_scene.previous_transforms.clear();
 			invalidate_pt_state();
 		}
 		for (auto& mesh_frame_state : mesh_frame_states)
 		{
-			previous_transforms[mesh_frame_state.entity_id] = mesh_frame_state.world_transform;
+			gpu_scene.previous_transforms[mesh_frame_state.entity_id] = mesh_frame_state.world_transform;
 		}
 	}
 
@@ -939,7 +939,7 @@ namespace diverse
 			glm::vec4(irache->get_grid_center(),1.0),
 			irache->constants()
 		});
-		auto instance_dynamic_parameters_offset = dynamic_constants.push_from_vec(instance_dynamic_constants);
+		auto instance_dynamic_parameters_offset = dynamic_constants.push_from_vec(gpu_scene.instance_dynamic_constants);
 		auto triangle_lights_offset = instance_dynamic_parameters_offset;//dynamic_constants.push_from_vec(triangle_lights);
 		auto scene_lights_offset = dynamic_constants.push_from_vec(scene_lights);
 		return rg::FrameConstantsLayout{
@@ -1015,24 +1015,24 @@ namespace diverse
 	auto DeferedRenderer::upload_mesh_model(MeshModel* model) -> void
 	{
         auto device = get_global_device();
-		model_2_mesh_buf_id[model] = mesh_buf_id;
+		gpu_scene.model_2_mesh_buf_id[model] = gpu_scene.mesh_buf_id;
 		auto mesh_data = (GpuMesh*)mesh_buffer->map(device);
 		for (auto mesh : model->get_meshes())
 		{
-			g_device->write_descriptor_set(bindless_descriptor_set.get(), VERTEX_BUF_BINDING_ID, mesh->get_vertex_buffer().get(), mesh_buf_id);
-			g_device->write_descriptor_set(bindless_descriptor_set.get(), INDEX_BUF_BINDING_ID, mesh->get_index_buffer().get(), mesh_buf_id);
+			g_device->write_descriptor_set(bindless_descriptor_set.get(), VERTEX_BUF_BINDING_ID, mesh->get_vertex_buffer().get(), gpu_scene.mesh_buf_id);
+			g_device->write_descriptor_set(bindless_descriptor_set.get(), INDEX_BUF_BINDING_ID, mesh->get_index_buffer().get(), gpu_scene.mesh_buf_id);
 			GpuMesh gpu_mesh = {
 			   mesh->get_vertex_pos_nor_offset(),
 			   mesh->get_vertex_uv_offset(),
 			   mesh->get_vertex_tangent_offset(),
 			   mesh->get_vertex_color_offset(),
-			   mesh_buf_id,
-			   mesh_buf_id,
-			   mat_2_mat_buf_id[mesh->get_material().get()]
+			   gpu_scene.mesh_buf_id,
+			   gpu_scene.mesh_buf_id,
+			   gpu_scene.mat_2_mat_buf_id[mesh->get_material().get()]
 			};
-			mesh_2_mesh_buf_id[mesh.get()] = mesh_buf_id;
-			mesh_buf_id_2_mesh[mesh_buf_id] = mesh.get();
-			mesh_data[mesh_buf_id++] = gpu_mesh;
+			gpu_scene.mesh_2_mesh_buf_id[mesh.get()] = gpu_scene.mesh_buf_id;
+			gpu_scene.mesh_buf_id_2_mesh[gpu_scene.mesh_buf_id] = mesh.get();
+			mesh_data[gpu_scene.mesh_buf_id++] = gpu_mesh;
 		}
 		mesh_buffer->unmap(device);
 		if (g_device->gpu_limits.ray_tracing_enabled)
@@ -1045,12 +1045,12 @@ namespace diverse
 
 	auto DeferedRenderer::upload_material(const MaterialProperties* material) -> void
 	{
-		auto mat_iter = std::find(material_datas.begin(), material_datas.end(), material);
+		auto mat_iter = std::find(gpu_scene.material_datas.begin(), gpu_scene.material_datas.end(), material);
         auto device = get_global_device();
-		if(mat_iter != material_datas.end())
+		if(mat_iter != gpu_scene.material_datas.end())
 		{ 
 			auto material_data = (MaterialProperties*)material_buffer->map(device);
-			auto mat_buf_id = mat_iter - material_datas.begin();
+			auto mat_buf_id = mat_iter - gpu_scene.material_datas.begin();
 			material_data[mat_buf_id] = *material;
 			material_buffer->unmap(device);
 			invalidate_pt_state();
@@ -1060,10 +1060,10 @@ namespace diverse
 	auto DeferedRenderer::upload_image(const std::shared_ptr<rhi::GpuTexture>& image) -> BindlessImageHandle
 	{
 		if(!image) return {};
-		if(bindless_image_ids.find(image.get()) != bindless_image_ids.end())
-			return BindlessImageHandle{ bindless_image_ids[image.get()] };
-		auto handle = BindlessImageHandle{ next_bindless_image_id };
-		next_bindless_image_id += 1;
+		if(gpu_scene.bindless_image_ids.find(image.get()) != gpu_scene.bindless_image_ids.end())
+			return BindlessImageHandle{ gpu_scene.bindless_image_ids[image.get()] };
+		auto handle = BindlessImageHandle{ gpu_scene.next_bindless_image_id };
+		gpu_scene.next_bindless_image_id += 1;
         auto device = get_global_device();
 		rhi::DescriptorImageInfo    imge_info = {};
 		imge_info.image_layout = rhi::ImageLayout::IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1071,7 +1071,7 @@ namespace diverse
 		g_device->write_descriptor_set(bindless_descriptor_set.get(), TEX_BUF_BINDING_ID, handle.handle, imge_info);
 
 		auto img_size = image->desc.extent_inv_extent_2d();
-		bindless_image_ids[image.get()] = handle.handle;
+		gpu_scene.bindless_image_ids[image.get()] = handle.handle;
 		bindless_texture_sizes->copy_from(device, (u8*)img_size.data(), sizeof(float) * 4, handle.handle * sizeof(float) * 4);
 		return handle;
 	}
@@ -1095,16 +1095,16 @@ namespace diverse
 	{
 		if(!tlas || !g_device->gpu_limits.ray_tracing_enabled ) return {};
 		auto top_level_as = rg.import_res<rhi::GpuRayTracingAcceleration>(tlas, rhi::AccessType::AnyShaderReadOther);
-		std::vector<rhi::RayTracingInstanceDesc>    rt_instance_desc(ent_2_model_id.size());
+		std::vector<rhi::RayTracingInstanceDesc>    rt_instance_desc(gpu_scene.ent_2_model_id.size());
 
-        //parallel_for<size_t>(0, ent_2_model_id.size(), [&](size_t idx){
-		for (auto idx = 0; idx < ent_2_model_id.size(); idx++) {
-            const auto& inst = instantce_transforms[idx];
-            auto model_id = ent_2_model_id[idx];
-			u8 mask = idx < rt_instance_masks.size() ? rt_instance_masks[idx] : 0xff;
+        //parallel_for<size_t>(0, gpu_scene.ent_2_model_id.size(), [&](size_t idx){
+		for (auto idx = 0; idx < gpu_scene.ent_2_model_id.size(); idx++) {
+            const auto& inst = gpu_scene.instance_transforms[idx];
+            auto model_id = gpu_scene.ent_2_model_id[idx];
+			u8 mask = idx < gpu_scene.rt_instance_masks.size() ? gpu_scene.rt_instance_masks[idx] : 0xff;
             rt_instance_desc[idx] =
                 rhi::RayTracingInstanceDesc{
-                    mesh_blas[model_id],
+                    gpu_scene.mesh_blas[model_id],
                     inst.transform,
                     model_id,
                     mask
@@ -1134,14 +1134,14 @@ namespace diverse
 	auto DeferedRenderer::build_ray_tracing_top_level_acceleration()->void
 	{
 		if( !g_device->gpu_limits.ray_tracing_enabled ) return;
-		std::vector<rhi::RayTracingInstanceDesc>    rt_instance_desc(instantce_transforms.size());
-        parallel_for<size_t>(0, instantce_transforms.size(), [&](size_t idx) {
-            const auto& inst = instantce_transforms[idx];
-            auto model_id = ent_2_model_id[idx];
-			u8 mask = idx < rt_instance_masks.size() ? rt_instance_masks[idx] : 0xff;
+		std::vector<rhi::RayTracingInstanceDesc>    rt_instance_desc(gpu_scene.instance_transforms.size());
+        parallel_for<size_t>(0, gpu_scene.instance_transforms.size(), [&](size_t idx) {
+            const auto& inst = gpu_scene.instance_transforms[idx];
+            auto model_id = gpu_scene.ent_2_model_id[idx];
+			u8 mask = idx < gpu_scene.rt_instance_masks.size() ? gpu_scene.rt_instance_masks[idx] : 0xff;
             rt_instance_desc[idx] =
                 rhi::RayTracingInstanceDesc{
-                    mesh_blas[model_id],
+                    gpu_scene.mesh_blas[model_id],
                     inst.transform,
                     model_id,
                     mask
@@ -1182,20 +1182,20 @@ namespace diverse
 				}
 			}
 		);
-		mesh_blas.push_back(blas);
+		gpu_scene.mesh_blas.push_back(blas);
 	}
 
 	u32 DeferedRenderer::get_buf_id(GaussianModel* model)
 	{
-		if(model_2_gs_buf_id.find(model) != model_2_gs_buf_id.end())
-			return model_2_gs_buf_id[model];
+		if(gpu_scene.model_2_gs_buf_id.find(model) != gpu_scene.model_2_gs_buf_id.end())
+			return gpu_scene.model_2_gs_buf_id[model];
 		return 0xffffffff;
 	}
 
 	u32 DeferedRenderer::get_buf_id(PointCloud* model)
 	{
-		if(model_2_point_buf_id.find(model) != model_2_point_buf_id.end())
-			return model_2_point_buf_id[model];
+		if(gpu_scene.model_2_point_buf_id.find(model) != gpu_scene.model_2_point_buf_id.end())
+			return gpu_scene.model_2_point_buf_id[model];
 		return 0xffffffff;
 	}
 }

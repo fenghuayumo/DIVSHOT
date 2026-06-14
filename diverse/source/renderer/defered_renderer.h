@@ -143,6 +143,28 @@ namespace diverse
 	{
 		u32 handle;
 	};
+
+	struct GpuSceneUploadState
+	{
+		std::unordered_map<u32, glm::mat4x4> previous_transforms;
+		std::vector<InstanceTransform> instance_transforms;
+		std::vector<InstanceDynamicConstants> instance_dynamic_constants;
+		std::unordered_map<u32, Mesh*> mesh_buf_id_2_mesh;
+		std::vector<u32> ent_2_model_id;
+		std::unordered_map<MeshModel*, u32> model_2_blas_id;
+		std::unordered_map<MeshModel*, u32> model_2_mesh_buf_id;
+		std::unordered_map<GaussianModel*, u32> model_2_gs_buf_id;
+		std::unordered_map<PointCloud*, u32> model_2_point_buf_id;
+		std::vector<u8> rt_instance_masks;
+		std::unordered_map<Material*, u32> mat_2_mat_buf_id;
+		std::unordered_map<Mesh*, u32> mesh_2_mesh_buf_id;
+		std::unordered_map<rhi::GpuTexture*, u32> bindless_image_ids;
+		std::vector<MaterialProperties*> material_datas;
+		std::vector<std::shared_ptr<rhi::GpuRayTracingAcceleration>> mesh_blas;
+		u32 next_bindless_image_id = 0;
+		u32 mesh_buf_id = 0;
+	};
+
 	class DeferedRenderer
 	{
 	public:
@@ -216,21 +238,17 @@ namespace diverse
 		std::vector<RenderGSCommand> gs_command_queue;
 		std::vector<RenderMeshCommand> mesh_command_queue;
 		std::vector<RenderPointCommand>	 point_command_queue;
-		std::unordered_map<u32,glm::mat4x4>	  previous_transforms;
+		GpuSceneUploadState gpu_scene;
 		u32 frame_idx = 0;
 		std::optional<CameraMatrices> prev_camera_matrix;
 		Scene* current_scene = nullptr;
 		Camera* camera = nullptr;
 		maths::Transform* camera_transform = nullptr;
-		std::vector<InstanceTransform>			instantce_transforms;
-		std::unordered_map<u32,Mesh*>			mesh_buf_id_2_mesh;
-		std::vector<InstanceDynamicConstants>	instance_dynamic_constants;
 	public:
 	  	std::shared_ptr<rhi::GpuBuffer>     mesh_buffer;
         std::shared_ptr<rhi::GpuBuffer>     material_buffer;
         std::shared_ptr<rhi::GpuBuffer>     bindless_texture_sizes;
 		std::shared_ptr<rhi::GpuRayTracingAcceleration> tlas;
-		std::vector<std::shared_ptr<rhi::GpuRayTracingAcceleration>> mesh_blas;
 	protected:
 		std::shared_ptr<rg::Renderer>  rg_renderer;
 		std::array<u32, 2>	render_extent;
@@ -242,17 +260,6 @@ namespace diverse
 
 		Camera* override_camera = nullptr;
 		maths::Transform* override_camera_transform = nullptr;
-		std::vector<u32>							ent_2_model_id;
-		std::unordered_map<MeshModel*,u32>			model_2_blas_id;
-		std::unordered_map<MeshModel*,u32>			model_2_mesh_buf_id;
-		std::unordered_map<GaussianModel*,u32>		model_2_gs_buf_id;
-		std::unordered_map<PointCloud*,u32>			model_2_point_buf_id;
-		std::vector<u8>								rt_instance_masks;
-		std::unordered_map<Material*, u32>	mat_2_mat_buf_id;
-		std::unordered_map<Mesh*, u32>				mesh_2_mesh_buf_id;
-		std::unordered_map<rhi::GpuTexture*,u32> 	bindless_image_ids;
-		std::vector<struct MaterialProperties*>		material_datas;
-		u32 next_bindless_image_id = 0;
 		auto add_image_lut(const std::shared_ptr<ImageLut>& computer, u64 id)->void;
 
 	protected:
@@ -286,6 +293,5 @@ namespace diverse
 
 		bool		reset_pt = false;
 		bool 		skip_gs_render = false;
-		u32 		mesh_buf_id = 0;
 	};
 }

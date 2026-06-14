@@ -65,7 +65,7 @@ namespace diverse
                 auto [width, height, _] = gbuffer.desc.extent;
 
                 auto instance_transforms_offset = api.dynamic_constants()
-                    ->push_from_vec(renderer->instantce_transforms);
+                    ->push_from_vec(renderer->gpu_scene.instance_transforms);
 
                 api.begin_render_pass(
                     *raster_render_pass,
@@ -91,7 +91,7 @@ namespace diverse
                 for (u32 draw_idx = 0; draw_idx < mesh_cmds.size(); draw_idx++)
                 {
                     const auto& cmd = mesh_cmds[draw_idx];
-                    auto mesh = renderer->mesh_buf_id_2_mesh[cmd.mesh_id];
+                    auto mesh = renderer->gpu_scene.mesh_buf_id_2_mesh[cmd.mesh_id];
                     device->bind_index_buffer(api.cb, mesh->get_index_buffer().get(), rhi::IndexBufferFormat::UINT32, 0);
                     struct PushConstants {
                         u32 draw_index;
@@ -149,7 +149,7 @@ namespace diverse
                 auto [width, height, _] = depth.desc.extent;
 
                 auto instance_transforms_offset = api.dynamic_constants()
-                    ->push_from_vec(renderer->instantce_transforms);
+                    ->push_from_vec(renderer->gpu_scene.instance_transforms);
 
                 api.begin_render_pass(
                     *wire_render_pass,
@@ -173,7 +173,7 @@ namespace diverse
                 for (u32 draw_idx = 0; draw_idx < mesh_cmds.size(); draw_idx++)
                 {
                     const auto& cmd = mesh_cmds[draw_idx];
-                    auto mesh = renderer->mesh_buf_id_2_mesh[cmd.mesh_id];
+                    auto mesh = renderer->gpu_scene.mesh_buf_id_2_mesh[cmd.mesh_id];
                     device->bind_index_buffer(api.cb, mesh->get_index_buffer().get(), rhi::IndexBufferFormat::UINT32, 0);
                     struct PushConstants {
                         u32 draw_index;
