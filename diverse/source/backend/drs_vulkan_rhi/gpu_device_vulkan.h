@@ -110,9 +110,10 @@ namespace diverse
             std::shared_ptr<GpuBufferVulkan>				crash_tracking_buffer;
             bool				ray_tracing_enabled;
             VmaAllocator		global_allocator{};
-            DeviceFrameVulkan		frames[2];
+            DeviceFrameVulkan		frames[DYNAMIC_CONSTANTS_BUFFER_COUNT];
+            u32                     current_frame = 0;
             std::mutex			cb_mutex;
-            std::mutex			frame_mutex[2];
+            std::mutex			frame_mutex[DYNAMIC_CONSTANTS_BUFFER_COUNT];
             std::vector<DeferedReleaseResource>  destroy_queue;
         public:
             auto get_graphics_cmd_buffer()->CommandBuffer* override {return graphics_queue_setup_cb.get();}
