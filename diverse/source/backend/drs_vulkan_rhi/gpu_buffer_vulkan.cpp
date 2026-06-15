@@ -5,8 +5,9 @@ namespace diverse
 {
     namespace rhi
     {
-        GpuBufferVulkan::GpuBufferVulkan(VkBuffer h,const GpuBufferDesc& desc,VmaAllocation  alloc, VmaAllocationInfo info)
+        GpuBufferVulkan::GpuBufferVulkan(VkBuffer h,const GpuBufferDesc& desc,VmaAllocation  alloc, VmaAllocationInfo info, GpuDeviceVulkan* owner)
             : GpuBuffer(desc)
+            ,owner_device(owner)
             ,handle(h),
             allocation(alloc),
             allocate_info(info)
@@ -15,16 +16,17 @@ namespace diverse
         }
         GpuBufferVulkan::~GpuBufferVulkan()
         {
-            auto device = dynamic_cast<GpuDeviceVulkan*>(get_global_device());
-            if(device)
+            if(owner_device && handle != VK_NULL_HANDLE)
             {
-                device->defer_release([handle = this->handle, allocation = this->allocation, device]() mutable {
+                auto vk_device = owner_device->device;
+                auto allocator = owner_device->global_allocator;
+                owner_device->defer_release([handle = this->handle, allocation = this->allocation, vk_device, allocator]() mutable {
                     if( handle != VK_NULL_HANDLE){
-                        vkDestroyBuffer(device->device, handle, nullptr);
+                        vkDestroyBuffer(vk_device, handle, nullptr);
                         handle = VK_NULL_HANDLE;
                         if( allocation != nullptr)
                         {
-                            vmaFreeMemory(device->global_allocator, allocation);
+                            vmaFreeMemory(allocator, allocation);
                             allocation = nullptr;
                         }
                     }
@@ -72,13 +74,13 @@ namespace diverse
 
         GpuBufferViewVulkan::~GpuBufferViewVulkan()
         {
-            auto device = dynamic_cast<GpuDeviceVulkan*>(get_global_device());
-            if (buf_view != VK_NULL_HANDLE && device)
+            if (buf_view != VK_NULL_HANDLE && owner_device)
             {
-                device->defer_release([buf_view = this->buf_view, device]() mutable {
+                auto vk_device = owner_device->device;
+                owner_device->defer_release([buf_view = this->buf_view, vk_device]() mutable {
                     if (buf_view != VK_NULL_HANDLE)
                     {
-                        vkDestroyBufferView(device->device, buf_view, nullptr);
+                        vkDestroyBufferView(vk_device, buf_view, nullptr);
                         buf_view = VK_NULL_HANDLE;
                     }
                 });

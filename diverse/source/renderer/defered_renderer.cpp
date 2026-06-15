@@ -1,6 +1,5 @@
 #include "core/string.h"
 #include "defered_renderer.h"
-#include "engine/application.h"
 #include "drs_rg/simple_pass.h"
 #include "backend/drs_rhi/buffer_builder.h"
 #include "engine/window.h"
@@ -35,6 +34,7 @@
 #include "utility/cmd_variable.h"
 
 #include <execution>
+#include <mutex>
 #define MATERIAL_BUFFER_CAPACITY 1024 * 512
 #define MAX_GPU_MESHES (1024 * 256)
 #define VERTEX_BUFFER_CAPACITY (1024 * 1024 * 1024 * 1)
@@ -71,6 +71,11 @@ namespace diverse
 
 namespace diverse
 {
+	namespace
+	{
+		std::mutex g_render_settings_mutex;
+	}
+
 	struct GpuMesh
     {
         u32 vertex_pos_nor_offset;
@@ -83,13 +88,26 @@ namespace diverse
     };
 
 	RenderSettings	g_render_settings;
+	auto snapshot_render_settings() -> RenderSettings
+	{
+		std::lock_guard<std::mutex> lock(g_render_settings_mutex);
+		return g_render_settings;
+	}
+
+	auto set_render_settings(const RenderSettings& settings) -> void
+	{
+		std::lock_guard<std::mutex> lock(g_render_settings_mutex);
+		g_render_settings = settings;
+	}
+
 	void set_gaussian_render_type(GaussianRenderType ty)
 	{
+		std::lock_guard<std::mutex> lock(g_render_settings_mutex);
 		g_render_settings.gs_vis_type = (int)ty;
 	}
 	GaussianRenderType get_gaussian_render_type() 
 	{
-		return (GaussianRenderType)g_render_settings.gs_vis_type;
+		return (GaussianRenderType)snapshot_render_settings().gs_vis_type;
 	}
 
 	std::unordered_map<u32, rhi::DescriptorInfo> BINDLESS_DESCRIPTOR_SET_LAYOUT = {
@@ -170,9 +188,8 @@ namespace diverse
 	{
 		release();
 	}
-	void DeferedRenderer::init()
+	void DeferedRenderer::init(std::array<u32, 2> swapchain_extent)
 	{
-		auto swapchain_extent = Application::get().get_window_size();
 		auto desc = rhi::GpuTextureDesc::new_2d(PixelFormat::R8G8B8A8_UNorm, swapchain_extent).with_usage(
 			rhi::TextureUsageFlags::SAMPLED |
 			rhi::TextureUsageFlags::STORAGE |
@@ -219,13 +236,13 @@ namespace diverse
 		build_ray_tracing_top_level_acceleration();
 	}
 
-	void DeferedRenderer::render()
+	void DeferedRenderer::render(std::array<u32, 2> swapchain_extent)
 	{
 		if(!current_scene) return;
 		upload_gpu_buffers();
 
 		float delta_dt = 1.0f / 60.0f; //TODO
-		auto packet = extract_frame_packet(delta_dt);
+		auto packet = extract_frame_packet(delta_dt, swapchain_extent);
 		if (!packet)
 			return;
 
@@ -234,7 +251,7 @@ namespace diverse
 		retire_frame(mesh_frame_states);
 	}
 
-	auto DeferedRenderer::extract_frame_packet(f32 delta_dt)->std::optional<RenderFramePacket>
+	auto DeferedRenderer::extract_frame_packet(f32 delta_dt, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>
 	{
 		if (!current_scene)
 			return std::nullopt;
@@ -259,8 +276,9 @@ namespace diverse
 			return std::nullopt;
 
 		RenderFramePacket packet;
+		packet.render_settings = snapshot_render_settings();
 		packet.delta_t = delta_dt;
-		packet.swapchain_extent = Application::get().get_window_size();
+		packet.swapchain_extent = swapchain_extent;
 		packet.frame_desc.render_extent = main_render_tex->desc.extent_2d();//swapchain_extent;
 		auto projection = camera->get_projection_matrix();
 		auto invProj = glm::inverse(projection);
@@ -324,8 +342,8 @@ namespace diverse
 				packet.gs_commands.push_back(RenderGSCommand{ trans,
 											gs_com.ModelRef.get(), 
 											(u32)gs_com.sh_degree,
-											g_render_settings.select_color,
-											g_render_settings.locked_color,
+											packet.render_settings.select_color,
+											packet.render_settings.locked_color,
 											glm::vec4(gs_com.albedo_color.xyz * scale, gs_com.transparency),
 											glm::vec3(offset,offset,offset),	
 											gs_com.mip_antialiased});
@@ -406,6 +424,7 @@ namespace diverse
 		triangle_lights = std::move(packet.triangle_lights);
 		gpu_scene.rt_instance_masks = std::move(packet.rt_instance_masks);
 		skip_gs_render = packet.skip_gs_render;
+		frame_render_settings = packet.render_settings;
 
 		auto rg = rg_renderer->temporal_graph();
 		const auto frame_desc = packet.frame_desc;
@@ -469,6 +488,7 @@ namespace diverse
 
 	auto DeferedRenderer::upload_gaussian_gpu_buffers()->void
 	{
+		auto device = rg_renderer->device;
 		auto& registry = current_scene->get_registry();
 		auto group = registry.group<GaussianComponent>(entt::get<maths::Transform>);
 		for (auto gs_ent : group)
@@ -478,12 +498,12 @@ namespace diverse
 			u32 v_buf_id = gpu_scene.model_2_gs_buf_id.size();
 			if (model.ModelRef->gaussians_buf && gpu_scene.model_2_gs_buf_id.find(model.ModelRef.get()) == gpu_scene.model_2_gs_buf_id.end())
 			{
-				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_buf.get(), v_buf_id * 4 + 0);
-				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_0_buf.get(), v_buf_id * 4 + 1);
-				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_n_buf.get(), v_buf_id * 4 + 2);
-				g_device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->splat_transforms.splat_transform_buffer.get(), v_buf_id * 4 + 3);
+				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_buf.get(), v_buf_id * 4 + 0);
+				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_0_buf.get(), v_buf_id * 4 + 1);
+				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_n_buf.get(), v_buf_id * 4 + 2);
+				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->splat_transforms.splat_transform_buffer.get(), v_buf_id * 4 + 3);
 
-				g_device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model.ModelRef->gaussian_state_buf.get(), v_buf_id);
+				device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model.ModelRef->gaussian_state_buf.get(), v_buf_id);
 				gpu_scene.model_2_gs_buf_id[model.ModelRef] = v_buf_id;
 				model.mip_antialiased = model.ModelRef->antialiased();
 				skip_gs_render = false;
@@ -493,6 +513,7 @@ namespace diverse
 
 	auto DeferedRenderer::upload_point_cloud_gpu_buffers()->void
 	{
+		auto device = rg_renderer->device;
 		auto& registry = current_scene->get_registry();
 		auto pointcloud_group = registry.group<PointCloudComponent>(entt::get<maths::Transform>);
 		for (auto pcd_ent : pointcloud_group)
@@ -502,7 +523,7 @@ namespace diverse
 			u32 v_buf_id = gpu_scene.model_2_point_buf_id.size();
 			if (model.ModelRef->vertex_buffer && gpu_scene.model_2_point_buf_id.find(model.ModelRef.get()) == gpu_scene.model_2_point_buf_id.end())
 			{
-				g_device->write_descriptor_set(bindless_descriptor_set.get(), POINT_BUF_BINDING_ID, model.ModelRef->vertex_buffer.get(), v_buf_id);
+				device->write_descriptor_set(bindless_descriptor_set.get(), POINT_BUF_BINDING_ID, model.ModelRef->vertex_buffer.get(), v_buf_id);
 				gpu_scene.model_2_point_buf_id[model.ModelRef] = v_buf_id;
 			}
 		}
@@ -624,7 +645,7 @@ namespace diverse
         {
             img_lut->compute_if_needed(rg);
         }
-		post->update_pre_exposure();
+		post->update_pre_exposure(frame_render_settings);
 
 		rg::Handle<rhi::GpuTexture> output;
 		auto accum_img = rg.import_res<rhi::GpuTexture>(main_render_tex, rhi::AccessType::Nothing);
@@ -634,7 +655,7 @@ namespace diverse
 		rg::clear_color(rg, accum_img, { 0.0f,0.0f,0.0f,1.0f });
 		rg::clear_depth(rg, depth_img, 0.0f);
 #ifdef DS_PLATFORM_WINDOWS
-		switch (g_render_settings.render_mode)
+		switch (frame_render_settings.render_mode)
 		{
 		case RenderMode::Hybrid:
 		{
@@ -778,9 +799,9 @@ namespace diverse
 				sky_cube,
 				convolved_sky_cube,
 				bindless_descriptor_set.get(),
-				(int)g_render_settings.shade_mode
+				(int)frame_render_settings.shade_mode
 			);
-			if (g_render_settings.show_wireframe)
+			if (frame_render_settings.show_wireframe)
 				rasterizer->raster_wire_frame(rg, debug_out_tex, depth_img);
 			std::optional<rg::Handle<rhi::GpuTexture>>  anti_aliased;
 			auto anti_aliased_tex = take_photon.get_value<bool>() ? debug_out_tex : anti_aliased.value_or(taa->render(
@@ -803,7 +824,8 @@ namespace diverse
 			auto post_processed = post->render(
 				rg,
 				final_post_input,
-				bindless_descriptor_set.get()
+				bindless_descriptor_set.get(),
+				frame_render_settings
 			);
 
 			rg::RenderPass::new_compute(
@@ -866,7 +888,8 @@ namespace diverse
 
 			auto output = post->render(rg,
 				pt_img,
-				bindless_descriptor_set.get());
+				bindless_descriptor_set.get(),
+				frame_render_settings);
 
 			rg::RenderPass::new_compute(
 				rg.add_pass("copy blit"),
@@ -1014,13 +1037,13 @@ namespace diverse
 
 	auto DeferedRenderer::upload_mesh_model(MeshModel* model) -> void
 	{
-        auto device = get_global_device();
+        auto device = rg_renderer->device;
 		gpu_scene.model_2_mesh_buf_id[model] = gpu_scene.mesh_buf_id;
 		auto mesh_data = (GpuMesh*)mesh_buffer->map(device);
 		for (auto mesh : model->get_meshes())
 		{
-			g_device->write_descriptor_set(bindless_descriptor_set.get(), VERTEX_BUF_BINDING_ID, mesh->get_vertex_buffer().get(), gpu_scene.mesh_buf_id);
-			g_device->write_descriptor_set(bindless_descriptor_set.get(), INDEX_BUF_BINDING_ID, mesh->get_index_buffer().get(), gpu_scene.mesh_buf_id);
+			device->write_descriptor_set(bindless_descriptor_set.get(), VERTEX_BUF_BINDING_ID, mesh->get_vertex_buffer().get(), gpu_scene.mesh_buf_id);
+			device->write_descriptor_set(bindless_descriptor_set.get(), INDEX_BUF_BINDING_ID, mesh->get_index_buffer().get(), gpu_scene.mesh_buf_id);
 			GpuMesh gpu_mesh = {
 			   mesh->get_vertex_pos_nor_offset(),
 			   mesh->get_vertex_uv_offset(),
@@ -1035,7 +1058,7 @@ namespace diverse
 			mesh_data[gpu_scene.mesh_buf_id++] = gpu_mesh;
 		}
 		mesh_buffer->unmap(device);
-		if (g_device->gpu_limits.ray_tracing_enabled)
+		if (device->gpu_limits.ray_tracing_enabled)
         {
 			//build tlas
 			build_ray_tracing_buttom_level_acceleration(model);
@@ -1046,7 +1069,7 @@ namespace diverse
 	auto DeferedRenderer::upload_material(const MaterialProperties* material) -> void
 	{
 		auto mat_iter = std::find(gpu_scene.material_datas.begin(), gpu_scene.material_datas.end(), material);
-        auto device = get_global_device();
+        auto device = rg_renderer->device;
 		if(mat_iter != gpu_scene.material_datas.end())
 		{ 
 			auto material_data = (MaterialProperties*)material_buffer->map(device);
@@ -1064,11 +1087,11 @@ namespace diverse
 			return BindlessImageHandle{ gpu_scene.bindless_image_ids[image.get()] };
 		auto handle = BindlessImageHandle{ gpu_scene.next_bindless_image_id };
 		gpu_scene.next_bindless_image_id += 1;
-        auto device = get_global_device();
+        auto device = rg_renderer->device;
 		rhi::DescriptorImageInfo    imge_info = {};
 		imge_info.image_layout = rhi::ImageLayout::IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		imge_info.view = image->view(device, rhi::GpuTextureViewDesc()).get();
-		g_device->write_descriptor_set(bindless_descriptor_set.get(), TEX_BUF_BINDING_ID, handle.handle, imge_info);
+		device->write_descriptor_set(bindless_descriptor_set.get(), TEX_BUF_BINDING_ID, handle.handle, imge_info);
 
 		auto img_size = image->desc.extent_inv_extent_2d();
 		gpu_scene.bindless_image_ids[image.get()] = handle.handle;
@@ -1093,7 +1116,8 @@ namespace diverse
 
 	auto DeferedRenderer::prepare_top_level_acceleration(rg::RenderGraph& rg) -> std::optional<rg::Handle<rhi::GpuRayTracingAcceleration>>
 	{
-		if(!tlas || !g_device->gpu_limits.ray_tracing_enabled ) return {};
+		auto device = rg_renderer->device;
+		if(!tlas || !device->gpu_limits.ray_tracing_enabled ) return {};
 		auto top_level_as = rg.import_res<rhi::GpuRayTracingAcceleration>(tlas, rhi::AccessType::AnyShaderReadOther);
 		std::vector<rhi::RayTracingInstanceDesc>    rt_instance_desc(gpu_scene.ent_2_model_id.size());
 
@@ -1113,7 +1137,7 @@ namespace diverse
 		auto pass = rg.add_pass("rebuild pass");
 		auto tlas_ref = pass.write(top_level_as, rhi::AccessType::TransferWrite);
 
-		pass.render([rt_instance_desc = std::move(rt_instance_desc), tlas_ref = std::move(tlas_ref), this](rg::RenderPassApi& api) {
+		pass.render([rt_instance_desc = std::move(rt_instance_desc), tlas_ref = std::move(tlas_ref), device](rg::RenderPassApi& api) {
 			auto& resources = api.resources;
 
 			auto instance_buffer_address = resources.execution_params.device->fill_ray_tracing_instance_buffer(resources.dynamic_constants, rt_instance_desc);
@@ -1124,7 +1148,7 @@ namespace diverse
 				instance_buffer_address,
 				rt_instance_desc.size(),
 				tlas_,
-				&g_device->rt_scatch_buffer
+				&device->rt_scatch_buffer
 			);
 		});
 		pass.rg->record_pass(std::move(pass.pass));
@@ -1133,7 +1157,8 @@ namespace diverse
 
 	auto DeferedRenderer::build_ray_tracing_top_level_acceleration()->void
 	{
-		if( !g_device->gpu_limits.ray_tracing_enabled ) return;
+		auto device = rg_renderer->device;
+		if( !device->gpu_limits.ray_tracing_enabled ) return;
 		std::vector<rhi::RayTracingInstanceDesc>    rt_instance_desc(gpu_scene.instance_transforms.size());
         parallel_for<size_t>(0, gpu_scene.instance_transforms.size(), [&](size_t idx) {
             const auto& inst = gpu_scene.instance_transforms[idx];
@@ -1149,12 +1174,12 @@ namespace diverse
         });
 		//if( !tlas && rt_instance_desc.size() > 0)
 		{
-			tlas = g_device->create_ray_tracing_top_acceleration(
+			tlas = device->create_ray_tracing_top_acceleration(
 				rhi::RayTracingTopAccelerationDesc{
 					rt_instance_desc,
 					TLAS_PREALLOCATE_BYTES
 				},
-				g_device->rt_scatch_buffer
+				device->rt_scatch_buffer
 			);
 		}
 	}
@@ -1162,7 +1187,7 @@ namespace diverse
 	auto DeferedRenderer::build_ray_tracing_buttom_level_acceleration(MeshModel* model)->void
 	{
 		std::vector<rhi::RayTracingGeometryPart> geom_parts;
-        auto device = get_global_device();
+        auto device = rg_renderer->device;
 		for (auto mesh : model->get_meshes_ref())
 		{
 			auto vertex_buffer_address = mesh->get_vertex_buffer()->device_address(device);
@@ -1170,7 +1195,7 @@ namespace diverse
 			geom_parts.push_back(rhi::RayTracingGeometryPart{ mesh->get_vertex_count(), vertex_buffer_address, mesh->get_index_count(), index_buffer_address, u32(mesh->get_vertex_count() - 1) });
 		}
 		
-		auto blas = g_device->create_ray_tracing_bottom_acceleration(
+		auto blas = device->create_ray_tracing_bottom_acceleration(
 			rhi::RayTracingBottomAccelerationDesc{
 				std::vector<rhi::RayTracingGeometryDesc>{
 					rhi::RayTracingGeometryDesc{

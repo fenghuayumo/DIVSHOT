@@ -5,14 +5,17 @@ namespace diverse
 {
     namespace rhi
     {
+        struct GpuDeviceVulkan;
         struct VulkanDescriptorSet : public DescriptorSet
         {
             VulkanDescriptorSet() = default;
-            VulkanDescriptorSet(VkDescriptorSet set,VkDescriptorPool pool)
-                : descriptor_set(set), 
+            VulkanDescriptorSet(VkDescriptorSet set,VkDescriptorPool pool, GpuDeviceVulkan* owner)
+                : owner_device(owner),
+                descriptor_set(set),
                 descriptor_pool(pool)
             {}
             ~VulkanDescriptorSet();
+            GpuDeviceVulkan* owner_device = nullptr;
             VkDescriptorSet	descriptor_set;
             VkDescriptorPool  descriptor_pool;
         };
@@ -25,8 +28,10 @@ namespace diverse
                     std::vector<std::unordered_map<uint32, VkDescriptorType>>&& layout_info,
                     std::vector<VkDescriptorPoolSize>&& pool_sizes,
                     std::vector<VkDescriptorSetLayout>&& set_layouts,
-                    VkPipelineBindPoint bd_point);
+                    VkPipelineBindPoint bd_point,
+                    GpuDeviceVulkan* owner);
             ~PipelineVulkan();
+            GpuDeviceVulkan* owner_device = nullptr;
             VkPipelineLayout	pipeline_layout = VK_NULL_HANDLE;
             VkPipeline	pipeline = VK_NULL_HANDLE;
             std::vector<std::unordered_map<uint32, VkDescriptorType>>	set_layout_info;
@@ -43,7 +48,8 @@ namespace diverse
                 std::vector<std::unordered_map<uint32, VkDescriptorType>>&& layout_info,
                 std::vector<VkDescriptorPoolSize>&& pool_sizes,
                 std::vector<VkDescriptorSetLayout>&& set_layouts,
-                VkPipelineBindPoint bd_point);
+                VkPipelineBindPoint bd_point,
+                GpuDeviceVulkan* owner);
             ComputePipelineVulkan() = default;
       
         };
@@ -57,7 +63,8 @@ namespace diverse
                 std::vector<std::unordered_map<uint32, VkDescriptorType>>&& layout_info,
                 std::vector<VkDescriptorPoolSize>&& pool_sizes,
                 std::vector<VkDescriptorSetLayout>&& set_layouts,
-                VkPipelineBindPoint bd_point);
+                VkPipelineBindPoint bd_point,
+                GpuDeviceVulkan* owner);
         };
 
         auto create_descriptor_set_layouts(

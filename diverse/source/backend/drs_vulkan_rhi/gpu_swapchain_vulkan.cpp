@@ -256,7 +256,7 @@ namespace diverse
             images.clear();
 
             for (auto vk_image : vk_images) {
-                auto image = std::make_shared<GpuTextureVulkan>();
+                auto image = std::make_shared<GpuTextureVulkan>(device);
                 image->image = vk_image;
                 image->desc = GpuTextureDesc::new_2d(PixelFormat::B8G8R8A8_UNorm, { desc.dims[0], desc.dims[1] })
                     .with_usage(TextureUsageFlags::STORAGE)

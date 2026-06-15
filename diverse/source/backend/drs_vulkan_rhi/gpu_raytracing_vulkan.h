@@ -28,7 +28,8 @@ namespace diverse
                 std::vector<VkDescriptorPoolSize>&& pool_sizes,
                 std::vector<VkDescriptorSetLayout>&& set_layouts,
                 VkPipelineBindPoint bd_point,
-                RayTracingShaderTable   stb);
+                RayTracingShaderTable   stb,
+                GpuDeviceVulkan* owner);
 
             RayTracingShaderTable   shader_table;
         };

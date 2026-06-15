@@ -2,6 +2,7 @@
 
 #include "renderer/drs_rg/temporal.h"
 #include "renderer/drs_rg/simple_pass.h"
+#include "renderer/render_settings.h"
 #include <optional>
 namespace diverse
 {
@@ -50,9 +51,10 @@ namespace diverse
 
         auto render(rg::RenderGraph& rg,
             const rg::Handle<rhi::GpuTexture>& input,
-            rhi::DescriptorSet* bindless_descriptor_set)->rg::Handle<rhi::GpuTexture>;
+            rhi::DescriptorSet* bindless_descriptor_set,
+            const RenderSettings& render_settings)->rg::Handle<rhi::GpuTexture>;
 
-		auto update_pre_exposure()->void;
+		auto update_pre_exposure(const RenderSettings& render_settings)->void;
 
 		ExposureState			expos_state;
     protected:

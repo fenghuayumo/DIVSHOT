@@ -353,13 +353,13 @@ namespace diverse
 
         GpuTextureViewVulkan::~GpuTextureViewVulkan()
         {
-            auto device = dynamic_cast<GpuDeviceVulkan*>(get_global_device());
-            if (img_view != VK_NULL_HANDLE && device)
+            if (img_view != VK_NULL_HANDLE && owner_device)
             {
-                device->defer_release([img_view = this->img_view, device]() mutable {
+                auto vk_device = owner_device->device;
+                owner_device->defer_release([img_view = this->img_view, vk_device]() mutable {
                     if (img_view != VK_NULL_HANDLE)
                     {
-                        vkDestroyImageView(device->device, img_view, nullptr);
+                        vkDestroyImageView(vk_device, img_view, nullptr);
                         img_view = VK_NULL_HANDLE;
                     }
                 });
@@ -369,18 +369,19 @@ namespace diverse
         GpuTextureVulkan::~GpuTextureVulkan()
         {
             if( b_swapchin ) return;
-            auto device = dynamic_cast<GpuDeviceVulkan*>(get_global_device());
-            if(device)
+            if(owner_device && image != VK_NULL_HANDLE)
             {
-                g_device->defer_release([handle = this->image, allocation = this->allocation, device]() mutable{
+                auto vk_device = owner_device->device;
+                auto allocator = owner_device->global_allocator;
+                owner_device->defer_release([handle = this->image, allocation = this->allocation, vk_device, allocator]() mutable{
                     if(handle != VK_NULL_HANDLE )
                     {
-                        vkDestroyImage(device->device, handle, nullptr);
+                        vkDestroyImage(vk_device, handle, nullptr);
                         //vmaDestroyImage(device->global_allocator,handle, allocation);
                         handle = VK_NULL_HANDLE;
                         if (allocation != nullptr)
                         {
-                            vmaFreeMemory(device->global_allocator, allocation);
+                            vmaFreeMemory(allocator, allocation);
                         }
                     }
                 });

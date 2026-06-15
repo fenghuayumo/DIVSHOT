@@ -25,7 +25,7 @@ namespace diverse
 			},
 			rhi::RenderPassAttachmentDesc::create(PixelFormat::D32_Float).discard_input()
 		};
-		grid_render_pass = g_device->create_render_pass(desc);
+		grid_render_pass = device->create_render_pass(desc);
 
 	}
 	auto GridRenderer::handle_resize(u32 width, u32 height) -> void

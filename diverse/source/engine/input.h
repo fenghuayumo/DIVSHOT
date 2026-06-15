@@ -5,6 +5,7 @@
 #include "utility/singleton.h"
 #include "engine/key_codes.h"
 #include <glm/vec2.hpp>
+#include <map>
 
 #define MAX_KEYS 1024
 #define MAX_BUTTONS 32

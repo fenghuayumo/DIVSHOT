@@ -1,5 +1,4 @@
 #pragma once
-#include "backend/drs_rhi/drs_rhi.h"
 #include "backend/drs_rhi/gpu_device.h"
 #include "renderable2d.h"
 #include "drs_rg/renderer.h"

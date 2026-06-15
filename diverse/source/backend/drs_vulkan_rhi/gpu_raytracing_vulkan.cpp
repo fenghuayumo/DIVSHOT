@@ -11,8 +11,9 @@ namespace diverse
             std::vector<VkDescriptorPoolSize>&& pool_sizes,
             std::vector<VkDescriptorSetLayout>&& set_layouts,
             VkPipelineBindPoint bd_point,
-            RayTracingShaderTable stb)
-            : PipelineVulkan(layout, pip, std::move(layout_info), std::move(pool_sizes), std::move(set_layouts), bd_point)
+            RayTracingShaderTable stb,
+            GpuDeviceVulkan* owner)
+            : PipelineVulkan(layout, pip, std::move(layout_info), std::move(pool_sizes), std::move(set_layouts), bd_point, owner)
             , shader_table(stb)
         {
         }

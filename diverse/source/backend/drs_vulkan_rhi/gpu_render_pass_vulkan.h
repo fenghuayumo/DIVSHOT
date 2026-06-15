@@ -101,7 +101,10 @@ namespace diverse
 
         struct RenderPassVulkan : public RenderPass
         {
+            RenderPassVulkan() = default;
+            RenderPassVulkan(GpuDeviceVulkan* owner) : owner_device(owner) {}
             ~RenderPassVulkan();
+            GpuDeviceVulkan* owner_device = nullptr;
             VkRenderPass	render_pass;
             FrameBufferCache	framebuffer_cache;
 

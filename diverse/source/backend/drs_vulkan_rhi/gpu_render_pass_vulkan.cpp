@@ -65,17 +65,19 @@ namespace diverse
         }
         RenderPassVulkan::~RenderPassVulkan()
         {
-            auto device = dynamic_cast<GpuDeviceVulkan*>(get_global_device())->device;
-            g_device->defer_release([render_pass = this->render_pass, framebuffer_cache = this->framebuffer_cache, device]() mutable{
+            if (!owner_device)
+                return;
+            auto vk_device = owner_device->device;
+            owner_device->defer_release([render_pass = this->render_pass, framebuffer_cache = this->framebuffer_cache, vk_device]() mutable{
                 if (render_pass != VK_NULL_HANDLE)
                 {  
-                    vkDestroyRenderPass(device, render_pass,nullptr);
+                    vkDestroyRenderPass(vk_device, render_pass,nullptr);
                     render_pass = VK_NULL_HANDLE;
                     for (auto& entry : framebuffer_cache.entries)
                     {
                         if (entry.second != VK_NULL_HANDLE)
                         {
-                            vkDestroyFramebuffer(device, entry.second, nullptr);
+                            vkDestroyFramebuffer(vk_device, entry.second, nullptr);
                             entry.second = VK_NULL_HANDLE;
                         }
                     }

@@ -47,16 +47,17 @@ namespace diverse
 		return (address + alignment - 1) & ~(alignment-1);
 	}
 
-	GaussianRenderPass::GaussianRenderPass(DeferedRenderer* render)
-		: renderer(render)
-	{
+    GaussianRenderPass::GaussianRenderPass(DeferedRenderer* render)
+        : renderer(render)
+    {
+		auto device = renderer->get_device();
 		rhi::RenderPassDesc desc = {
 		{
 			rhi::RenderPassAttachmentDesc::create(PixelFormat::R8G8B8A8_UNorm).load_input(),
 		},
 			rhi::RenderPassAttachmentDesc::create(PixelFormat::D32_Float).load_input()
 		};
-		gs_point_render_pass = g_device->create_render_pass(desc);
+		gs_point_render_pass = device->create_render_pass(desc);
 
 	 	desc = {
 		{
@@ -64,7 +65,7 @@ namespace diverse
 		},
 			rhi::RenderPassAttachmentDesc::create(PixelFormat::D32_Float).load_input()
 		};
-		gsplat_render_pass = g_device->create_render_pass(desc);
+		gsplat_render_pass = device->create_render_pass(desc);
 
 		// GUT mesh shader render pass
 		desc = {
@@ -73,7 +74,7 @@ namespace diverse
 		},
 			rhi::RenderPassAttachmentDesc::create(PixelFormat::D32_Float).load_input()
 		};
-		gut_mesh_render_pass = g_device->create_render_pass(desc);
+		gut_mesh_render_pass = device->create_render_pass(desc);
 	}
 
 	GaussianRenderPass::GaussianRenderPass()
@@ -84,7 +85,8 @@ namespace diverse
 		rg::Handle<rhi::GpuTexture>& color_img,
 		rg::Handle<rhi::GpuTexture>& depth_img) -> GSplatRenderOutput
 	{
-		if (g_render_settings.splat_render_method == SplatRenderMethod::GUT)
+		const auto& render_settings = renderer->get_frame_render_settings();
+		if (render_settings.splat_render_method == SplatRenderMethod::GUT)
 		{
 			return render_gut_mesh_shader(rg, color_img, depth_img);
 		}
@@ -96,7 +98,8 @@ namespace diverse
 			rg::Handle<rhi::GpuTexture>& depth_img,
 			const SplatRenderData& splat_data) -> rg::Handle<rhi::GpuTexture>
     {
-		if(g_render_settings.gs_point_size <= 0 ) return color_img;
+		const auto& render_settings = renderer->get_frame_render_settings();
+		if(render_settings.gs_point_size <= 0 ) return color_img;
 		auto pipeline_desc = rhi::RasterPipelineDesc()
 			.with_render_pass(gs_point_render_pass)
 			.with_cull_mode(rhi::CullMode::NONE)
@@ -119,7 +122,7 @@ namespace diverse
 			glm::vec4 select_color;
 		}gs_constants;
 		gs_constants.transform = glm::transpose(splat_data.transform.get_world_matrix());
-		gs_constants.point_size = glm::clamp(g_render_settings.gs_point_size,0.0f,100.0f) / 2.0f;
+		gs_constants.point_size = glm::clamp(render_settings.gs_point_size,0.0f,100.0f) / 2.0f;
 		gs_constants.surface_width = color_img.desc.extent[0];
 		gs_constants.surface_height = color_img.desc.extent[1];
 		gs_constants.buf_id = splat_data.buf_id;
@@ -189,9 +192,10 @@ namespace diverse
 		rg::Handle<rhi::GpuTexture>& color_img,
 		rg::Handle<rhi::GpuTexture>& depth_img,
 		rg::Handle<rhi::GpuTexture>& outline_tex,
-		const SplatRenderData& splat_data) -> rg::Handle<rhi::GpuTexture>
+			const SplatRenderData& splat_data) -> rg::Handle<rhi::GpuTexture>
 	{
-		const auto splat_edit_mode = g_render_settings.splat_edit_render_mode == 1 ? 1 : 0;
+		const auto& render_settings = renderer->get_frame_render_settings();
+		const auto splat_edit_mode = render_settings.splat_edit_render_mode == 1 ? 1 : 0;
 		struct GaussianConstants {
 				glm::vec4 color;
 				u32 width;
@@ -217,6 +221,7 @@ namespace diverse
 			rg::Handle<rhi::GpuTexture>& depth_img) -> GSplatRenderOutput
 	{
 		auto& gs_cmd = renderer->gs_command_queue;
+		const auto& render_settings = renderer->get_frame_render_settings();
 
 		auto width = depth_img.desc.extent[0];
 		auto height = depth_img.desc.extent[1];
@@ -226,7 +231,7 @@ namespace diverse
 		// rg::clear_color(rg, splat_normal_tex, { 0.0f,0.0f,0.0f,0.0f });
 		if (gs_cmd.size() <= 0) return { color_img };
 		const auto outline_enabled = enableOutlineVar.get_value<bool>();
-		const auto splat_edit_mode = g_render_settings.splat_edit_render_mode;
+		const auto splat_edit_mode = render_settings.splat_edit_render_mode;
 		for (const auto& cmd : gs_cmd)
 		{
 			const auto num_gaussians = cmd.model->get_num_gaussians();
@@ -340,36 +345,36 @@ namespace diverse
 				}
 				preHasCrop = hasCrop;
 			}
-			if (g_render_settings.gs_vis_type == (int)(GaussianRenderType::Point)) {
+			if (render_settings.gs_vis_type == (int)(GaussianRenderType::Point)) {
 				render_color_points(rg, color_img, depth_img, {gs_buf_id, cmd.model, cmd.transform, cmd.select_color, cmd.locked_color});
 				continue;
 			}
 
 			std::vector<std::pair<std::string, std::string>> defines;
-			if (g_render_settings.gs_vis_type == (int)(GaussianRenderType::Depth)) {
+			if (render_settings.gs_vis_type == (int)(GaussianRenderType::Depth)) {
 				defines = std::vector<std::pair<std::string, std::string>>{
 				   {"VISUALIZE_DEPTH", "1"}
 				};
 			}
-			else if (g_render_settings.gs_vis_type == (int)(GaussianRenderType::Normal)) {
+			else if (render_settings.gs_vis_type == (int)(GaussianRenderType::Normal)) {
 				defines = std::vector<std::pair<std::string, std::string>>{
 			   {"VISUALIZE_NORMAL", "1"}
 				};
 			}
-			else if (g_render_settings.gs_vis_type == (int)(GaussianRenderType::Rings) ||
-					g_render_settings.splat_edit_render_mode == 1){
+			else if (render_settings.gs_vis_type == (int)(GaussianRenderType::Rings) ||
+					render_settings.splat_edit_render_mode == 1){
 				defines = std::vector<std::pair<std::string, std::string>>{
 			   {"VISUALIZE_RINGS", "1"}
 				};
 			}
-			else if (g_render_settings.gs_vis_type == (int)(GaussianRenderType::Ellipsoids)) {
+			else if (render_settings.gs_vis_type == (int)(GaussianRenderType::Ellipsoids)) {
 				defines = std::vector<std::pair<std::string, std::string>>{
 			   {"VISUALIZE_ELLIPSOIDS", "1"}
 				};
 			}
-			if( g_render_settings.gs_vis_type == (int)(GaussianRenderType::Splat) && g_render_settings.splat_edit_render_mode != 1)
+			if( render_settings.gs_vis_type == (int)(GaussianRenderType::Splat) && render_settings.splat_edit_render_mode != 1)
 				defines.push_back({"GSPLAT_AA", cmd.mip_antialiased ? "1" : "0"});
-			if(g_render_settings.gs_vis_type == (int)(GaussianRenderType::Splat))
+			if(render_settings.gs_vis_type == (int)(GaussianRenderType::Splat))
 				defines.push_back({"SH_DEGREE", std::to_string(cmd.sh_degree)});
 			else
 				defines.push_back({"SH_DEGREE", std::to_string(0)});
@@ -490,7 +495,8 @@ namespace diverse
 			gut_constants.surface_width = color_img.desc.extent[0];
 			gut_constants.surface_height = color_img.desc.extent[1];
 			gut_constants.num_gaussians = num_gaussians;
-			gut_constants.locked_color = glm::vec4(cmd.locked_color.xyz, (f32)(g_render_settings.splat_edit_render_mode));
+			const auto& render_settings = renderer->get_frame_render_settings();
+			gut_constants.locked_color = glm::vec4(cmd.locked_color.xyz, (f32)(render_settings.splat_edit_render_mode));
 			gut_constants.select_color = cmd.select_color;
 			gut_constants.tintColor = cmd.tintColor;
 			gut_constants.color_offset = glm::vec4(cmd.color_offset, cmd.model->splat_size);

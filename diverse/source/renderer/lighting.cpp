@@ -63,7 +63,8 @@ namespace diverse
     LightingPass::LightingPass(DeferedRenderer* render)
     : renderer(render)
     {
-        rhi_task_buffer = g_device->create_buffer(
+        auto device = renderer->get_device();
+        rhi_task_buffer = device->create_buffer(
             rhi::GpuBufferDesc::new_cpu_to_gpu(sizeof(PrepareLightsTask) * (maxEmissiveMeshes + maxPrimitiveLights),
                 rhi::BufferUsageFlags::TRANSFER_DST |
                 rhi::BufferUsageFlags::STORAGE_BUFFER |
@@ -80,7 +81,7 @@ namespace diverse
         std::vector<uint8_t> offsets;
         offsets.resize(neighborOffsetCount * 2);
         rtxdi::FillNeighborOffsetBuffer(offsets.data(), neighborOffsetCount);
-        neighbor_offsets_buf = g_device->create_buffer(
+        neighbor_offsets_buf = device->create_buffer(
             rhi::GpuBufferDesc::new_cpu_to_gpu(offsets.size(),
             rhi::BufferUsageFlags::UNIFORM_TEXEL_BUFFER |
             rhi::BufferUsageFlags::TRANSFER_DST).with_format(PixelFormat::R32G32_Float),
@@ -796,6 +797,6 @@ namespace diverse
             num_finite_primLights++;
         }
 
-        rhi_task_buffer->copy_from(g_device,(u8*)tasks.data(), tasks.size() * sizeof(PrepareLightsTask),0);
+        rhi_task_buffer->copy_from(renderer->get_device(),(u8*)tasks.data(), tasks.size() * sizeof(PrepareLightsTask),0);
     }    
 }

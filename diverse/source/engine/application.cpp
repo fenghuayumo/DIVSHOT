@@ -112,7 +112,7 @@ namespace diverse
         //#else
         auto device = rhi::create_device(-1, RenderAPI::VULKAN);
         //#endif
-        auto swap_chain = device->create_swapchain(rhi::SwapchainDesc{ swapchain_extent, false }, Application::get().get_window());
+        auto swap_chain = device->create_swapchain(rhi::SwapchainDesc{ swapchain_extent, false }, window.get());
 
         System::JobSystem::Context context;
 
@@ -125,7 +125,7 @@ namespace diverse
 
 
         main_renderer = createUniquePtr<DeferedRenderer>(device,swap_chain.get());
-        main_renderer->init();
+        main_renderer->init(swapchain_extent);
 
         imgui_manager = createUniquePtr<ImGuiManager>(device,swap_chain.get(), main_renderer->get_ui_renderer());
         imgui_manager->init();
@@ -298,7 +298,7 @@ namespace diverse
     void Application::render()
     {
         DS_PROFILE_FUNCTION();
-        main_renderer->render();
+        main_renderer->render(get_window_size());
     }
 
     void Application::imgui_render()
@@ -319,8 +319,8 @@ namespace diverse
             return;
 
 
-        if (Application::get().get_editor_state() != EditorState::Paused
-            && Application::get().get_editor_state() != EditorState::Preview)
+        if (get_editor_state() != EditorState::Paused
+            && get_editor_state() != EditorState::Preview)
         {
             scene_manager->get_current_scene()->on_update(dt);
         }

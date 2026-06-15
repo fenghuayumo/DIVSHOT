@@ -7,17 +7,22 @@ namespace diverse
 {
 	namespace rhi
 	{
+		struct GpuDeviceVulkan;
 
 		struct GpuTextureViewVulkan : public GpuTextureView
 		{
-			GpuTextureViewVulkan(VkImageView view):img_view(view){}
+			GpuTextureViewVulkan(VkImageView view, GpuDeviceVulkan* owner):owner_device(owner), img_view(view){}
 			~GpuTextureViewVulkan();
+			GpuDeviceVulkan* owner_device = nullptr;
 			VkImageView	img_view = VK_NULL_HANDLE;
 		};
 
 		struct GpuTextureVulkan : public GpuTexture
 		{
+			GpuTextureVulkan() = default;
+			GpuTextureVulkan(GpuDeviceVulkan* owner) : owner_device(owner) {}
 			~GpuTextureVulkan();
+			GpuDeviceVulkan* owner_device = nullptr;
 			VkImage	image = VK_NULL_HANDLE;
 			VmaAllocation allocation{};
 			std::unordered_map<GpuTextureViewDesc, std::shared_ptr<GpuTextureView>>	views;

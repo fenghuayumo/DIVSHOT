@@ -185,10 +185,10 @@ namespace diverse
 			+ mean * (LUMINANCE_HISTOGRAM_MAX_LOG2 - LUMINANCE_HISTOGRAM_MIN_LOG2));
 	}
 	
-	auto PostProcessRenderer::render(rg::RenderGraph& rg, const rg::Handle<rhi::GpuTexture>& input, rhi::DescriptorSet* bindless_descriptor_set) -> rg::Handle<rhi::GpuTexture>
+	auto PostProcessRenderer::render(rg::RenderGraph& rg, const rg::Handle<rhi::GpuTexture>& input, rhi::DescriptorSet* bindless_descriptor_set, const RenderSettings& render_settings) -> rg::Handle<rhi::GpuTexture>
 	{
-		contrast = g_render_settings.contrast;
-		dynamic_exposure.histogram_clipping = {g_render_settings.dynamic_adaptation_low_clip, g_render_settings.dynamic_adaptation_high_clip};
+		contrast = render_settings.contrast;
+		dynamic_exposure.histogram_clipping = {render_settings.dynamic_adaptation_low_clip, render_settings.dynamic_adaptation_high_clip};
 		read_back_histogram(dynamic_exposure.histogram_clipping);
 		auto blur_pyr = blur_pyramid(rg, input);
 		auto histogram = calculate_luminance_histogram(rg, blur_pyr);
@@ -213,11 +213,11 @@ namespace diverse
 			.dispatch(output.desc.extent);
 		return output;
 	}
-	auto PostProcessRenderer::update_pre_exposure() -> void
+	auto PostProcessRenderer::update_pre_exposure(const RenderSettings& render_settings) -> void
 	{
 		auto dt = 1.0 / 60.0f; //TODO
 		dynamic_exposure.update(-image_log2_lum, dt);
-		auto ev_mult = std::exp2(g_render_settings.ev_shift + dynamic_exposure.ev_smoothed());
+		auto ev_mult = std::exp2(render_settings.ev_shift + dynamic_exposure.ev_smoothed());
 		expos_state.pre_mult_prev = expos_state.pre_mult;
 		expos_state.pre_mult = expos_state.pre_mult * 0.9 + 0.1 * ev_mult;
 		expos_state.post_mult = ev_mult / expos_state.pre_mult;

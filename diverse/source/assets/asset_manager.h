@@ -112,6 +112,8 @@ namespace diverse
 
         virtual void destroy()
         {
+            std::lock_guard lock(lock_mutex);
+            wait_for_pending_loads();
             typename MapType::iterator itr = name_resource_map.begin();
 
             if (release_func)
@@ -150,6 +152,7 @@ namespace diverse
 
         bool reload_resources()
         {
+            std::lock_guard lock(lock_mutex);
             typename MapType::iterator itr = name_resource_map.begin();
             while (itr != name_resource_map.end())
             {
@@ -165,6 +168,7 @@ namespace diverse
 
         bool resource_exists(const IDType& name)
         {
+            std::lock_guard lock(lock_mutex);
             typename MapType::iterator itr = name_resource_map.find(name);
             return itr != name_resource_map.end();
         }
@@ -180,6 +184,7 @@ namespace diverse
 
         ResourceHandle  get_default_resource(const IDType& name)
         {
+            std::lock_guard lock(lock_mutex);
             if(default_resources.find(name) != default_resources.end())
                 return default_resources[name];
             return {};
@@ -283,5 +288,15 @@ namespace diverse
         std::mutex  lock_mutex;
 
         std::vector<std::future<void>> futures;
+
+        void wait_for_pending_loads()
+        {
+            for (auto& future : futures)
+            {
+                if (future.valid())
+                    future.wait();
+            }
+            futures.clear();
+        }
     };
 }

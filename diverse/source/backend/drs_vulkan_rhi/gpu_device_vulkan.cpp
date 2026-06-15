@@ -22,7 +22,7 @@ namespace diverse
     {
         constexpr u32 MAX_SET_COUNT = 4;
         GpuCommandBufferVulkan::GpuCommandBufferVulkan(VkDevice device, Queue	que)
-            : family_index(que.family.index), queue(que.queue)
+            : owner_device(device), family_index(que.family.index), queue(que.queue)
         {
             VkCommandPoolCreateInfo pool_create_info = {};
             pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -48,10 +48,9 @@ namespace diverse
         {
             if( handle != VK_NULL_HANDLE)
             {
-                auto device = dynamic_cast<GpuDeviceVulkan*>(get_global_device());
-                if (device && device->device != VK_NULL_HANDLE) {
-                    vkDestroyFence(device->device, submit_done_fence, nullptr);
-                    vkDestroyCommandPool(device->device, pool, nullptr);
+                if (owner_device != VK_NULL_HANDLE) {
+                    vkDestroyFence(owner_device, submit_done_fence, nullptr);
+                    vkDestroyCommandPool(owner_device, pool, nullptr);
                 }
             }
         }
@@ -649,7 +648,7 @@ namespace diverse
         #ifndef DS_PRODUCTION
              DS_LOG_INFO("creating an image: {}", desc);
         #endif
-             auto vk_image = std::make_shared<GpuTextureVulkan>();
+             auto vk_image = std::make_shared<GpuTextureVulkan>(this);
              vk_image->desc = desc;
              VkImage& image = vk_image->image;
              auto create_info = get_image_create_info(desc, !initial_data.empty());
@@ -806,7 +805,7 @@ namespace diverse
             create_info.image = image;
             VkImageView	imge_view;
             VK_CHECK_RESULT(vkCreateImageView(device, &create_info, nullptr, &imge_view));
-            return std::make_shared<GpuTextureViewVulkan>(imge_view);
+            return std::make_shared<GpuTextureViewVulkan>(imge_view, const_cast<GpuDeviceVulkan*>(this));
         }
 
         auto GpuDeviceVulkan::create_buffer_view(const GpuBufferViewDesc& view_desc, const GpuBufferDesc& buffer_desc, VkBuffer buffer) const -> std::shared_ptr<GpuBufferViewVulkan>
@@ -819,7 +818,7 @@ namespace diverse
             viewInfo.range = view_desc.range;  
             VkBufferView	buffer_view;
             VK_CHECK_RESULT(vkCreateBufferView(device, &viewInfo, nullptr, &buffer_view));
-            return std::make_shared<GpuBufferViewVulkan>(buffer_view);
+            return std::make_shared<GpuBufferViewVulkan>(buffer_view, const_cast<GpuDeviceVulkan*>(this));
         }
 
         auto GpuDeviceVulkan::create_render_command_buffer(const char* name) -> std::shared_ptr<CommandBuffer>
@@ -932,7 +931,7 @@ namespace diverse
             VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &render_pass));
             if(name != nullptr)
                 set_label((u64)render_pass, VK_OBJECT_TYPE_RENDER_PASS, name);
-            auto pass = std::make_shared<RenderPassVulkan>();
+            auto pass = std::make_shared<RenderPassVulkan>(this);
             pass->render_pass = render_pass;
             pass->framebuffer_cache = FrameBufferCache(render_pass, desc.color_attachments, desc.depth_attachment);
             return pass;
@@ -1080,7 +1079,7 @@ namespace diverse
             {
                 set_label((u64)set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name);
             }
-            return std::make_shared<VulkanDescriptorSet>(set, descriptor_pool);
+            return std::make_shared<VulkanDescriptorSet>(set, descriptor_pool, this);
         }
         //frame descriptor
         auto GpuDeviceVulkan::create_descriptor_set(GpuBuffer* dynamic_constants, const std::unordered_map<u32, DescriptorInfo>& descriptors,const char* name) -> std::shared_ptr<DescriptorSet>
@@ -1208,7 +1207,7 @@ namespace diverse
                 descriptor_set_writes.push_back(write_set);
             }   
             vkUpdateDescriptorSets(device, descriptor_set_writes.size(), descriptor_set_writes.data(), 0, nullptr);
-            return std::make_shared<VulkanDescriptorSet>(set, descriptor_pool);
+            return std::make_shared<VulkanDescriptorSet>(set, descriptor_pool, this);
         }
 
         //TODO
@@ -1457,7 +1456,7 @@ namespace diverse
                 }
             }
 
-            auto compute_pipeline = std::make_shared<ComputePipelineVulkan>(pipeline_layout, pipeline, std::move(set_layout_info), std::move(descriptor_pool_sizes), std::move(descriptor_set_layouts),VK_PIPELINE_BIND_POINT_COMPUTE) ;
+            auto compute_pipeline = std::make_shared<ComputePipelineVulkan>(pipeline_layout, pipeline, std::move(set_layout_info), std::move(descriptor_pool_sizes), std::move(descriptor_set_layouts),VK_PIPELINE_BIND_POINT_COMPUTE, this) ;
             compute_pipeline->group_size = get_cs_local_size_from_spirv(spirv);
             compute_pipeline->ty = GpuPipeline::PieplineType::Compute;
             return compute_pipeline;
@@ -1738,7 +1737,7 @@ namespace diverse
                             });
                 }
             }
-            auto raster_pipeline = std::make_shared<RasterPipelineVulkan>(pipeline_layout, pipeline, std::move(set_layout_info), std::move(descriptor_pool_sizes), std::move(descriptor_set_layouts), VK_PIPELINE_BIND_POINT_GRAPHICS);
+            auto raster_pipeline = std::make_shared<RasterPipelineVulkan>(pipeline_layout, pipeline, std::move(set_layout_info), std::move(descriptor_pool_sizes), std::move(descriptor_set_layouts), VK_PIPELINE_BIND_POINT_GRAPHICS, this);
             raster_pipeline->ty = GpuPipeline::PieplineType::Raster;
             return raster_pipeline;
         }
@@ -1966,7 +1965,8 @@ namespace diverse
                 std::move(descriptor_pool_sizes), 
                 std::move(descriptor_set_layouts),
                 VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, 
-                stb);
+                stb,
+                this);
             rt_pipeline->group_size = {u32(0), u32(0) ,u32(0)};
             rt_pipeline->ty = GpuPipeline::PieplineType::RayTracing;
             return rt_pipeline;
@@ -2226,7 +2226,7 @@ namespace diverse
                 }
             }
 
-            auto mesh_pipeline = std::make_shared<RasterPipelineVulkan>(pipeline_layout, pipeline, std::move(set_layout_info), std::move(descriptor_pool_sizes), std::move(descriptor_set_layouts), VK_PIPELINE_BIND_POINT_GRAPHICS);
+            auto mesh_pipeline = std::make_shared<RasterPipelineVulkan>(pipeline_layout, pipeline, std::move(set_layout_info), std::move(descriptor_pool_sizes), std::move(descriptor_set_layouts), VK_PIPELINE_BIND_POINT_GRAPHICS, this);
             mesh_pipeline->ty = GpuPipeline::PieplineType::MeshShader;
             return mesh_pipeline;
         }
@@ -2342,7 +2342,7 @@ namespace diverse
             VK_CHECK_RESULT(vmaCreateBuffer(allocator, &buffer_create_info, &vbAllocCreateInfo, &buffer, &allocation, &allocationInfo));
             cb_mutex.unlock();
 #endif
-            return std::make_shared<GpuBufferVulkan>(buffer, desc, allocation, allocationInfo);
+            return std::make_shared<GpuBufferVulkan>(buffer, desc, allocation, allocationInfo, this);
         }
 
         auto GpuDeviceVulkan::create_ray_tracing_shader_table(const RayTracingShaderTableDesc& desc, VkPipeline pipeline) -> RayTracingShaderTable

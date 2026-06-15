@@ -8,15 +8,17 @@ namespace diverse
 		struct GpuDeviceVulkan;
 		struct GpuBufferViewVulkan : GpuBufferView
 		{
-			GpuBufferViewVulkan(VkBufferView view) :buf_view(view) {}
+			GpuBufferViewVulkan(VkBufferView view, GpuDeviceVulkan* owner) : owner_device(owner), buf_view(view) {}
 			~GpuBufferViewVulkan();
+			GpuDeviceVulkan* owner_device = nullptr;
 			VkBufferView	buf_view = VK_NULL_HANDLE;
 		};
 		struct GpuBufferVulkan : public GpuBuffer
 		{
 			GpuBufferVulkan(){ handle = 0; allocation = nullptr;}
-			GpuBufferVulkan(VkBuffer h,const GpuBufferDesc& desc,VmaAllocation  alloc, VmaAllocationInfo info);
+			GpuBufferVulkan(VkBuffer h,const GpuBufferDesc& desc,VmaAllocation  alloc, VmaAllocationInfo info, GpuDeviceVulkan* owner);
 			~GpuBufferVulkan();
+			GpuDeviceVulkan* owner_device = nullptr;
             VkBuffer	handle = VK_NULL_HANDLE;
 			VmaAllocation allocation{};
 			VmaAllocationInfo allocate_info = {};

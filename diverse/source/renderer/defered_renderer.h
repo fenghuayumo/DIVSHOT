@@ -1,5 +1,4 @@
 #pragma once
-#include "backend/drs_rhi/drs_rhi.h"
 #include "backend/drs_rhi/gpu_device.h"
 #include "render_settings.h"
 #include "drs_rg/renderer.h"
@@ -31,6 +30,7 @@ namespace diverse
 	struct PostProcessRenderer;
 	struct TaaRenderer;
 	struct ImageLut;
+	class GridRenderer;
 	struct ShadowDenoiser;
 	struct IracheRender;
 	struct SsgiRenderer;
@@ -127,6 +127,7 @@ namespace diverse
 		FrameParamDesc frame_desc;
 		CameraFrameParams camera_params;
 		EnvironmentFrameParams environment;
+		RenderSettings render_settings;
 		std::array<u32, 2> swapchain_extent = { 0, 0 };
 		f32 delta_t = 0.0f;
 		bool skip_gs_render = false;
@@ -171,8 +172,8 @@ namespace diverse
 		DeferedRenderer(rhi::GpuDevice* dev,rhi::Swapchain* swapchain);
 		~DeferedRenderer();
 
-		void	init();
-		void	render();
+		void	init(std::array<u32, 2> swapchain_extent);
+		void	render(std::array<u32, 2> swapchain_extent);
 		auto	prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc, const EnvironmentFrameParams& environment) -> rg::Handle<rhi::GpuTexture>;
 		auto	retire_frame(const std::vector<MeshFrameState>& mesh_frame_states) -> void;
 		auto	prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, const CameraFrameParams& camera_params, f32 delta_t) -> rg::FrameConstantsLayout;
@@ -193,8 +194,10 @@ namespace diverse
 		auto	get_main_render_image()->std::shared_ptr<rhi::GpuTexture> {return main_render_tex; }
 		auto	set_main_render_image(std::shared_ptr<rhi::GpuTexture>& tex)->void {main_render_tex = tex; }
 		auto	get_render_depth()->std::shared_ptr<rhi::GpuTexture> {return depth_render_tex;}
+		auto	get_device() const -> rhi::GpuDevice* { return rg_renderer->device; }
 		auto	get_camera()->Camera* {return camera;}
 		auto	get_camera_transform()-> maths::Transform* {return camera_transform;}
+		auto	get_frame_render_settings() const -> const RenderSettings& { return frame_render_settings; }
 		auto	binldess_descriptorset()-> rhi::DescriptorSet* {return bindless_descriptor_set.get();}
 		auto 	invalidate_pt_state()->void { reset_pt = true;}	
 		auto    has_reset_pt_state()->bool {return reset_pt;}
@@ -207,7 +210,7 @@ namespace diverse
 		auto 	build_ray_tracing_top_level_acceleration() -> void;
 		auto 	build_ray_tracing_buttom_level_acceleration(MeshModel* mesh)->void;
 	protected:
-		auto	extract_frame_packet(f32 delta_t)->std::optional<RenderFramePacket>;
+		auto	extract_frame_packet(f32 delta_t, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>;
 		auto	render_frame_packet(RenderFramePacket&& packet)->void;
 		auto	apply_environment_frame(const EnvironmentFrameParams& environment)->void;
 		auto	upload_gpu_buffers()->void;
@@ -254,7 +257,7 @@ namespace diverse
 		std::array<u32, 2>	render_extent;
 
 		std::shared_ptr<struct UiRenderer>	ui_renderer;
-		std::shared_ptr<struct GridRenderer> grid_renderer;
+		std::shared_ptr<GridRenderer> grid_renderer;
 		std::shared_ptr<rhi::GpuTexture>	main_render_tex;
 		std::shared_ptr<rhi::GpuTexture>	depth_render_tex;
 
@@ -286,6 +289,7 @@ namespace diverse
 		glm::vec4    	sky_ambient;
 		glm::vec3    	sun_direction;
 		std::vector<TriangleLight> triangle_lights;
+		RenderSettings frame_render_settings;
 	private:
 		std::shared_ptr<rhi::DescriptorSet> bindless_descriptor_set;
 		std::array<u32, 2>					temporal_upscale_extent;

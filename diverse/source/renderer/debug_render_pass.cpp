@@ -22,13 +22,14 @@ namespace diverse
     DebugRenderPass::DebugRenderPass(DeferedRenderer* render)
     {
         renderer = render;
+        auto device = renderer->get_device();
         rhi::RenderPassDesc desc = {
             {
                 rhi::RenderPassAttachmentDesc::create(PixelFormat::R8G8B8A8_UNorm).load_input(),
             },
             rhi::RenderPassAttachmentDesc::create(PixelFormat::D32_Float).load_input()
         };
-        debug_line_pass = g_device->create_render_pass(desc);
+        debug_line_pass = device->create_render_pass(desc);
         
         //points
 		uint32_t* indices = new uint32_t[MaxPointIndices];
@@ -44,7 +45,7 @@ namespace diverse
 			indices[i + 5] = offset + 0;
 			offset += 4;
 		}
-		debug_draw_data.point_index_buffer = g_device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(MaxPointIndices * sizeof(u32), rhi::BufferUsageFlags::INDEX_BUFFER), "point_index_buf", (u8*)indices);
+		debug_draw_data.point_index_buffer = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(MaxPointIndices * sizeof(u32), rhi::BufferUsageFlags::INDEX_BUFFER), "point_index_buf", (u8*)indices);
 		delete[] indices;
 
         //lines
@@ -53,7 +54,7 @@ namespace diverse
 		{
 			indices[i] = i;
 		}
-		debug_draw_data.line_index_buffer = g_device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(MaxLineIndices * sizeof(u32), rhi::BufferUsageFlags::INDEX_BUFFER), "line_index_buf", (u8*)indices);
+		debug_draw_data.line_index_buffer = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(MaxLineIndices * sizeof(u32), rhi::BufferUsageFlags::INDEX_BUFFER), "line_index_buf", (u8*)indices);
 		delete[] indices;
 
         //debug quads
@@ -70,7 +71,7 @@ namespace diverse
             }
         }
 
-        debug_draw_data.renderer2d_data.index_buffer = g_device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(debug_draw_data.renderer2d_data.limits.IndiciesSize * sizeof(u32), rhi::BufferUsageFlags::INDEX_BUFFER), "point_index_buf", (u8*)indices);
+        debug_draw_data.renderer2d_data.index_buffer = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(debug_draw_data.renderer2d_data.limits.IndiciesSize * sizeof(u32), rhi::BufferUsageFlags::INDEX_BUFFER), "point_index_buf", (u8*)indices);
         delete[] indices;
         debug_draw_data.renderer2d_data.vertex_buffers.resize(1);
 
@@ -462,7 +463,7 @@ namespace diverse
                     debug_draw_data.renderer2d_data.index_count += 3;
                 }
                 uint32_t dataSize = (uint32_t)((uint8_t*)debug_draw_data.renderer2d_data.vertex_data - (uint8_t*)quad_buffers[0]);
-                debug_draw_data.renderer2d_data.vertex_buffers[current_frame][debug_draw_data.renderer2d_data.batch_drawcall_index]->copy_from(get_global_device(), (u8*)quad_buffers[0], dataSize,0);
+                debug_draw_data.renderer2d_data.vertex_buffers[current_frame][debug_draw_data.renderer2d_data.batch_drawcall_index]->copy_from(renderer->get_device(), (u8*)quad_buffers[0], dataSize,0);
                 auto depth_ref = pass.raster(depth_img, rhi::AccessType::DepthAttachmentWriteStencilReadOnly);
                 auto color_ref = pass.raster(color_img, rhi::AccessType::ColorAttachmentWrite);
                 auto quad_batch_drawcall_index = debug_draw_data.renderer2d_data.batch_drawcall_index;

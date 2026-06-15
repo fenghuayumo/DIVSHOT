@@ -36,18 +36,25 @@ namespace diverse
     VKIMGUIRenderer::~VKIMGUIRenderer()
     {
         DS_PROFILE_FUNCTION();
-        //TODO:
-        auto device = dynamic_cast<rhi::GpuDeviceVulkan*>(get_global_device())->device;
-        g_device->defer_release([render_pass = m_Renderpass, 
+        auto vkdevice = dynamic_cast<rhi::GpuDeviceVulkan*>(device);
+        if (vkdevice)
+        {
+            auto vk_device = vkdevice->device;
+            device->defer_release([render_pass = m_Renderpass,
             frame0=m_Framebuffers[0],
             frame1=m_Framebuffers[1], 
             frame2=m_Framebuffers[2], 
-            device]() mutable{
-            vkDestroyRenderPass(device, render_pass, nullptr);
-            vkDestroyFramebuffer(device, frame0, nullptr);
-            vkDestroyFramebuffer(device, frame1, nullptr);
-            vkDestroyFramebuffer(device, frame2, nullptr);
-        });
+            vk_device]() mutable{
+                if (render_pass != VK_NULL_HANDLE)
+                    vkDestroyRenderPass(vk_device, render_pass, nullptr);
+                if (frame0 != VK_NULL_HANDLE)
+                    vkDestroyFramebuffer(vk_device, frame0, nullptr);
+                if (frame1 != VK_NULL_HANDLE)
+                    vkDestroyFramebuffer(vk_device, frame1, nullptr);
+                if (frame2 != VK_NULL_HANDLE)
+                    vkDestroyFramebuffer(vk_device, frame2, nullptr);
+            });
+        }
         ImGui_ImplVulkan_Shutdown();
     }
     void VKIMGUIRenderer::setup_vulkan_window_data(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface, u32 width, u32 height)

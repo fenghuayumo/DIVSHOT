@@ -39,6 +39,7 @@ namespace diverse
 
         struct GpuCommandBufferVulkan : public CommandBuffer
         {
+            VkDevice owner_device = VK_NULL_HANDLE;
             VkCommandBuffer handle;
             VkFence			submit_done_fence;
             VkCommandPool	pool;

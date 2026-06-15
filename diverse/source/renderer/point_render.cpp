@@ -12,13 +12,14 @@ namespace diverse
     PointRenderPass::PointRenderPass(DeferedRenderer* defrenderer)
     	: renderer(defrenderer)
 	{
+		auto device = renderer->get_device();
 		rhi::RenderPassDesc desc = {
 		{
 			rhi::RenderPassAttachmentDesc::create(PixelFormat::R8G8B8A8_UNorm).load_input(),
 		},
 			rhi::RenderPassAttachmentDesc::create(PixelFormat::D32_Float).load_input()
 		};
-		point_render_pass = g_device->create_render_pass(desc);
+		point_render_pass = device->create_render_pass(desc);
     }
     
     PointRenderPass::PointRenderPass()
@@ -32,7 +33,8 @@ namespace diverse
         auto& point_cmd = renderer->point_command_queue;
         if(point_cmd.size() <= 0) return color_img;
 
-		if(g_render_settings.gs_point_size <= 0 ) return color_img;
+		const auto& render_settings = renderer->get_frame_render_settings();
+		if(render_settings.gs_point_size <= 0 ) return color_img;
         auto pass = rg.add_pass("raster gs points");
 		auto pipeline_desc = rhi::RasterPipelineDesc()
 			.with_render_pass(point_render_pass)
@@ -60,9 +62,9 @@ namespace diverse
 				u32 surface_width;
                 u32 surface_height;
                 uint buf_id;
-			}gs_constants;
+            }gs_constants;
             gs_constants.transform = glm::transpose(cmd.transform.get_world_matrix());
-			gs_constants.point_size = glm::clamp(g_render_settings.gs_point_size,0.0f,100.0f) / 2.0f;
+			gs_constants.point_size = glm::clamp(render_settings.gs_point_size,0.0f,100.0f) / 2.0f;
             gs_constants.surface_width = color_img.desc.extent[0];
             gs_constants.surface_height = color_img.desc.extent[1];
 			gs_constants.buf_id = renderer->get_buf_id(cmd.model);

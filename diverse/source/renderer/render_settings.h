@@ -55,4 +55,7 @@ namespace diverse
     };
 
     extern RenderSettings g_render_settings;
+
+    auto snapshot_render_settings() -> RenderSettings;
+    auto set_render_settings(const RenderSettings& settings) -> void;
 }

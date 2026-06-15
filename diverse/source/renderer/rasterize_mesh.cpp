@@ -6,6 +6,7 @@ namespace diverse
     RasterizeMesh::RasterizeMesh(class DeferedRenderer* render)
         : renderer(render)
     {
+        auto device = renderer->get_device();
         rhi::RenderPassDesc desc = {
             {
                 rhi::RenderPassAttachmentDesc::create(PixelFormat::R10G10B10A2_UNorm).clear_input(),
@@ -14,14 +15,14 @@ namespace diverse
             },
             rhi::RenderPassAttachmentDesc::create(PixelFormat::D32_Float)
         };
-        raster_render_pass = g_device->create_render_pass(desc);
+        raster_render_pass = device->create_render_pass(desc);
         desc = {
            {
                rhi::RenderPassAttachmentDesc::create(PixelFormat::R16G16B16A16_Float).load_input(),
            },
            rhi::RenderPassAttachmentDesc::create(PixelFormat::D32_Float)
         };
-        wire_render_pass = g_device->create_render_pass(desc);
+        wire_render_pass = device->create_render_pass(desc);
     }
 
     RasterizeMesh::~RasterizeMesh()

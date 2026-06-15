@@ -425,11 +425,13 @@ namespace diverse
         }
         VulkanDescriptorSet::~VulkanDescriptorSet()
         {
-            auto device = dynamic_cast<GpuDeviceVulkan*>(get_global_device())->device;
-            g_device->defer_release([pool = this->descriptor_pool, device]() mutable {
+            if (!owner_device)
+                return;
+            auto vk_device = owner_device->device;
+            owner_device->defer_release([pool = this->descriptor_pool, vk_device]() mutable {
                 if (pool != VK_NULL_HANDLE)
                 {
-                    vkDestroyDescriptorPool(device, pool,nullptr);
+                    vkDestroyDescriptorPool(vk_device, pool,nullptr);
                     pool = VK_NULL_HANDLE;
                 }
              });
@@ -439,8 +441,10 @@ namespace diverse
             std::vector<std::unordered_map<uint32, VkDescriptorType>>&& layout_info,
             std::vector<VkDescriptorPoolSize>&& pool_sizes,
             std::vector<VkDescriptorSetLayout>&& set_layouts,
-            VkPipelineBindPoint bd_point)
-            : pipeline_layout(layout),
+            VkPipelineBindPoint bd_point,
+            GpuDeviceVulkan* owner)
+            : owner_device(owner),
+            pipeline_layout(layout),
             pipeline(pip),
             set_layout_info(layout_info),
             descriptor_pool_sizes(pool_sizes),
@@ -450,12 +454,14 @@ namespace diverse
         }
         PipelineVulkan::~PipelineVulkan()
         {
-            auto device = dynamic_cast<GpuDeviceVulkan*>(get_global_device())->device;
-            g_device->defer_release([pipeline = this->pipeline, pipeline_layout = this->pipeline_layout, device]() mutable{
+            if (!owner_device)
+                return;
+            auto vk_device = owner_device->device;
+            owner_device->defer_release([pipeline = this->pipeline, pipeline_layout = this->pipeline_layout, vk_device]() mutable{
                 if( pipeline != VK_NULL_HANDLE)
                 {
-                    vkDestroyPipelineLayout(device,pipeline_layout, nullptr);
-                    vkDestroyPipeline(device,pipeline,nullptr);
+                    vkDestroyPipelineLayout(vk_device,pipeline_layout, nullptr);
+                    vkDestroyPipeline(vk_device,pipeline,nullptr);
                     pipeline = VK_NULL_HANDLE;
                     pipeline_layout = VK_NULL_HANDLE;
                 }
@@ -467,8 +473,9 @@ namespace diverse
             std::vector<std::unordered_map<uint32, VkDescriptorType>>&& layout_info,
             std::vector<VkDescriptorPoolSize>&& pool_sizes,
             std::vector<VkDescriptorSetLayout>&& set_layouts,
-            VkPipelineBindPoint bd_point)
-            : PipelineVulkan(layout, pip, std::move(layout_info), std::move(pool_sizes), std::move(set_layouts), bd_point)
+            VkPipelineBindPoint bd_point,
+            GpuDeviceVulkan* owner)
+            : PipelineVulkan(layout, pip, std::move(layout_info), std::move(pool_sizes), std::move(set_layouts), bd_point, owner)
         {
         }
 
@@ -477,8 +484,9 @@ namespace diverse
             std::vector<std::unordered_map<uint32, VkDescriptorType>>&& layout_info,
             std::vector<VkDescriptorPoolSize>&& pool_sizes,
             std::vector<VkDescriptorSetLayout>&& set_layouts,
-            VkPipelineBindPoint bd_point)
-            : PipelineVulkan(layout, pip, std::move(layout_info), std::move(pool_sizes), std::move(set_layouts), bd_point)
+            VkPipelineBindPoint bd_point,
+            GpuDeviceVulkan* owner)
+            : PipelineVulkan(layout, pip, std::move(layout_info), std::move(pool_sizes), std::move(set_layouts), bd_point, owner)
         {
         }
 

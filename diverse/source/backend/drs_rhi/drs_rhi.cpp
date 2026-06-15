@@ -1,9 +1,16 @@
 #ifdef DS_RENDER_API_VULKAN
 #include "../drs_vulkan_rhi/gpu_device_vulkan.h"
 #endif
+#include <mutex>
+#include <utility>
 
 namespace diverse
 {
+    namespace
+    {
+        std::mutex g_device_mutex;
+    }
+
     rhi::GpuDevice*  g_device;
 
     RenderAPI   g_render_api;
@@ -14,7 +21,14 @@ namespace diverse
 #endif
         auto create_device(u32 device_index, RenderAPI api) ->GpuDevice*
         {
-            set_render_api(api);
+            {
+                std::lock_guard<std::mutex> lock(g_device_mutex);
+                g_render_api = api;
+                if (g_device)
+                    return g_device;
+            }
+
+            GpuDevice* created_device = nullptr;
             switch (api)
             {
 #ifdef DS_RENDER_API_OPENGL
@@ -26,43 +40,52 @@ namespace diverse
 #ifdef DS_RENDER_API_VULKAN
             case RenderAPI::VULKAN:
             {
-                g_device = new GpuDeviceVulkan(device_index);
+                created_device = new GpuDeviceVulkan(device_index);
             }break;
 #endif
 #ifdef DS_RENDER_API_METAL
             case RenderAPI::METAL:
             {
-                g_device = create_metal_device(device_index);
+                created_device = create_metal_device(device_index);
             }
 #endif
             default:
                 break;
             }
+            std::lock_guard<std::mutex> lock(g_device_mutex);
+            if (!g_device)
+                g_device = created_device;
+            else
+                delete created_device;
             return g_device;
         }
     }
     void set_render_api(RenderAPI api)
     {
+        std::lock_guard<std::mutex> lock(g_device_mutex);
         g_render_api = api;
     }
 
     RenderAPI get_render_api()
     {
+        std::lock_guard<std::mutex> lock(g_device_mutex);
         return g_render_api;
     }
 
     auto get_global_device()->rhi::GpuDevice*
     {
+        std::lock_guard<std::mutex> lock(g_device_mutex);
         if(g_device) return g_device;
         return  nullptr;
     }
 
     auto destroy_device()->void
     {
-        if(g_device)
+        rhi::GpuDevice* device = nullptr;
         {
-            delete g_device;
-            g_device = nullptr;
+            std::lock_guard<std::mutex> lock(g_device_mutex);
+            device = std::exchange(g_device, nullptr);
         }
+        delete device;
     }
 }
