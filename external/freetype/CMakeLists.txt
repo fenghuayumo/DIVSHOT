@@ -64,23 +64,14 @@ target_include_directories(freetype
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Set runtime library
+# Per-configuration runtime library and optimization (multi-config safe)
 if(MSVC)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set_property(TARGET freetype PROPERTY
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
-    else()
-        set_property(TARGET freetype PROPERTY
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-    endif()
+    set_property(TARGET freetype PROPERTY
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
-# Set optimization flags based on configuration
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-target_compile_options(freetype PRIVATE -g)
-# Release/Production configuration
-elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_compile_options(freetype PRIVATE -O2)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Production")
-    target_compile_options(freetype PRIVATE -O3)
-endif()
+target_compile_options(freetype PRIVATE
+    $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-g>
+    $<$<CONFIG:Release>:-O2>
+    $<$<CONFIG:Production>:-O3>
+)

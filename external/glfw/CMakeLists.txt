@@ -16,15 +16,12 @@ target_sources(glfw PRIVATE
 
 target_include_directories(glfw PUBLIC include)
 
-# Debug configuration
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_options(glfw PRIVATE -g)
-# Release/Production configuration
-elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_compile_options(glfw PRIVATE -O2)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Production")
-    target_compile_options(glfw PRIVATE -O3)
-endif()
+# Per-configuration optimization (multi-config safe for Visual Studio)
+target_compile_options(glfw PRIVATE
+    $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-g>
+    $<$<CONFIG:Release>:-O2>
+    $<$<CONFIG:Production>:-O3>
+)
 
 # Platform-specific configurations
 if(WIN32)

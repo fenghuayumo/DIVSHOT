@@ -256,6 +256,13 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${WKS_LOCATION}/layouts/dvui.ini"
         "$<TARGET_FILE_DIR:divshot>/dvui.ini"
+
+        # Copy Chinese UI font (relative to exe: ../resource/fonts/)
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_FILE_DIR:divshot>/../resource/fonts"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${WKS_LOCATION}/application/resource/fonts/simkai.ttf"
+        "$<TARGET_FILE_DIR:divshot>/../resource/fonts/simkai.ttf"
         
         # Note: OpenCV and FFmpeg DLLs are automatically handled by vcpkg
         

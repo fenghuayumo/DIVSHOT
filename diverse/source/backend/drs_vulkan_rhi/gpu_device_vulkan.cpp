@@ -3702,6 +3702,29 @@ namespace diverse
         auto GpuDeviceVulkan::update_texture(GpuTexture* image, const std::vector<ImageSubData>& initial_data, const TextureRegion& tex_region) -> void
         {
             const auto& desc = image->desc;
+            uint32 block_bytes = 1;
+            switch (desc.format)
+            {
+            case PixelFormat::R8G8B8A8_UNorm:
+            case PixelFormat::R8G8B8A8_UNorm_sRGB:
+            case PixelFormat::R32G32B32A32_Float:
+            case PixelFormat::R16G16B16A16_Float:
+                block_bytes = 1;
+                break;
+            case PixelFormat::BC1_UNorm_sRGB:
+            case PixelFormat::BC1_UNorm:
+                block_bytes = 8;
+                break;
+            case PixelFormat::BC3_UNorm:
+            case PixelFormat::BC3_UNorm_sRGB:
+            case PixelFormat::BC5_UNorm:
+            case PixelFormat::BC5_SNorm:
+                block_bytes = 16;
+                break;
+            default:
+                block_bytes = 1;
+                break;
+            }
             std::shared_ptr<rhi::GpuBufferVulkan> staging_buffer;
             if(updated_tex_buffers.find(image) != updated_tex_buffers.end())
                 staging_buffer = updated_tex_buffers[image];
@@ -3712,29 +3735,6 @@ namespace diverse
                 {
                     for (const auto& d : initial_data)
                         total_initial_data_bytes += d.size;
-                    uint32 block_bytes = 1;
-                    switch (desc.format)
-                    {
-                    case PixelFormat::R8G8B8A8_UNorm:
-                    case PixelFormat::R8G8B8A8_UNorm_sRGB:
-                    case PixelFormat::R32G32B32A32_Float:
-                    case PixelFormat::R16G16B16A16_Float:
-                        block_bytes = 1;
-                        break;
-                    case    PixelFormat::BC1_UNorm_sRGB:
-                    case    PixelFormat::BC1_UNorm:
-                        block_bytes = 8;
-                        break;
-                    case PixelFormat::BC3_UNorm:
-                    case PixelFormat::BC3_UNorm_sRGB:
-                    case PixelFormat::BC5_UNorm:
-                    case PixelFormat::BC5_SNorm:
-                        block_bytes = 16;
-                        break;
-                    default:
-                        block_bytes = 1;
-                        break;
-                    }
                 }
                 GpuBufferDesc buffer_desc = { total_initial_data_bytes, BufferUsageFlags::TRANSFER_SRC, CPU_TO_GPU };
                 staging_buffer = std::static_pointer_cast<GpuBufferVulkan>(create_buffer(buffer_desc, "Staging Buffer", nullptr));     

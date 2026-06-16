@@ -1,5 +1,6 @@
 
 #include <map>
+#include <filesystem>
 #include "renderer/ui_renderer.h"
 #include "core/core.h"
 #include "core/profiler.h"
@@ -13,6 +14,7 @@
 
 #include "imgui_helper.h"
 #include "maths/maths_utils.h"
+#include "engine/os.h"
 #include "IconsMaterialDesignIcons.h"
 
 #include <imgui/imgui.h>
@@ -316,7 +318,14 @@ namespace diverse
         io.Fonts->AddFontFromMemoryCompressedTTF(RobotoRegular_compressed_data, RobotoRegular_compressed_size, font_size * 0.8f, &icons_config, ranges);
         // AddIconFont();
         //io.Fonts->AddFontDefault();
-       io.Fonts->AddFontFromFileTTF("../resource/fonts/simkai.ttf", font_size, &icons_config, io.Fonts->GetGlyphRangesChineseFull());
+        {
+            std::filesystem::path font_path = std::filesystem::path(OS::instance()->getExecutablePath()).parent_path() / "../resource/fonts/simkai.ttf";
+            font_path = font_path.lexically_normal();
+            if (std::filesystem::exists(font_path))
+                io.Fonts->AddFontFromFileTTF(font_path.string().c_str(), font_size, &icons_config, io.Fonts->GetGlyphRangesChineseFull());
+            else
+                DS_LOG_WARN("ImGui", "Chinese font not found: {}", font_path.string());
+        }
 
         io.Fonts->TexGlyphPadding = 1;
         for (int n = 0; n < io.Fonts->ConfigData.Size; n++)

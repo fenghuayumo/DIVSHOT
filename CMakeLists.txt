@@ -229,18 +229,16 @@ message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
 
-# Force OpenCV to always use Release libraries for all configurations
-# This prevents linking against debug libraries (opencv_*d.lib)
+# Map Release/Production to Release OpenCV libs; Debug uses vcpkg debug libs.
 foreach(opencv_target ${OpenCV_LIBS})
     if(TARGET ${opencv_target})
         set_target_properties(${opencv_target} PROPERTIES
-            MAP_IMPORTED_CONFIG_DEBUG Release
             MAP_IMPORTED_CONFIG_RELEASE Release
             MAP_IMPORTED_CONFIG_PRODUCTION Release
         )
     endif()
 endforeach()
-message(STATUS "OpenCV configured to use Release libraries for all build configurations")
+message(STATUS "OpenCV: Debug uses debug libs; Release/Production use release libs")
 
 # Find Torch after OpenCV
 if(DS_SPLAT_TRAIN)
