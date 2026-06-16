@@ -10,6 +10,7 @@ namespace diverse
 {   
     namespace rhi
     {
+        struct GpuDevice;
         struct GpuTexture;
     }
     class Environment
@@ -25,9 +26,9 @@ namespace diverse
         Environment();
 
         void    load_hdr(const std::string& path);
-        void    load();
+        void    load(rhi::GpuDevice* device);
     public:
-        static auto create_gray_tex()->std::shared_ptr<rhi::GpuTexture>;
+        static auto create_gray_tex(rhi::GpuDevice* device)->std::shared_ptr<rhi::GpuTexture>;
     public:
         template <class Archive>
         void save(Archive& archive) const
@@ -41,6 +42,7 @@ namespace diverse
     public:
         std::shared_ptr<rhi::GpuTexture>    get_enviroment_map() const { return hdr_img; }
         void                                set_enviroment_map(const std::shared_ptr<rhi::GpuTexture>& param) { hdr_img = param; }
+        const std::string&                  get_file_path() const { return file_path; }
         const glm::vec3& get_color() const { return sky_ambient; }
         void set_color(const glm::vec3& param) { sky_ambient = param; }
 

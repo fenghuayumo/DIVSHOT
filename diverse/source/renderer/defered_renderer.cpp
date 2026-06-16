@@ -231,27 +231,28 @@ namespace diverse
 		add_image_lut(std::make_shared<BlueNoiseLutComputer>(rg_renderer->device), Bluenoise_TEX_ID);
 		add_image_lut(std::make_shared<BezoldBruckeLutComputer>(rg_renderer->device), BezoldBruckeLut_TEX_ID);
 
-		upload_image(ResourceManager<asset::Texture>::get().get_default_resource("white")->gpu_texture);
-		upload_image(ResourceManager<asset::Texture>::get().get_default_resource("normal")->gpu_texture);
+		auto white_texture = ResourceManager<asset::Texture>::get().get_default_resource("white");
+		auto normal_texture = ResourceManager<asset::Texture>::get().get_default_resource("normal");
+		if (white_texture)
+			white_texture->upload_to_gpu(rg_renderer->device);
+		if (normal_texture)
+			normal_texture->upload_to_gpu(rg_renderer->device);
+		upload_image(white_texture ? white_texture->gpu_texture : nullptr);
+		upload_image(normal_texture ? normal_texture->gpu_texture : nullptr);
 		build_ray_tracing_top_level_acceleration();
 	}
 
 	void DeferedRenderer::render(std::array<u32, 2> swapchain_extent)
 	{
-		if(!current_scene) return;
-		upload_gpu_buffers();
-
 		float delta_dt = 1.0f / 60.0f; //TODO
-		auto packet = extract_frame_packet(delta_dt, swapchain_extent);
+		auto packet = build_render_frame_packet(delta_dt, swapchain_extent);
 		if (!packet)
 			return;
 
-		auto mesh_frame_states = std::move(packet->mesh_frame_states);
-		render_frame_packet(std::move(*packet));
-		retire_frame(mesh_frame_states);
+		submit_render_frame_packet(std::move(*packet));
 	}
 
-	auto DeferedRenderer::extract_frame_packet(f32 delta_dt, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>
+	auto DeferedRenderer::build_render_frame_packet(f32 delta_dt, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>
 	{
 		if (!current_scene)
 			return std::nullopt;
@@ -309,6 +310,7 @@ namespace diverse
 			packet.environment.sun_size_multiplier = ent.sun_size_multiplier;
 			packet.environment.sky_ambient = glm::vec4(ent.sky_ambient, ent.intensity);
 			packet.environment.hdr_img = ent.mode == Environment::Mode::HDR ? ent.get_enviroment_map() : nullptr;
+			packet.environment.hdr_path = ent.mode == Environment::Mode::HDR ? ent.get_file_path() : std::string{};
 			packet.environment.ibl_params = { ent.theta, ent.phi };
 			packet.environment.cube_resolution = ent.cubeResolution;
 			packet.environment.sun_direction = sun_direction;
@@ -333,28 +335,25 @@ namespace diverse
 				continue;
 
 			const auto& [gs_com, trans] = group.get<GaussianComponent, maths::Transform>(gs_ent);
-			if(!gs_com.ModelRef->is_flag_set(AssetFlag::UploadedGpu) || !gs_com.participate_render) continue;
+			if(!gs_com.ModelRef->is_flag_set(AssetFlag::Loaded) || !gs_com.participate_render) continue;
 			skip_render |= gs_com.skip_render;
-			if (gs_com.ModelRef->gaussians_buf && gpu_scene.model_2_gs_buf_id.find(gs_com.ModelRef.get()) != gpu_scene.model_2_gs_buf_id.end())
-			{ 
-				auto offset = -gs_com.black_point + gs_com.brightness;
-				auto scale = 1.0f / (gs_com.white_point - gs_com.black_point);
-				packet.gs_commands.push_back(RenderGSCommand{ trans,
-											gs_com.ModelRef.get(), 
-											(u32)gs_com.sh_degree,
-											packet.render_settings.select_color,
-											packet.render_settings.locked_color,
-											glm::vec4(gs_com.albedo_color.xyz * scale, gs_com.transparency),
-											glm::vec3(offset,offset,offset),	
-											gs_com.mip_antialiased});
-				
-				const auto crop = Entity(gs_ent, current_scene).try_get_component<GaussianCrop>();
-				if (crop)
+			auto offset = -gs_com.black_point + gs_com.brightness;
+			auto scale = 1.0f / (gs_com.white_point - gs_com.black_point);
+			packet.gs_commands.push_back(RenderGSCommand{ trans,
+										gs_com.ModelRef.get(), 
+										(u32)gs_com.sh_degree,
+										packet.render_settings.select_color,
+										packet.render_settings.locked_color,
+										glm::vec4(gs_com.albedo_color.xyz * scale, gs_com.transparency),
+										glm::vec3(offset,offset,offset),	
+										gs_com.mip_antialiased});
+			
+			const auto crop = Entity(gs_ent, current_scene).try_get_component<GaussianCrop>();
+			if (crop)
+			{
+				for (auto& crop_data : crop->get_crop_data())
 				{
-					for (auto& crop_data : crop->get_crop_data())
-					{
-						packet.gs_commands.back().crop_data.push_back(&crop_data);
-					}
+					packet.gs_commands.back().crop_data.push_back(&crop_data);
 				}
 			}
 		}
@@ -367,12 +366,9 @@ namespace diverse
 				continue;
 
 			const auto& [pcd_com, trans] = pointcloud_group.get<PointCloudComponent, maths::Transform>(pcd);
-			if(!pcd_com.ModelRef->is_flag_set(AssetFlag::UploadedGpu) ) continue;
-			if (pcd_com.ModelRef->vertex_buffer && gpu_scene.model_2_point_buf_id.find(pcd_com.ModelRef.get()) != gpu_scene.model_2_point_buf_id.end())
-			{ 
-				packet.point_commands.push_back(RenderPointCommand{ trans,
-											pcd_com.ModelRef});
-			}
+			if(!pcd_com.ModelRef->is_flag_set(AssetFlag::Loaded) ) continue;
+			packet.point_commands.push_back(RenderPointCommand{ trans,
+										pcd_com.ModelRef});
 		}
 		auto meshgroup = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
 		// if (!tlas && gpu_scene.instance_transforms.size() > 0 && gpu_scene.ent_2_model_id.size() == meshgroup.size())
@@ -382,38 +378,20 @@ namespace diverse
 			const auto& [model, trans] = meshgroup.get<MeshModelComponent, maths::Transform>(mesh_ent);
 			packet.mesh_frame_states.push_back(MeshFrameState{ (u32)mesh_ent, trans.get_world_matrix() });
 			if (!model.ModelRef) continue;
-			if(!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu)) continue;
-			auto mesh_instance_id = (u32)packet.rt_instance_masks.size();
 			auto mesh_active = Entity(mesh_ent, current_scene).active();
-			packet.rt_instance_masks.push_back(mesh_active ? 0xff : 0);
-			if (!mesh_active)
-				continue;
-
-			const auto& meshes = model.ModelRef->get_meshes();
-			for (auto mesh : meshes)
-			{
-				RenderMeshCommand command;
-				command.material_id = gpu_scene.mat_2_mat_buf_id[mesh->get_material().get()];
-				command.mesh_instance_id = mesh_instance_id;
-				command.mesh_id = gpu_scene.mesh_2_mesh_buf_id[mesh.get()];
-				packet.mesh_commands.push_back(command);
-				//mesh light
-				auto material = mesh->get_material().get();
-				if (material)
-				{
-					auto emissive = material->get_properties().emissive;
-					if(emissive.x > 0 || emissive.y > 0 || emissive.z > 0)
-					{
-						TriangleLight triangle_light = {};
-						triangle_light.instance_id = mesh_instance_id;
-						triangle_light.mesh_id = gpu_scene.mesh_2_mesh_buf_id[mesh.get()];
-						triangle_light.triangle_count = mesh->get_index_count() / 3;
-						packet.triangle_lights.push_back(triangle_light);
-					}
-				}
-			}
+			packet.mesh_requests.push_back(MeshDrawRequest{ (u32)mesh_ent, trans, model.ModelRef, mesh_active });
 		}
 		return packet;
+	}
+
+	auto DeferedRenderer::submit_render_frame_packet(RenderFramePacket&& packet)->void
+	{
+		prepare_environment_resources(packet);
+		upload_gpu_buffers(packet);
+
+		auto mesh_frame_states = std::move(packet.mesh_frame_states);
+		render_frame_packet(std::move(packet));
+		retire_frame(mesh_frame_states);
 	}
 
 	auto DeferedRenderer::render_frame_packet(RenderFramePacket&& packet)->void
@@ -479,52 +457,84 @@ namespace diverse
 		sun_direction = environment.sun_direction;
 	}
 
-	auto DeferedRenderer::upload_gpu_buffers()->void
+	auto DeferedRenderer::prepare_environment_resources(RenderFramePacket& packet)->void
 	{
-		upload_gaussian_gpu_buffers();
-		upload_point_cloud_gpu_buffers();
-		upload_mesh_gpu_buffers();
+		auto& environment = packet.environment;
+		if (!environment.has_environment || environment.mode != (f32)Environment::Mode::HDR || environment.hdr_path.empty())
+			return;
+
+		auto cached = environment_texture_cache.find(environment.hdr_path);
+		if (cached != environment_texture_cache.end())
+		{
+			environment.hdr_img = cached->second;
+			return;
+		}
+
+		if (!std::filesystem::exists(environment.hdr_path))
+			return;
+
+		auto raw_img = asset::load_float_image(environment.hdr_path).convert(PixelFormat::R16G16B16A16_Float);
+		auto img_desc = rhi::GpuTextureDesc::new_2d(PixelFormat::R16G16B16A16_Float, raw_img.dimensions)
+			.with_usage(rhi::TextureUsageFlags::SAMPLED);
+		const u32 PIXEL_BYTES = 4 * 2;
+		rhi::ImageSubData sub_data = {
+			(u8*)raw_img.data.data(),
+			(u32)raw_img.data.size(),
+			raw_img.dimensions[0] * PIXEL_BYTES,
+			raw_img.dimensions[0] * raw_img.dimensions[1] * PIXEL_BYTES
+		};
+		environment.hdr_img = rg_renderer->device->create_texture(img_desc, { sub_data }, "ibl");
+		environment_texture_cache[environment.hdr_path] = environment.hdr_img;
 	}
 
-	auto DeferedRenderer::upload_gaussian_gpu_buffers()->void
+	auto DeferedRenderer::upload_gpu_buffers(RenderFramePacket& packet)->void
+	{
+		upload_gaussian_gpu_buffers(packet.gs_commands);
+		upload_point_cloud_gpu_buffers(packet.point_commands);
+		upload_mesh_gpu_buffers(packet);
+	}
+
+	auto DeferedRenderer::upload_gaussian_gpu_buffers(const std::vector<RenderGSCommand>& gs_commands)->void
 	{
 		auto device = rg_renderer->device;
-		auto& registry = current_scene->get_registry();
-		auto group = registry.group<GaussianComponent>(entt::get<maths::Transform>);
-		for (auto gs_ent : group)
+		for (const auto& command : gs_commands)
 		{
-			const auto& [model, trans] = group.get<GaussianComponent, maths::Transform>(gs_ent);
-			if (!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu)) continue;
+			auto* model = command.model;
+			if (!model || !model->is_flag_set(AssetFlag::Loaded)) continue;
+			if (!model->is_flag_set(AssetFlag::UploadedGpu))
+				model->create_gpu_buffer(device, true);
+			if (!model->is_flag_set(AssetFlag::UploadedGpu)) continue;
+			model->splat_transforms.upload(device);
 			u32 v_buf_id = gpu_scene.model_2_gs_buf_id.size();
-			if (model.ModelRef->gaussians_buf && gpu_scene.model_2_gs_buf_id.find(model.ModelRef.get()) == gpu_scene.model_2_gs_buf_id.end())
+			if (model->gaussians_buf && gpu_scene.model_2_gs_buf_id.find(model) == gpu_scene.model_2_gs_buf_id.end())
 			{
-				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_buf.get(), v_buf_id * 4 + 0);
-				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_0_buf.get(), v_buf_id * 4 + 1);
-				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->gaussians_sh_n_buf.get(), v_buf_id * 4 + 2);
-				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model.ModelRef->splat_transforms.splat_transform_buffer.get(), v_buf_id * 4 + 3);
+				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model->gaussians_buf.get(), v_buf_id * 4 + 0);
+				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model->gaussians_sh_0_buf.get(), v_buf_id * 4 + 1);
+				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model->gaussians_sh_n_buf.get(), v_buf_id * 4 + 2);
+				device->write_descriptor_set(bindless_descriptor_set.get(), GS_BINDING_ID, model->splat_transforms.splat_transform_buffer.get(), v_buf_id * 4 + 3);
 
-				device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model.ModelRef->gaussian_state_buf.get(), v_buf_id);
-				gpu_scene.model_2_gs_buf_id[model.ModelRef] = v_buf_id;
-				model.mip_antialiased = model.ModelRef->antialiased();
+				device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model->gaussian_state_buf.get(), v_buf_id);
+				gpu_scene.model_2_gs_buf_id[model] = v_buf_id;
 				skip_gs_render = false;
 			}
 		}
 	}
 
-	auto DeferedRenderer::upload_point_cloud_gpu_buffers()->void
+	auto DeferedRenderer::upload_point_cloud_gpu_buffers(const std::vector<RenderPointCommand>& point_commands)->void
 	{
 		auto device = rg_renderer->device;
-		auto& registry = current_scene->get_registry();
-		auto pointcloud_group = registry.group<PointCloudComponent>(entt::get<maths::Transform>);
-		for (auto pcd_ent : pointcloud_group)
+		for (const auto& command : point_commands)
 		{
-			const auto& [model, trans] = pointcloud_group.get<PointCloudComponent, maths::Transform>(pcd_ent);
-			if (!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu)) continue;
+			auto* model = command.model;
+			if (!model || !model->is_flag_set(AssetFlag::Loaded)) continue;
+			if (!model->is_flag_set(AssetFlag::UploadedGpu))
+				model->create_gpu_buffer(device);
+			if (!model->is_flag_set(AssetFlag::UploadedGpu)) continue;
 			u32 v_buf_id = gpu_scene.model_2_point_buf_id.size();
-			if (model.ModelRef->vertex_buffer && gpu_scene.model_2_point_buf_id.find(model.ModelRef.get()) == gpu_scene.model_2_point_buf_id.end())
+			if (model->vertex_buffer && gpu_scene.model_2_point_buf_id.find(model) == gpu_scene.model_2_point_buf_id.end())
 			{
-				device->write_descriptor_set(bindless_descriptor_set.get(), POINT_BUF_BINDING_ID, model.ModelRef->vertex_buffer.get(), v_buf_id);
-				gpu_scene.model_2_point_buf_id[model.ModelRef] = v_buf_id;
+				device->write_descriptor_set(bindless_descriptor_set.get(), POINT_BUF_BINDING_ID, model->vertex_buffer.get(), v_buf_id);
+				gpu_scene.model_2_point_buf_id[model] = v_buf_id;
 			}
 		}
 	}
@@ -533,6 +543,9 @@ namespace diverse
 	{
 		if (!texture)
 			return true;
+
+		if (!texture->is_flag_set(AssetFlag::UploadedGpu))
+			texture->upload_to_gpu(rg_renderer->device);
 
 		return texture->is_flag_set(AssetFlag::UploadedGpu) &&
 			gpu_scene.bindless_image_ids.find(texture->gpu_texture.get()) != gpu_scene.bindless_image_ids.end();
@@ -611,28 +624,62 @@ namespace diverse
 		instance.emissive_multiplier = 1.0f;
 	}
 
-	auto DeferedRenderer::upload_mesh_gpu_buffers()->void
+	auto DeferedRenderer::upload_mesh_gpu_buffers(RenderFramePacket& packet)->void
 	{
-		auto& registry = current_scene->get_registry();
-		auto mmesh_group = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
+		packet.mesh_commands.clear();
+		packet.triangle_lights.clear();
+		packet.rt_instance_masks.clear();
 		gpu_scene.ent_2_model_id.clear(); gpu_scene.instance_transforms.clear();gpu_scene.instance_dynamic_constants.clear();
-		for (auto ent : mmesh_group)
+		for (const auto& request : packet.mesh_requests)
 		{
-			const auto& [model, t] = mmesh_group.get<MeshModelComponent, maths::Transform>(ent);
-			if (!model.ModelRef) continue;
-			if (!model.ModelRef->is_flag_set(AssetFlag::Loaded)) continue;
-			auto upload_material_num = upload_mesh_materials(model.ModelRef);
-			if (model.ModelRef->is_flag_set(AssetFlag::Loaded) && 
-				!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu)
-				&& upload_material_num == model.ModelRef->get_meshes().size())
+			auto* model = request.model;
+			if (!model) continue;
+			if (!model->is_flag_set(AssetFlag::Loaded)) continue;
+			auto upload_material_num = upload_mesh_materials(model);
+			if (model->is_flag_set(AssetFlag::Loaded) && 
+				!model->is_flag_set(AssetFlag::UploadedGpu)
+				&& upload_material_num == model->get_meshes().size())
 			{
-				upload_mesh_model(model.ModelRef);
-				model.ModelRef->set_flag(AssetFlag::UploadedGpu);
-				gpu_scene.model_2_blas_id[model.ModelRef.get()] = gpu_scene.mesh_blas.size() - 1;
+				model->create_gpu_buffers(rg_renderer->device);
+				upload_mesh_model(model);
+				model->set_flag(AssetFlag::UploadedGpu);
+				if (!gpu_scene.mesh_blas.empty())
+					gpu_scene.model_2_blas_id[model] = gpu_scene.mesh_blas.size() - 1;
 			}
-			if (model.ModelRef->is_flag_set(AssetFlag::UploadedGpu))
+			if (model->is_flag_set(AssetFlag::UploadedGpu))
 			{
-				record_mesh_instance_gpu_state(model.ModelRef, (u32)ent, t);
+				auto mesh_instance_id = (u32)packet.rt_instance_masks.size();
+				packet.rt_instance_masks.push_back(request.active ? 0xff : 0);
+				record_mesh_instance_gpu_state(model, request.entity_id, request.transform);
+				if (!request.active)
+					continue;
+
+				const auto& meshes = model->get_meshes();
+				for (auto mesh : meshes)
+				{
+					if (!mesh)
+						continue;
+
+					RenderMeshCommand command;
+					command.material_id = gpu_scene.mat_2_mat_buf_id[mesh->get_material().get()];
+					command.mesh_instance_id = mesh_instance_id;
+					command.mesh_id = gpu_scene.mesh_2_mesh_buf_id[mesh.get()];
+					packet.mesh_commands.push_back(command);
+
+					auto material = mesh->get_material().get();
+					if (material)
+					{
+						auto emissive = material->get_properties().emissive;
+						if(emissive.x > 0 || emissive.y > 0 || emissive.z > 0)
+						{
+							TriangleLight triangle_light = {};
+							triangle_light.instance_id = mesh_instance_id;
+							triangle_light.mesh_id = gpu_scene.mesh_2_mesh_buf_id[mesh.get()];
+							triangle_light.triangle_count = mesh->get_index_count() / 3;
+							packet.triangle_lights.push_back(triangle_light);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1042,6 +1089,8 @@ namespace diverse
 		auto mesh_data = (GpuMesh*)mesh_buffer->map(device);
 		for (auto mesh : model->get_meshes())
 		{
+			if (!mesh || !mesh->get_vertex_buffer() || !mesh->get_index_buffer())
+				continue;
 			device->write_descriptor_set(bindless_descriptor_set.get(), VERTEX_BUF_BINDING_ID, mesh->get_vertex_buffer().get(), gpu_scene.mesh_buf_id);
 			device->write_descriptor_set(bindless_descriptor_set.get(), INDEX_BUF_BINDING_ID, mesh->get_index_buffer().get(), gpu_scene.mesh_buf_id);
 			GpuMesh gpu_mesh = {

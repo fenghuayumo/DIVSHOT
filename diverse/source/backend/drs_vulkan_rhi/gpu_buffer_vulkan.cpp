@@ -12,6 +12,7 @@ namespace diverse
             allocation(alloc),
             allocate_info(info)
         {
+            set_owner_device(owner);
             data_buf = (u8*)allocate_info.pMappedData;
         }
         GpuBufferVulkan::~GpuBufferVulkan()

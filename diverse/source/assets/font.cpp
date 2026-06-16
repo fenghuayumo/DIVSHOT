@@ -80,23 +80,33 @@ namespace diverse
         uint32_t Width, Height;
     };
 
-    static std::shared_ptr<rhi::GpuBuffer> TryReadFontAtlasFromCache(const std::string& fontName, float fontSize, AtlasHeader& header, void*& pixels)
+    static bool TryReadFontAtlasFromCache(const std::string& fontName, float fontSize, AtlasHeader& header, std::vector<u8>& pixels)
     {
         DS_PROFILE_FUNCTION();
         std::string filename = fmt::format("{0}-{1}.lfa", fontName, fontSize);
         std::filesystem::path filepath = GetCacheDirectory() / filename;
         if (std::filesystem::exists(filepath))
         {
-            auto device = get_global_device();
-            auto desc = rhi::GpuBufferDesc::new_cpu_to_gpu(uint32_t(FileSystem::get_file_size(filepath.string())), rhi::BufferUsageFlags::STORAGE_BUFFER);
-            auto storageBuffer = g_device->create_buffer(desc, "font_storage", FileSystem::read_file(filepath.string()));
-            auto data = storageBuffer->map(device);
-			header = *(AtlasHeader*)data;
-			pixels = (uint8_t*)data + sizeof(AtlasHeader);
-            storageBuffer->unmap(device);
-            return storageBuffer;
+            auto file_data = FileSystem::read_file(filepath.string());
+            const auto file_size = FileSystem::get_file_size(filepath.string());
+            if (!file_data || file_size <= sizeof(AtlasHeader))
+            {
+                delete[] file_data;
+                return false;
+            }
+			header = *(AtlasHeader*)file_data;
+            const auto pixel_size = header.Width * header.Height * sizeof(float) * 4;
+            if (file_size < sizeof(AtlasHeader) + pixel_size)
+            {
+                delete[] file_data;
+                return false;
+            }
+            pixels.resize(pixel_size);
+            memcpy(pixels.data(), file_data + sizeof(AtlasHeader), pixel_size);
+            delete[] file_data;
+            return true;
         }
-        return {};
+        return false;
     }
 
     static void CacheFontAtlas(const std::string& fontName, float fontSize, AtlasHeader header, const void* pixels)
@@ -391,10 +401,10 @@ namespace diverse
 
         // Check cache here
         AtlasHeader header;
-        void* pixels;
-        if (auto storageBuffer = TryReadFontAtlasFromCache(fontName, (float)config.emSize, header, pixels))
+        std::vector<u8> pixels;
+        if (TryReadFontAtlasFromCache(fontName, (float)config.emSize, header, pixels))
         {
-            texture_atlas = CreateCachedAtlas(header, pixels);
+            texture_atlas = CreateCachedAtlas(header, pixels.data());
         }
         else
         {

@@ -21,6 +21,7 @@
 #include <scene/component/light/disk_light.h>
 #include <scene/component/light/cylinder_light.h>
 #include <scene/sun_controller.h>
+#include <renderer/defered_renderer.h>
 #include <renderer/render_settings.h>
 #include <assets/asset_manager.h>
 #include <imgui/IconsMaterialDesignIcons.h>
@@ -149,7 +150,7 @@ namespace MM
         else
         {
             //TODO:
-            static auto gray_tex = Environment::create_gray_tex();
+            static auto gray_tex = Environment::create_gray_tex(Application::get().get_renderer()->get_device());
             if (ImGui::ImageButton("Empty", reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(gray_tex)), imageButtonSize, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f)))
             {
                 if (is_hdr)
@@ -254,7 +255,7 @@ namespace MM
             }
             else
             {
-                static auto gray_tex = Environment::create_gray_tex();
+                static auto gray_tex = Environment::create_gray_tex(Application::get().get_renderer()->get_device());
                 if (ImGui::ImageButton("Empty", reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(gray_tex)), imageButtonSize, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f)))
                 {
                 
@@ -439,7 +440,7 @@ namespace MM
             glm::vec2 texture_size = glm::vec2(window_width * 0.98, window_width * 0.4);
             if (!environment.get_enviroment_map())
             {
-                static auto gray_hdr = Environment::create_gray_tex();
+                static auto gray_hdr = Environment::create_gray_tex(Application::get().get_renderer()->get_device());
                 environment.set_enviroment_map(gray_hdr);
             }
             TextureWidget("", environment.get_enviroment_map(), false, std::bind(&diverse::Environment::load_hdr, &environment, std::placeholders::_1), texture_size,true);

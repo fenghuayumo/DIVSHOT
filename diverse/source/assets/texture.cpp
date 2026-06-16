@@ -260,9 +260,11 @@ namespace diverse
             file_path = path.string();
         }
 
-        auto Texture::upload_2_gpu(PixelFormat format)->void
+        auto Texture::upload_2_gpu(PixelFormat format, rhi::GpuDevice* device)->void
         {
             if ( !is_flag_set(AssetFlag::UploadedGpu)) {
+                if (!device)
+                    return;
                 auto desc = rhi::GpuTextureDesc::new_2d(format, { extent[0], extent[1] })
                     .with_usage(rhi::TextureUsageFlags::SAMPLED | 
                         rhi::TextureUsageFlags::TRANSFER_DST | 
@@ -277,7 +279,9 @@ namespace diverse
 
                     initial_data.emplace_back(rhi::ImageSubData{ mip.data(), (u32)mip.size(), row_pitch, 0 });
                 }
-                gpu_texture = g_device->create_texture(desc, initial_data);
+                gpu_texture = device->create_texture(desc, initial_data);
+                if (gpu_texture)
+                    set_flag(AssetFlag::UploadedGpu);
             }
         }
 
@@ -307,7 +311,7 @@ namespace diverse
                        && image.width() >= 4
                        && image.height() >= 4;*/
             constexpr u32 MAX_SIZE = 4096;
-            PixelFormat format = PixelFormat::R8G8B8A8_UNorm;
+            format = PixelFormat::R8G8B8A8_UNorm;
             if (img.dimensions[0] > MAX_SIZE || img.dimensions[1] > MAX_SIZE)
             {
                 extent = { std::min(MAX_SIZE, img.dimensions[0]), std::min(MAX_SIZE, img.dimensions[1]), 1 };
@@ -432,7 +436,8 @@ namespace diverse
             else
                 mips.push_back(process_mip(rgb_img));
             upload_2_gpu(format);
-            set_flag(AssetFlag::UploadedGpu);
+            if (gpu_texture)
+                set_flag(AssetFlag::UploadedGpu);
         }
         void Texture::init_from_path(const std::filesystem::path& path)
         {

@@ -13,7 +13,7 @@ namespace diverse
     }
     PythonScriptComponent::PythonScriptComponent(const std::string& fileName, Scene* scene)
     {
-        scene = scene;
+        this->scene = scene;
         file_name = fileName;
 
         // m_UUID = UUID();
@@ -61,7 +61,7 @@ namespace diverse
     {
         // TODO: Faster alternative
         if (!scene)
-            scene = Application::get().get_current_scene();
+            return Entity();
 
         auto entities = scene->get_entity_manager()->get_entities_with_type<PythonScriptComponent>();
 

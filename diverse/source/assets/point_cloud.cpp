@@ -18,17 +18,19 @@ namespace diverse
     PointCloud::PointCloud()
     {
     }
-    void PointCloud::create_gpu_buffer()
+    void PointCloud::create_gpu_buffer(rhi::GpuDevice* device)
     {
         DS_PROFILE_FUNCTION();
         if (pcd_vertex.size() == 0)
+            return;
+        if (!device)
             return;
         auto vertex_desc = rhi::GpuBufferDesc::new_gpu_only(pcd_vertex.size() * sizeof(PointCloudVertex),
             rhi::BufferUsageFlags::STORAGE_BUFFER
             | rhi::BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | rhi::BufferUsageFlags::VERTEX_BUFFER
             | rhi::BufferUsageFlags::TRANSFER_DST);
-        vertex_buffer = g_device->create_buffer(vertex_desc, "point_vert_buf", (u8*)pcd_vertex.data());
+        vertex_buffer = device->create_buffer(vertex_desc, "point_vert_buf", (u8*)pcd_vertex.data());
         set_flag(AssetFlag::UploadedGpu);
     }
 
@@ -81,8 +83,8 @@ namespace diverse
             return;
         }
         reset_center();
-        create_gpu_buffer();
         set_flag(AssetFlag::Loaded);
+        set_flag(AssetFlag::UploadedGpu, false);
         DS_LOG_INFO("Loaded PointCloud - {0}", path);
     }
 }

@@ -17,6 +17,7 @@ namespace diverse
     namespace rhi
     {
         struct GpuTexture;
+        struct GpuDevice;
     }
     namespace asset
     {
@@ -154,6 +155,7 @@ namespace diverse
             std::vector<std::vector<u8>> mips;
 
             TexParams params;
+            PixelFormat format = PixelFormat::R8G8B8A8_UNorm;
             std::shared_ptr<rhi::GpuTexture> gpu_texture;
             std::string file_path;
         public:
@@ -170,8 +172,9 @@ namespace diverse
             AssetType get_asset_type() const override { return AssetType::Texture; }
             void init_from_raw_image(const RawImage& img, const TexParams& param);
             void init_from_path(const std::filesystem::path& path);
+            auto upload_to_gpu(rhi::GpuDevice* device) -> void { upload_2_gpu(format, device); }
         protected:
-            auto    upload_2_gpu(PixelFormat format) -> void;
+            auto    upload_2_gpu(PixelFormat format, rhi::GpuDevice* device = nullptr) -> void;
         };
 
         auto load_float_image(const std::filesystem::path& path)-> RawImage;

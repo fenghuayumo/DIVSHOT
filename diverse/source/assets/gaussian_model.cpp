@@ -49,7 +49,6 @@ namespace diverse
 						float* rots_d,
 						int num_gaussians)
 	{
-		auto device = g_device;
 		pos.resize(num_gaussians);
 		rot.resize(num_gaussians);
 		scales.resize(num_gaussians);
@@ -112,9 +111,10 @@ namespace diverse
 		return {featureDc, featureRest};
 	}
 
-	void GaussianModel::create_gpu_buffer(bool compact)
+	void GaussianModel::create_gpu_buffer(rhi::GpuDevice* device, bool compact)
 	{
-		auto device = get_global_device();
+		if (!device)
+			return;
 		const auto alignment = std::max<u64>(1, device->gpu_limits.minStorageBufferOffsetAlignment);
 		std::vector<Gaussian> gaussians(pos.size());
 		std::vector<PackedVertexColor>	gaussians_sh_0(pos.size());
@@ -298,7 +298,7 @@ namespace diverse
 		}
 		local_bounding_box = maths::BoundingBox(minn,maxx);
 		set_flag(AssetFlag::Loaded);
-		create_gpu_buffer();
+		set_flag(AssetFlag::UploadedGpu, false);
 		update_state();
 	}
 
@@ -319,7 +319,9 @@ namespace diverse
 		}
 		if (gaussians_buf )
 		{
-			auto device = get_global_device();
+			auto device = gaussians_buf->get_owner_device();
+			if (!device)
+				return;
 			auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
 			parallel_for<size_t>(0, pos.size(), [&](size_t i) {
 				uint state = states_data[i];
@@ -335,7 +337,11 @@ namespace diverse
 
 	void GaussianModel::update_feature_dc_data(const std::vector<u32>& indices)
 	{
-		auto device = get_global_device();
+		if (!gaussians_sh_0_buf)
+			return;
+		auto device = gaussians_sh_0_buf->get_owner_device();
+		if (!device)
+			return;
 	
 		auto data = reinterpret_cast<PackedVertexColor*>(gaussians_sh_0_buf->map(device));
 		parallel_for<size_t>(0, indices.size(), [&](size_t idx) {
@@ -356,7 +362,9 @@ namespace diverse
 	{
 		if (gaussians_buf)
 		{
-			auto device = get_global_device();
+			auto device = gaussians_buf->get_owner_device();
+			if (!device)
+				return;
 			auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
 			parallel_for<size_t>(0, pos.size(), [&](size_t i) {
 				uint state = states_data[i];
@@ -593,13 +601,11 @@ namespace diverse
 			
 		});
 		set_flag(AssetFlag::Loaded);
-		create_gpu_buffer(true);
+		set_flag(AssetFlag::UploadedGpu, false);
 	}
 
 	void GaussianModel::export_to_cpu()
 	{
-		auto device = get_global_device();
-
 		std::vector<glm::vec3>	new_pos;
 		std::vector<std::array<float, 3>>        new_shs_0;
 		std::vector<std::array<float, 45>>        new_shs_n;
@@ -638,7 +644,11 @@ namespace diverse
 
 	void GaussianModel::download_state_buffer()
 	{
-		auto device = get_global_device();
+		if (!gaussian_state_buf)
+			return;
+		auto device = gaussian_state_buf->get_owner_device();
+		if (!device)
+			return;
 		std::vector<u32> states_data(pos.size());
 		gaussian_state_buf->copy_to(device, (u8*)states_data.data(), states_data.size() * sizeof(u32), 0);
 		parallel_for<size_t>(0, pos.size(), [&](size_t i) {

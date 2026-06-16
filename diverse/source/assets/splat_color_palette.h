@@ -9,6 +9,7 @@ namespace diverse
     namespace rhi
     {
         struct GpuBuffer;
+        struct GpuDevice;
     }
     struct SplatPaintColorPalette
     {
@@ -17,12 +18,12 @@ namespace diverse
             allocate(alloc_size);
         }
 
-        void allocate(u32 size);
+        void allocate(u32 size, rhi::GpuDevice* device = nullptr);
 
         //update gpu buffer
-        void upload();
+        void upload(rhi::GpuDevice* device = nullptr);
 
-        u32 add_paint_color(const glm::vec4& transform);
+        u32 add_paint_color(const glm::vec4& transform, rhi::GpuDevice* device = nullptr);
 
         void clear()
         {
@@ -38,7 +39,7 @@ namespace diverse
             this->colors = colors;
         }
 
-        void set_paint_color(u32 color_index,const glm::vec4& t);
+        void set_paint_color(u32 color_index,const glm::vec4& t, rhi::GpuDevice* device = nullptr);
         void get_paint_color(u32 color_index,glm::vec4& t);
         glm::vec4 get_paint_color(u32 color_index);
 

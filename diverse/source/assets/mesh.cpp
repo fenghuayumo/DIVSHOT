@@ -109,8 +109,11 @@ namespace diverse
             bounding_box.merge(vertex.Position);
         }
     }
-    void Mesh::create_gpu_buffer()
+    void Mesh::create_gpu_buffer(rhi::GpuDevice* device)
     {
+        if (!device)
+            return;
+
         PackedVertices packed_vertices; 
         packed_vertices.resize(vertices.size());
         // for (auto v_id = 0; v_id < vertices.size(); v_id++)
@@ -139,7 +142,7 @@ namespace diverse
             | rhi::BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | rhi::BufferUsageFlags::VERTEX_BUFFER
             | rhi::BufferUsageFlags::TRANSFER_DST);
-        if (g_device->gpu_limits.ray_tracing_enabled)
+        if (device->gpu_limits.ray_tracing_enabled)
         {
             index_des.usage |= rhi::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY;
             vertex_desc.usage |= rhi::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY;
@@ -150,8 +153,8 @@ namespace diverse
         memcpy(packed_data.data() + vertex_tangent_offset, packed_vertices.tangents.data(), sizeof(u32) * vertices.size());
         memcpy(packed_data.data() + vertex_color_offset, packed_vertices.colors.data(), sizeof(u32) * vertices.size());
 
-        index_buffer = g_device->create_buffer(index_des, "mesh_index_buf", (u8*)indices.data());
-        vertex_buffer = g_device->create_buffer(vertex_desc, "mesh_vert_buf", (u8*)packed_data.data());
+        index_buffer = device->create_buffer(index_des, "mesh_index_buf", (u8*)indices.data());
+        vertex_buffer = device->create_buffer(vertex_desc, "mesh_vert_buf", (u8*)packed_data.data());
     }
 
     void Mesh::translate(const glm::vec3& center)

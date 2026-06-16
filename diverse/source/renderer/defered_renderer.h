@@ -96,6 +96,14 @@ namespace diverse
 		glm::mat4x4 world_transform = glm::mat4x4(1.0f);
 	};
 
+	struct MeshDrawRequest
+	{
+		u32 entity_id = 0;
+		maths::Transform transform;
+		MeshModel* model = nullptr;
+		bool active = false;
+	};
+
 	struct EnvironmentFrameParams
 	{
 		bool has_environment = false;
@@ -109,6 +117,7 @@ namespace diverse
 		IblRenderParameter ibl_params;
 		int cube_resolution = 256;
 		std::shared_ptr<rhi::GpuTexture> hdr_img;
+		std::string hdr_path;
 	};
 
 	struct FrameContext
@@ -133,6 +142,7 @@ namespace diverse
 		bool skip_gs_render = false;
 
 		std::vector<RenderGSCommand> gs_commands;
+		std::vector<MeshDrawRequest> mesh_requests;
 		std::vector<RenderMeshCommand> mesh_commands;
 		std::vector<RenderPointCommand> point_commands;
 		std::vector<TriangleLight> triangle_lights;
@@ -174,6 +184,8 @@ namespace diverse
 
 		void	init(std::array<u32, 2> swapchain_extent);
 		void	render(std::array<u32, 2> swapchain_extent);
+		auto	build_render_frame_packet(f32 delta_t, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>;
+		auto	submit_render_frame_packet(RenderFramePacket&& packet)->void;
 		auto	prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc, const EnvironmentFrameParams& environment) -> rg::Handle<rhi::GpuTexture>;
 		auto	retire_frame(const std::vector<MeshFrameState>& mesh_frame_states) -> void;
 		auto	prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, const CameraFrameParams& camera_params, f32 delta_t) -> rg::FrameConstantsLayout;
@@ -205,18 +217,18 @@ namespace diverse
 		auto	register_event_render_graph(rg::RenderGraph& rg) -> void;
 		u32 	get_buf_id(GaussianModel* model);
 		u32 	get_buf_id(PointCloud* model);
-    public:
+	public:
 		auto 	prepare_top_level_acceleration(rg::RenderGraph& rg) -> std::optional<rg::Handle<rhi::GpuRayTracingAcceleration>>;
 		auto 	build_ray_tracing_top_level_acceleration() -> void;
 		auto 	build_ray_tracing_buttom_level_acceleration(MeshModel* mesh)->void;
 	protected:
-		auto	extract_frame_packet(f32 delta_t, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>;
 		auto	render_frame_packet(RenderFramePacket&& packet)->void;
 		auto	apply_environment_frame(const EnvironmentFrameParams& environment)->void;
-		auto	upload_gpu_buffers()->void;
-		auto	upload_gaussian_gpu_buffers()->void;
-		auto	upload_point_cloud_gpu_buffers()->void;
-		auto	upload_mesh_gpu_buffers()->void;
+		auto	prepare_environment_resources(RenderFramePacket& packet)->void;
+		auto	upload_gpu_buffers(RenderFramePacket& packet)->void;
+		auto	upload_gaussian_gpu_buffers(const std::vector<RenderGSCommand>& gs_commands)->void;
+		auto	upload_point_cloud_gpu_buffers(const std::vector<RenderPointCommand>& point_commands)->void;
+		auto	upload_mesh_gpu_buffers(RenderFramePacket& packet)->void;
 		auto	upload_mesh_materials(MeshModel* model)->int;
 		auto	is_material_texture_bound(const SharedPtr<asset::Texture>& texture)->bool;
 		auto	are_material_textures_bound(const PBRMataterialTextures& textures)->bool;
@@ -270,6 +282,7 @@ namespace diverse
 		std::unique_ptr<DebugRenderPass> debug_render_pass;
 		std::unique_ptr<IblRenderer>	ibl;
 		std::vector<std::shared_ptr<ImageLut>>   image_luts;
+		std::unordered_map<std::string, std::shared_ptr<rhi::GpuTexture>> environment_texture_cache;
 		std::unique_ptr<PostProcessRenderer> post;
         std::unique_ptr<TaaRenderer>    taa;
 		std::unique_ptr<RasterizeMesh>  rasterizer;

@@ -298,7 +298,9 @@ namespace diverse
     void Application::render()
     {
         DS_PROFILE_FUNCTION();
-        main_renderer->render(get_window_size());
+        auto packet = main_renderer->build_render_frame_packet(1.0f / 60.0f, get_window_size()); //TODO
+        if (packet)
+            main_renderer->submit_render_frame_packet(std::move(*packet));
     }
 
     void Application::imgui_render()

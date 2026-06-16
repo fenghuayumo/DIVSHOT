@@ -9,6 +9,7 @@ namespace diverse
     namespace rhi
     {
         struct GpuBuffer;
+        struct GpuDevice;
     }
     struct SplatTransformPalette
     {
@@ -17,12 +18,12 @@ namespace diverse
             allocate(alloc_size);
         }
 
-        void allocate(u32 size);
+        void allocate(u32 size, rhi::GpuDevice* device = nullptr);
 
         //update gpu buffer
-        void upload();
+        void upload(rhi::GpuDevice* device = nullptr);
 
-        u32 add_transform(const glm::mat4& transform);
+        u32 add_transform(const glm::mat4& transform, rhi::GpuDevice* device = nullptr);
 
         void clear()
         {
@@ -39,11 +40,11 @@ namespace diverse
             this->transforms = transforms;
         }
 
-        void set_transform(u32 transform_index,const glm::mat4& t);
+        void set_transform(u32 transform_index,const glm::mat4& t, rhi::GpuDevice* device = nullptr);
         void get_transform(u32 transform_index,glm::mat4& t);
         glm::mat4 get_transform(u32 transform_index);
-        void set_front_transform(const glm::mat4& t);
-        void set_back_transform(const glm::mat4& t);
+        void set_front_transform(const glm::mat4& t, rhi::GpuDevice* device = nullptr);
+        void set_back_transform(const glm::mat4& t, rhi::GpuDevice* device = nullptr);
 
         glm::mat3x4& operator[](size_t index)
         {

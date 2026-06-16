@@ -72,7 +72,9 @@ namespace diverse
     auto BlueNoiseLutComputer::create(rhi::GpuDevice* device) -> std::shared_ptr<rhi::GpuTexture>
     {
         auto exe_path = std::filesystem::path(OS::instance()->getExecutablePath()).parent_path();
-        return createSharedPtr<asset::Texture>(asset::RawImage{ PixelFormat::R8G8B8A8_UNorm, {bluenoise_256_256Width, bluenoise_256_256Height},std::vector<u8>(std::begin(bluenoise_256_256), std::end(bluenoise_256_256)) })->gpu_texture;
+        auto texture = createSharedPtr<asset::Texture>(asset::RawImage{ PixelFormat::R8G8B8A8_UNorm, {bluenoise_256_256Width, bluenoise_256_256Height},std::vector<u8>(std::begin(bluenoise_256_256), std::end(bluenoise_256_256)) });
+        texture->upload_to_gpu(device);
+        return texture->gpu_texture;
         //return std::make_shared<asset::Texture>(exe_path / "../resource/images/bluenoise/256_256/LDR_RGBA_0.png")->gpu_texture;
     }
 

@@ -10,6 +10,7 @@ namespace diverse
     namespace rhi
     {
         struct GpuBuffer;
+        struct GpuDevice;
     }
     struct BasicVertex
     {
@@ -169,7 +170,7 @@ namespace diverse
         static void generate_tangents_bitangents(Vertex* vertices, uint32_t vertexCount, uint32_t* indices, uint32_t indexCount);
 
         void calculate_triangles();
-        void create_gpu_buffer();
+        void create_gpu_buffer(rhi::GpuDevice* device = nullptr);
         void translate(const glm::vec3& center);
         const std::vector<Triangle>& get_triangles()
         {

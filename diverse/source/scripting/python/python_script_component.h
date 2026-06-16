@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/application.h"
+#include "engine/file_system.h"
 #include "core/uuid.h"
 #include <string>
 #include <map>
@@ -24,6 +24,7 @@ namespace diverse
         void reload();
         void load(const std::string& fileName);
         Entity get_current_entity();
+        void set_scene(Scene* scene) { this->scene = scene; }
 
         // For accessing this component in lua
         void set_this_component();
@@ -56,7 +57,6 @@ namespace diverse
         template <typename Archive>
         void load(Archive& archive)
         {
-            scene = Application::get().get_current_scene();
             archive(cereal::make_nvp("FilePath", file_name));
             init();
         }

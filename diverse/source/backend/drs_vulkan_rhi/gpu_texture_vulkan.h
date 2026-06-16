@@ -20,7 +20,7 @@ namespace diverse
 		struct GpuTextureVulkan : public GpuTexture
 		{
 			GpuTextureVulkan() = default;
-			GpuTextureVulkan(GpuDeviceVulkan* owner) : owner_device(owner) {}
+			GpuTextureVulkan(GpuDeviceVulkan* owner);
 			~GpuTextureVulkan();
 			GpuDeviceVulkan* owner_device = nullptr;
 			VkImage	image = VK_NULL_HANDLE;

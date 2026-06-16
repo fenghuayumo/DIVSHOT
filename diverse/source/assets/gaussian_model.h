@@ -41,6 +41,7 @@ namespace diverse
     namespace rhi
     {
        struct GpuBuffer;
+       struct GpuDevice;
     }
 
     struct Gaussian
@@ -113,10 +114,10 @@ namespace diverse
         auto    num_hidden_gaussians() ->u32 {return num_hidden;}
         auto    num_delete_gaussians() -> u32 { return num_delete; }
         auto    antialiased() -> bool& { return mip_antialiased; }
+        void    create_gpu_buffer(rhi::GpuDevice* device, bool compact = false);
         SET_ASSET_TYPE(AssetType::Splat);
     protected:
         void    update_data();
-        void    create_gpu_buffer(bool compact = false);
     public:
         std::shared_ptr<rhi::GpuBuffer>	gaussians_buf;
         std::shared_ptr<rhi::GpuBuffer>	gaussians_sh_0_buf; //sh0 data, f16 store float data

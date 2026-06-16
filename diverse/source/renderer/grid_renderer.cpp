@@ -19,6 +19,8 @@ namespace diverse
 	auto GridRenderer::init() -> void
 	{
 		quad = CreateQuad();
+		if (quad)
+			quad->create_gpu_buffer(device);
 		rhi::RenderPassDesc desc = {
 			{
 				rhi::RenderPassAttachmentDesc::create(PixelFormat::R8G8B8A8_UNorm).discard_input(),

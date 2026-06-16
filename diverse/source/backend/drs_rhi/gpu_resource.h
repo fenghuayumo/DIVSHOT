@@ -14,6 +14,7 @@ namespace diverse
 {
     namespace rhi
     {
+        struct GpuDevice;
 
 		/// Defines all potential resource usages
 		enum  AccessType
@@ -185,9 +186,13 @@ namespace diverse
 			constexpr bool is_texture() const { return ty == Type::Texture; }
 			constexpr bool is_buffer() const { return ty == Type::Buffer; }
 			constexpr bool is_acceleration_structure() const { return ty == Type::RayTracingAcceleration; }
+			auto get_owner_device() const -> GpuDevice* { return owner_device; }
+			auto set_owner_device(GpuDevice* device) -> void { owner_device = device; }
 			bool is_signaled() { return release_flag[0] && release_flag[1]; }
 			//2 device frame flag
 			bool release_flag[2] = {false};
+		private:
+			GpuDevice* owner_device = nullptr;
         };
     }
 }

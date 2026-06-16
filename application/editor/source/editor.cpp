@@ -33,6 +33,7 @@
 #include <events/application_event.h>
 #include <core/job_system.h>
 #include <backend/drs_rhi/gpu_device.h>
+#include <renderer/defered_renderer.h>
 
 #include <imgui/Plugins/imcmd_command_palette.h>
 #include <renderer/debug_renderer.h>
@@ -1200,7 +1201,7 @@ namespace diverse
             {
                 auto environment = scene->get_entity_manager()->create("Environment");
                 environment.add_component<Environment>();
-                environment.get_component<Environment>().load();
+                environment.get_component<Environment>().load(Application::get().get_renderer()->get_device());
             }
         }
         if (gs2mesh_load)
@@ -2985,7 +2986,7 @@ namespace diverse
                 {
                     auto environment = scene->get_entity_manager()->create("Environment");
                     environment.add_component<Environment>();
-                    environment.get_component<Environment>().load();
+                    environment.get_component<Environment>().load(Application::get().get_renderer()->get_device());
                     
                     scene->serialise(project_settings.ProjectRoot + "assets/scenes/");
                 }

@@ -20,9 +20,12 @@ namespace diverse
 
 		auto GpuBuffer::export_data() -> std::vector<u8>
 		{
-			auto device = get_global_device();
+			auto device = get_owner_device();
+			if (!device)
+				device = get_global_device();
 			std::vector<u8> data(desc.size);
-			copy_to(device, data.data(), desc.size, 0);
+			if (device)
+				copy_to(device, data.data(), desc.size, 0);
 			return data;
 		}
 
@@ -31,7 +34,10 @@ namespace diverse
 		}
 		auto GpuTexture::export_texture() -> std::vector<u8>
 		{
-			return g_device->export_image(this);
+			auto device = get_owner_device();
+			if (!device)
+				device = get_global_device();
+			return device ? device->export_image(this) : std::vector<u8>{};
 		}
 
 		GpuTextureView::~GpuTextureView()

@@ -18,8 +18,8 @@ namespace diverse
         : primitive_type(type)
     {
         meshes.push_back(mesh);
-        meshes.back()->create_gpu_buffer();
         set_flag(AssetFlag::Loaded);
+        set_flag(AssetFlag::UploadedGpu, false);
         auto mat = ResourceManager<Material>::get().get_default_resource("default");
         meshes.back()->set_material(mat);
     }
@@ -28,8 +28,8 @@ namespace diverse
         : primitive_type(type)
     {
         meshes.push_back(SharedPtr<Mesh>(CreatePrimative(type)));
-        meshes.back()->create_gpu_buffer();
         set_flag(AssetFlag::Loaded);
+        set_flag(AssetFlag::UploadedGpu, false);
         auto mat = ResourceManager<Material>::get().get_default_resource("default");
         meshes.back()->set_material(mat);
     }
@@ -104,10 +104,21 @@ namespace diverse
             return;
         }
         reset_center();
-        for (auto& mesh : meshes)
-            mesh->create_gpu_buffer();
         set_flag(AssetFlag::Loaded);
+        set_flag(AssetFlag::UploadedGpu, false);
         DS_LOG_INFO("Loaded MeshModel - {0}", path);
+    }
+
+    void MeshModel::create_gpu_buffers(rhi::GpuDevice* device)
+    {
+        if (!device)
+            return;
+
+        for (auto& mesh : meshes)
+        {
+            if (mesh && (!mesh->get_vertex_buffer() || !mesh->get_index_buffer()))
+                mesh->create_gpu_buffer(device);
+        }
     }
 
     auto    MeshModel::uv_to_surface_postion(const glm::vec2& uv, glm::vec3& surface_pos)->bool

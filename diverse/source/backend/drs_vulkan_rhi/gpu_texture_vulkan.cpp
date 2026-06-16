@@ -5,6 +5,12 @@ namespace diverse
 {
     namespace rhi
     {
+        GpuTextureVulkan::GpuTextureVulkan(GpuDeviceVulkan* owner)
+            : owner_device(owner)
+        {
+            set_owner_device(owner);
+        }
+
         VkFormat PixelFormatToVkFormat[static_cast<int32>(PixelFormat::MAX)] = {
 
             VK_FORMAT_UNDEFINED,

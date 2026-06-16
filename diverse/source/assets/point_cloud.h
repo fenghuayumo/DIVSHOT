@@ -13,6 +13,7 @@ namespace diverse
     namespace rhi
     {
         struct GpuBuffer;
+        struct GpuDevice;
     }
     struct PointCloudVertex
     {
@@ -29,7 +30,7 @@ namespace diverse
         void    load(const std::string& path);
         bool    load_ply(const std::string& path);
         void    reset_center();
-        void    create_gpu_buffer();
+        void    create_gpu_buffer(rhi::GpuDevice* device = nullptr);
         auto    get_world_bounding_box(const glm::mat4& t)->maths::BoundingBox;
         auto    get_local_bounding_box()->maths::BoundingBox&;
         auto    get_num_points()->u64 { return pcd_vertex.size(); }

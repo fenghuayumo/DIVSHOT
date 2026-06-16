@@ -12,11 +12,14 @@ namespace diverse
 	void Environment::load_hdr(const std::string& path)
 	{
 		file_path = path;
-		load();
+		hdr_img.reset();
+		dirty_flag = true;
 	}
 
-	void Environment::load()
+	void Environment::load(rhi::GpuDevice* device)
 	{
+		if (!device)
+			return;
 		if( std::filesystem::exists(file_path ))
 		{
 			auto raw_img = asset::load_float_image(file_path).convert(PixelFormat::R16G16B16A16_Float);
@@ -30,12 +33,15 @@ namespace diverse
 				raw_img.dimensions[0] * raw_img.dimensions[1] * PIXEL_BYTES
 			};
 
-			hdr_img = g_device->create_texture(img_desc, { sub_data }, "ibl");
+			hdr_img = device->create_texture(img_desc, { sub_data }, "ibl");
+			dirty_flag = false;
 		}
 	}	
 
-	auto Environment::create_gray_tex() -> std::shared_ptr<rhi::GpuTexture>
+	auto Environment::create_gray_tex(rhi::GpuDevice* device) -> std::shared_ptr<rhi::GpuTexture>
 	{
+		if (!device)
+			return {};
 		auto raw_img = asset::RawImage{ PixelFormat::R16G16B16A16_Float, {1, 1}, std::vector<u8>(8,0)};
 		raw_img.put_f16(0, 0, std::array<f32,4>{ 0.5f, 0.5f, 0.5f, 1.0f });
 		auto img_desc = rhi::GpuTextureDesc::new_2d(PixelFormat::R16G16B16A16_Float, raw_img.dimensions)
@@ -48,7 +54,7 @@ namespace diverse
 			raw_img.dimensions[0] * raw_img.dimensions[1] * PIXEL_BYTES
 		};
 
-		return g_device->create_texture(img_desc, { sub_data }, "gray");
+		return device->create_texture(img_desc, { sub_data }, "gray");
 	}
 
 	auto Environment::get_render_light_data(const maths::Transform& transform, struct LightShaderData* light_data) -> void

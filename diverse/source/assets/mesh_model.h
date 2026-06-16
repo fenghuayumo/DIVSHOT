@@ -36,6 +36,7 @@ namespace diverse
         auto    uv_to_surface_postion(const glm::vec2& uv, glm::vec3& surface_pos)->bool;
         auto    get_uv2pos_map(const std::shared_ptr<rhi::GpuTexture>& tex)-> std::shared_ptr<asset::Texture>;
         size_t  get_vertex_count() const;
+        void    create_gpu_buffers(rhi::GpuDevice* device);
         template <typename Archive>
         void save(Archive& archive) const
         {
