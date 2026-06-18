@@ -1,0 +1,7 @@
+export { DockProvider, useDock } from './DockContext'
+export type { PanelId, PanelConfig, LayoutNode, FloatingWindow, DropZone } from './DockContext'
+export { DockLayout } from './DockLayout'
+export { DockPanel } from './DockPanel'
+export { DockTabBar } from './DockTabBar'
+export { FloatingWindow as FloatingWindowComponent } from './FloatingWindow'
+export { SplitPane } from './SplitPane'

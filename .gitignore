@@ -188,3 +188,9 @@ editor/diverse_log.txt
 *cached
 *dsn
 *dvs
+
+# editor-tauri / Node + Tauri generated artifacts
+node_modules/
+**/src-tauri/target/
+**/src-tauri/gen/
+*.tsbuildinfo

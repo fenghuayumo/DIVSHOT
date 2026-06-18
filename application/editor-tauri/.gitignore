@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Frontend build outputs
+dist/
+*.tsbuildinfo
+
+# Tauri / Rust build outputs
+src-tauri/target/
+src-tauri/gen/
+
+# Sidecar binaries copied from CMake (not source)
+bin/
+src-tauri/bin/
+*.exe
+*.dll
+*.pdb
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local env (if added later)
+.env
+.env.*
+!.env.example

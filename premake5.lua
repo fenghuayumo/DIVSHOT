@@ -132,6 +132,7 @@ workspace( settings.workspace_name )
 	-- include "diverse_utils/gstrain/premake5"
 
 	group ""
+	include "application/editor-api/premake5"
 	include "application/runtime/premake5"
 	include "application/editor/premake5"
 	include "application/diverseshot-cli/premake5"
