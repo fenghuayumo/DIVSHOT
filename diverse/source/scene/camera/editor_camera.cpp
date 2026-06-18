@@ -9,6 +9,28 @@
 #include "maths/maths_log.hpp"
 namespace diverse
 {
+    namespace
+    {
+        constexpr float kMoveResponse = 12.0f;
+        constexpr float kStopEpsilon = 0.001f;
+        constexpr float kMinOrbitDistance = 0.25f;
+        constexpr float kMinOrthoScale = 0.15f;
+        constexpr float kMaxOrthoScale = 10000.0f;
+        constexpr float kArcballPanMouseScale = 0.01f;
+        constexpr float kOrthoPanMouseScale = 0.03f;
+
+        glm::vec3 smooth_velocity(const glm::vec3& current, const glm::vec3& target, float dt)
+        {
+            const float blend = glm::clamp(dt * kMoveResponse, 0.0f, 1.0f);
+            return glm::mix(current, target, blend);
+        }
+
+        float get_ortho_scale(const Camera* camera)
+        {
+            return camera ? glm::max(camera->get_scale(), kMinOrthoScale) : 1.0f;
+        }
+    }
+
     EditorCameraController::EditorCameraController()
     {
         focal_point            = glm::vec3();
@@ -73,7 +95,7 @@ namespace diverse
 
             if(Input::get().get_mouse_held(InputCode::MouseKey::ButtonMiddle))
             {
-                mouse_sensitivity = 0.1f;
+                mouse_sensitivity = get_ortho_scale(camera) * kOrthoPanMouseScale;
                 
                 // Use camera's actual right and up directions for panning
                 // This works correctly for all 6 orthographic views
@@ -81,8 +103,8 @@ namespace diverse
                 glm::vec3 up = transform.get_up_direction();
                 
                 glm::vec3 position = transform.get_local_position();
-                position -= right * (xpos - previous_curser_pos.x) * mouse_sensitivity * 0.5f;
-                position += up * (ypos - previous_curser_pos.y) * mouse_sensitivity * 0.5f;
+                position -= right * (xpos - previous_curser_pos.x) * mouse_sensitivity;
+                position += up * (ypos - previous_curser_pos.y) * mouse_sensitivity;
                 transform.set_local_position(position);
                 
                 // Also update ortho_view_center so switching views maintains the new position
@@ -148,7 +170,8 @@ namespace diverse
                 if (middleAndRight)
                 {
                     // MMB + RMB = Pan camera
-                    mouse_pan(transform, glm::vec2((xpos - previous_curser_pos.x), (ypos - previous_curser_pos.y)) * 0.001f);
+                    mouse_pan(transform, glm::vec2((xpos - previous_curser_pos.x), (ypos - previous_curser_pos.y)) * kArcballPanMouseScale);
+                    previous_curser_pos = glm::vec2(xpos, ypos);
                 }
                 else if (Input::get().get_mouse_held(InputCode::MouseKey::ButtonRight))
                 {
@@ -159,7 +182,8 @@ namespace diverse
                 else if (Input::get().get_mouse_held(InputCode::MouseKey::ButtonMiddle))
                 {
                     // MMB only = Dolly camera (pan movement)
-                    mouse_pan(transform, glm::vec2((xpos - previous_curser_pos.x), (ypos - previous_curser_pos.y)) * 0.001f);
+                    mouse_pan(transform, glm::vec2((xpos - previous_curser_pos.x), (ypos - previous_curser_pos.y)) * kArcballPanMouseScale);
+                    previous_curser_pos = glm::vec2(xpos, ypos);
                 }
                 else
                 {
@@ -171,7 +195,7 @@ namespace diverse
                 }
             }
 
-            if(glm::length(rotate_velocity) > maths::M_EPSILON || pitch_delta > maths::M_EPSILON || yaw_delta > maths::M_EPSILON)
+            if(glm::length(rotate_velocity) > maths::M_EPSILON || glm::abs(pitch_delta) > maths::M_EPSILON || glm::abs(yaw_delta) > maths::M_EPSILON)
             {
                 if(camera_mode == EditorCameraMode::ARCBALL)
                 {
@@ -185,6 +209,11 @@ namespace diverse
                     rotation = rotationY * rotation;
                     rotation = rotation * rotationX;
                     transform.set_local_orientation(rotation);
+                    transform.set_local_position(calculate_position(transform));
+
+                    yaw_delta = 0.0f;
+                    pitch_delta = 0.0f;
+                    rotate_velocity = glm::vec2(0.0f);
                 }
                 else if(camera_mode == EditorCameraMode::FLYCAM)
                 {
@@ -201,7 +230,8 @@ namespace diverse
             }
         }
 
-        rotate_velocity = rotate_velocity * pow(rotate_dampening_factor, dt);
+        if(camera_mode != EditorCameraMode::ARCBALL)
+            rotate_velocity = rotate_velocity * pow(rotate_dampening_factor, dt);
 
         if(camera_mode == EditorCameraMode::ARCBALL)
         {
@@ -236,94 +266,63 @@ namespace diverse
         //   - W/S Keys: Move up/down
         //   - A/D Keys: Move left/right
         
+        glm::vec3 target_velocity(0.0f);
+        bool move_focal_point = false;
+
         if(camera_mode == EditorCameraMode::TWODIM)
         {
-            glm::vec3 up = glm::vec3(0, 1, 0), right = glm::vec3(1, 0, 0);
+            const glm::vec3 right = transform.get_right_direction();
+            const glm::vec3 up = transform.get_up_direction();
+            float multiplier = get_ortho_scale(camera);
 
-            float speed = /*camera->get_scale() **/dt * camera_speed;
-
-            if(Input::get().get_key_held(diverse::InputCode::Key::A))
+            if(Input::get().get_key_held(InputCode::Key::LeftShift))
             {
-                velocity -= right * speed;
+                multiplier *= 3.0f;
+            }
+            else if(Input::get().get_key_held(InputCode::Key::LeftAlt))
+            {
+                multiplier *= 0.35f;
             }
 
-            if(Input::get().get_key_held(diverse::InputCode::Key::D))
-            {
-                velocity += right * speed;
-            }
+            const float speed = camera_speed * multiplier;
 
-            if(Input::get().get_key_held(diverse::InputCode::Key::W))
-            {
-                velocity += up * speed;
-            }
-
-            if(Input::get().get_key_held(diverse::InputCode::Key::S))
-            {
-                velocity -= up * speed;
-            }
-
-            if(glm::length(velocity) > maths::M_EPSILON)
-            {
-                glm::vec3 position = transform.get_local_position();
-                position += velocity * dt;
-                velocity = velocity * pow(dampening_factor, dt);
-
-                transform.set_local_position(position);
-            }
+            if(Input::get().get_key_held(InputCode::Key::A))
+                target_velocity -= right * speed;
+            if(Input::get().get_key_held(InputCode::Key::D))
+                target_velocity += right * speed;
+            if(Input::get().get_key_held(InputCode::Key::W))
+                target_velocity += up * speed;
+            if(Input::get().get_key_held(InputCode::Key::S))
+                target_velocity -= up * speed;
         }
         else if(camera_mode == EditorCameraMode::ARCBALL)
         {
-            // Shift key acceleration
             float multiplier = 1.0f;
             if(Input::get().get_key_held(InputCode::Key::LeftShift))
             {
-                multiplier = 3.0f;  // Accelerate movement
+                multiplier = 3.0f;
+            }
+            else if(Input::get().get_key_held(InputCode::Key::LeftAlt))
+            {
+                multiplier = 0.35f;
             }
 
-            float speed = multiplier * dt * camera_speed;
+            const float speed = camera_speed * glm::max(distance * 0.15f, 1.0f) * multiplier;
 
-            // W/S keys - Dolly camera forwards/backwards
             if(Input::get().get_key_held(InputCode::Key::W))
-            {
-                velocity -= transform.get_forward_direction() * speed;
-            }
-
+                target_velocity -= transform.get_forward_direction() * speed;
             if(Input::get().get_key_held(InputCode::Key::S))
-            {
-                velocity += transform.get_forward_direction() * speed;
-            }
-
-            // A/D keys - Strafe camera left/right
+                target_velocity += transform.get_forward_direction() * speed;
             if(Input::get().get_key_held(InputCode::Key::A))
-            {
-                velocity -= transform.get_right_direction() * speed;
-            }
-
+                target_velocity -= transform.get_right_direction() * speed;
             if(Input::get().get_key_held(InputCode::Key::D))
-            {
-                velocity += transform.get_right_direction() * speed;
-            }
-
-            // Q/E keys - Move camera up/down
+                target_velocity += transform.get_right_direction() * speed;
             if(Input::get().get_key_held(InputCode::Key::Q))
-            {
-                velocity -= glm::vec3(0.0f, 1.0f, 0.0f) * speed;  // World up direction
-            }
-
+                target_velocity -= glm::vec3(0.0f, 1.0f, 0.0f) * speed;
             if(Input::get().get_key_held(InputCode::Key::E))
-            {
-                velocity += glm::vec3(0.0f, 1.0f, 0.0f) * speed;  // World up direction
-            }
+                target_velocity += glm::vec3(0.0f, 1.0f, 0.0f) * speed;
 
-            // Apply velocity to camera position and focal point
-            if(glm::length(velocity) > maths::M_EPSILON)
-            {
-                glm::vec3 position = transform.get_local_position();
-                position += velocity * dt;
-                focal_point += velocity * dt;  // Move focal point with camera
-                transform.set_local_position(position);
-                velocity = velocity * pow(dampening_factor, dt);
-            }
+            move_focal_point = true;
         }
         else if(camera_mode == EditorCameraMode::FLYCAM)
         {
@@ -335,51 +334,41 @@ namespace diverse
             }
             else if(Input::get().get_key_held(InputCode::Key::LeftAlt))
             {
-                multiplier = 0.5f;
+                multiplier = 0.35f;
             }
 
-            float speed = multiplier * dt * camera_speed;
+            const float speed = camera_speed * multiplier;
 
             if(Input::get().get_mouse_held(InputCode::MouseKey::ButtonRight))
             {
                 if(Input::get().get_key_held(InputCode::Key::W))
-                {
-                    velocity -= transform.get_forward_direction() * speed;
-                }
-
+                    target_velocity -= transform.get_forward_direction() * speed;
                 if(Input::get().get_key_held(InputCode::Key::S))
-                {
-                    velocity += transform.get_forward_direction() * speed;
-                }
-
+                    target_velocity += transform.get_forward_direction() * speed;
                 if(Input::get().get_key_held(InputCode::Key::A))
-                {
-                    velocity -= transform.get_right_direction() * speed;
-                }
-
+                    target_velocity -= transform.get_right_direction() * speed;
                 if(Input::get().get_key_held(InputCode::Key::D))
-                {
-                    velocity += transform.get_right_direction() * speed;
-                }
-
+                    target_velocity += transform.get_right_direction() * speed;
                 if(Input::get().get_key_held(InputCode::Key::Q))
-                {
-                    velocity -= transform.get_up_direction() * speed;
-                }
-
+                    target_velocity -= transform.get_up_direction() * speed;
                 if(Input::get().get_key_held(InputCode::Key::E))
-                {
-                    velocity += transform.get_up_direction() * speed;
-                }
+                    target_velocity += transform.get_up_direction() * speed;
             }
+        }
 
-            if(velocity.length() > maths::M_EPSILON)
-            {
-                glm::vec3 position = transform.get_local_position();
-                position += velocity * dt;
-                transform.set_local_position(position);
-                velocity = velocity * pow(dampening_factor, dt);
-            }
+        velocity = smooth_velocity(velocity, target_velocity, dt);
+        if(glm::length(velocity) < kStopEpsilon)
+            velocity = glm::vec3(0.0f);
+
+        if(glm::length(velocity) > maths::M_EPSILON)
+        {
+            const glm::vec3 delta = velocity * dt;
+            transform.set_local_position(transform.get_local_position() + delta);
+
+            if(camera_mode == EditorCameraMode::TWODIM)
+                ortho_view_center += delta;
+            else if(move_focal_point)
+                focal_point += delta;
         }
     }
 
@@ -401,7 +390,7 @@ namespace diverse
 
     float EditorCameraController::get_zoom_speed() const
     {
-        float dist = distance * 0.4f;
+        float dist = glm::max(distance, kMinOrbitDistance) * 0.4f;
         dist = glm::max(dist, 4.0f);
         float speed    = dist * dist;
         speed          = glm::min(speed, 50.0f); // max speed = 50
@@ -443,15 +432,14 @@ namespace diverse
             {
                 multiplier = 3.0f;  // Accelerate zoom
             }
+            else if(Input::get().get_key_held(InputCode::Key::LeftAlt))
+            {
+                multiplier = 0.35f;
+            }
             
-            distance -= delta * get_zoom_speed() * multiplier;
-            const glm::vec3 forwardDir = transform.get_forward_direction();
-            //if(distance < 1.0f)
-            //{
-            //    //focal_point += forwardDir * distance;
-            //    distance = 1.0f;
-            //}
-            position_delta += delta * get_zoom_speed() * multiplier * forwardDir;
+            distance = glm::max(distance - delta * get_zoom_speed() * multiplier, kMinOrbitDistance);
+            position_delta = glm::vec3(0.0f);
+            transform.set_local_position(calculate_position(transform));
         }
     }
 
@@ -466,33 +454,20 @@ namespace diverse
             if(!camera)
                 return;
 
-            float multiplier = camera_speed / 10.0f;
+            float multiplier = 1.0f;
             if(Input::get().get_key_held(InputCode::Key::LeftShift))
             {
-                multiplier = camera_speed / 2.0f;
+                multiplier = 2.0f;
+            }
+            else if(Input::get().get_key_held(InputCode::Key::LeftAlt))
+            {
+                multiplier = 0.5f;
             }
 
             if(offset != 0.0f)
             {
-                zoom_velocity += dt * offset * multiplier;
-            }
-
-            if(!maths::Equals(zoom_velocity, 0.0f))
-            {
-                float scale = camera->get_scale();
-
-                scale -= zoom_velocity;
-
-                if(scale < 0.15f)
-                {
-                    scale          = 0.15f;
-                    zoom_velocity = 0.0f;
-                }
-                else
-                {
-                    zoom_velocity = zoom_velocity * pow(zoom_dampening_factor, dt);
-                }
-
+                const float zoom_factor = glm::pow(0.88f, offset * multiplier);
+                const float scale = glm::clamp(camera->get_scale() * zoom_factor, kMinOrthoScale, kMaxOrthoScale);
                 camera->set_scale(scale);
             }
         }
@@ -504,19 +479,15 @@ namespace diverse
             {
                 multiplier = 3.0f;  // Accelerate zoom
             }
+            else if(Input::get().get_key_held(InputCode::Key::LeftAlt))
+            {
+                multiplier = 0.35f;
+            }
 
             if(offset != 0.0f)
             {
-                zoom_velocity -= dt * offset * 10.0f * multiplier;
-            }
-
-            if(!maths::Equals(zoom_velocity, 0.0f))
-            {
-                glm::vec3 pos = transform.get_local_position();
-                pos += transform.get_forward_direction() * zoom_velocity;
-                zoom_velocity = zoom_velocity * pow(zoom_dampening_factor, dt);
-
-                transform.set_local_position(pos);
+                const glm::vec3 delta = -transform.get_forward_direction() * offset * camera_speed * 0.25f * multiplier;
+                transform.set_local_position(transform.get_local_position() + delta);
             }
         }
     }
@@ -526,11 +497,28 @@ namespace diverse
         zoom_velocity   = 0.0f;
         velocity       = glm::vec3(0.0f);
         rotate_velocity = glm::vec2(0.0f);
+        pitch_delta = 0.0f;
+        yaw_delta = 0.0f;
+        position_delta = glm::vec3(0.0f);
+    }
+
+    void EditorCameraController::set_current_mode(EditorCameraMode mode)
+    {
+        if(camera_mode == mode)
+            return;
+
+        camera_mode = mode;
+        stop_movement();
     }
 
     bool EditorCameraController::is_moving() const
     {
-		return glm::length(velocity) > 0.0f || glm::length(rotate_velocity) > 0.0f || zoom_velocity != 0.0f;
+        return glm::length(velocity) > 0.0f ||
+               glm::length(rotate_velocity) > 0.0f ||
+               glm::length(position_delta) > 0.0f ||
+               glm::abs(pitch_delta) > 0.0f ||
+               glm::abs(yaw_delta) > 0.0f ||
+               zoom_velocity != 0.0f;
     }
 
     glm::vec3 EditorCameraController::calculate_position(maths::Transform& transform) const

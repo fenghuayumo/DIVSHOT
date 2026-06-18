@@ -36,7 +36,7 @@ namespace diverse
         void stop_movement();
         void set_speed(float speed) { camera_speed = speed; }
         float get_speed() { return camera_speed; }
-        void set_current_mode(EditorCameraMode mode) { camera_mode = mode; }
+        void set_current_mode(EditorCameraMode mode);
         EditorCameraMode get_current_mode() const { return camera_mode; }
         bool is_moving() const;
         void set_buttom_view(maths::Transform& transform);
