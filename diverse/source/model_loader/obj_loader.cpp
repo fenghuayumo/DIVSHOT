@@ -7,14 +7,13 @@
 #include "assets/asset_manager.h"
 #include "core/profiler.h"
 #include "utility/thread_pool.h"
+#include <algorithm>
 #include <future>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <ModelLoaders/tinyobjloader/tiny_obj_loader.h>
 
 namespace diverse
 {
-    std::string m_Directory;
-
     SharedPtr<asset::Texture> load_material_textures(const std::string& typeName, const std::string& name, const std::string& directory)
     {
         std::string filePath = directory + name;
@@ -34,29 +33,34 @@ namespace diverse
         std::vector<tinyobj::material_t> materials;
 
         resolvedPath = stringutility::back_slashes_2_slashes(resolvedPath);
-        m_Directory  = stringutility::get_file_location(resolvedPath);
+        const auto directory  = stringutility::get_file_location(resolvedPath);
 
         std::string name = stringutility::get_file_name(resolvedPath);
 
-        bool ok = tinyobj::LoadObj(&attrib, &shapes, &materials,&warn, &error, resolvedPath.c_str(), m_Directory.c_str(),true);
+        bool ok = tinyobj::LoadObj(&attrib, &shapes, &materials,&warn, &error, resolvedPath.c_str(), directory.c_str(),true);
 
         if(!ok)
         {
-            DS_LOG_CRITICAL(error);
+            DS_LOG_CRITICAL("{}", error);
             return false;
         }
+        if(!warn.empty())
+            DS_LOG_WARN("{}", warn);
 
         meshes.resize(shapes.size());
         parallel_for<size_t>(0, shapes.size(), [&](uint32_t shape_idx){
         //for(auto shape_idx = 0; shape_idx < shapes.size(); shape_idx++) {
             auto& shape = shapes[shape_idx];
-            uint32_t vertexCount       = 0;
+            uint32_t uniqueVertexCount = 0;
             const uint32_t numIndices  = static_cast<uint32_t>(shape.mesh.indices.size());
             const uint32_t numVertices = numIndices; // attrib.vertices.size();// numIndices / 3.0f;
             std::vector<Vertex> vertices(numVertices);
-            std::vector<uint32_t> indices(numIndices);
+            std::vector<uint32_t> indices;
+            indices.reserve(numIndices);
 
             std::unordered_map<Vertex, uint32_t> uniqueVertices;
+            const int materialId = !shape.mesh.material_ids.empty() ? shape.mesh.material_ids[0] : -1;
+            const tinyobj::material_t* material = (materialId >= 0 && materialId < static_cast<int>(materials.size())) ? &materials[materialId] : nullptr;
 
             maths::BoundingBox boundingBox;
             for(uint32_t i = 0; i < shape.mesh.indices.size(); i++)
@@ -64,7 +68,10 @@ namespace diverse
                 auto& index = shape.mesh.indices[i];
                 Vertex vertex;
 
-                if(!attrib.texcoords.empty())
+                if(index.vertex_index < 0 || (3 * index.vertex_index + 2) >= static_cast<int>(attrib.vertices.size()))
+                    continue;
+
+                if(index.texcoord_index >= 0 && (2 * index.texcoord_index + 1) < static_cast<int>(attrib.texcoords.size()))
                 {
                     vertex.TexCoords = (glm::vec2(
                         attrib.texcoords[2 * index.texcoord_index + 0],
@@ -81,7 +88,7 @@ namespace diverse
 
                 boundingBox.merge(vertex.Position);
 
-                if(!attrib.normals.empty())
+                if(index.normal_index >= 0 && (3 * index.normal_index + 2) < static_cast<int>(attrib.normals.size()))
                 {
                     vertex.Normal = (glm::vec3(
                         attrib.normals[3 * index.normal_index + 0],
@@ -91,67 +98,68 @@ namespace diverse
 
                 glm::vec4 colour = glm::vec4(0.0f);
 
-                if(shape.mesh.material_ids[0] >= 0)
+                if(material)
                 {
-                    tinyobj::material_t* mp = &materials[shape.mesh.material_ids[0]];
-                    colour                  = glm::vec4(mp->diffuse[0], mp->diffuse[1], mp->diffuse[2], 1.0f);
+                    colour = glm::vec4(material->diffuse[0], material->diffuse[1], material->diffuse[2], 1.0f);
                 }
 
                 vertex.Colours = colour;
 
                 if(uniqueVertices.count(vertex) == 0)
                 {
-                    uniqueVertices[vertex] = static_cast<uint32_t>(vertexCount);
-                    vertices[vertexCount]  = vertex;
+                    uniqueVertices[vertex] = uniqueVertexCount;
+                    vertices[uniqueVertexCount]  = vertex;
+                    uniqueVertexCount++;
                 }
 
-                indices[vertexCount] = uniqueVertices[vertex];
-
-                vertexCount++;
+                indices.push_back(uniqueVertices[vertex]);
             }
+            vertices.resize(uniqueVertexCount);
+            if(vertices.empty() || indices.empty())
+                return;
 
             if(attrib.normals.empty())
-               Mesh::generate_normals(vertices.data(), vertexCount, indices.data(), numIndices);
+               Mesh::generate_normals(vertices.data(), uniqueVertexCount, indices.data(), uint32_t(indices.size()));
            
             SharedPtr<Material> pbrMaterial = createSharedPtr<Material>();
 
             PBRMataterialTextures textures;
 
-            if(shape.mesh.material_ids[0] >= 0)
+            if(material)
             {
-                tinyobj::material_t* mp = &materials[shape.mesh.material_ids[0]];
+                const tinyobj::material_t* mp = material;
 
                 if(mp->diffuse_texname.length() > 0)
                 {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Albedo", mp->diffuse_texname, m_Directory);
+                    SharedPtr<asset::Texture> texture = load_material_textures("Albedo", mp->diffuse_texname, directory);
                     if(texture)
                         textures.albedo = texture;
                 }
 
                 if(mp->bump_texname.length() > 0)
                 {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Normal", mp->bump_texname, m_Directory);
+                    SharedPtr<asset::Texture> texture = load_material_textures("Normal", mp->bump_texname, directory);
                     if(texture)
                         textures.normal = texture; // pbrMaterial->SetNormalMap(texture);
                 }
 
                 if(mp->roughness_texname.length() > 0)
                 {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Roughness", mp->roughness_texname.c_str(), m_Directory);
+                    SharedPtr<asset::Texture> texture = load_material_textures("Roughness", mp->roughness_texname.c_str(), directory);
                     if(texture)
                         textures.roughness = texture;
                 }
 
                 if(mp->metallic_texname.length() > 0)
                 {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Metallic", mp->metallic_texname, m_Directory);
+                    SharedPtr<asset::Texture> texture = load_material_textures("Metallic", mp->metallic_texname, directory);
                     if(texture)
                         textures.metallic = texture;
                 }
 
                 if(mp->specular_highlight_texname.length() > 0)
                 {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Metallic", mp->specular_highlight_texname, m_Directory);
+                    SharedPtr<asset::Texture> texture = load_material_textures("Metallic", mp->specular_highlight_texname, directory);
                     if(texture)
                         textures.metallic = texture;
                 }
@@ -168,11 +176,12 @@ namespace diverse
             auto mesh = createSharedPtr<Mesh>(indices, vertices);
             mesh->set_name(shape.name);
             mesh->set_material(pbrMaterial);
-            mesh->generate_tangents_bitangents(vertices.data(), uint32_t(numVertices), indices.data(), uint32_t(numIndices));
+            mesh->generate_tangents_bitangents(vertices.data(), uint32_t(vertices.size()), indices.data(), uint32_t(indices.size()));
 
             meshes[shape_idx] = mesh;
             // meshes.push_back(mesh);
         });
+        meshes.erase(std::remove(meshes.begin(), meshes.end(), nullptr), meshes.end());
         return true;
     }
 

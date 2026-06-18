@@ -304,6 +304,16 @@ namespace diverse
         
         void Texture::init_from_raw_image(const RawImage& img, const TexParams& param)
         {
+            set_flag(AssetFlag::Loaded, false);
+            set_flag(AssetFlag::UploadedGpu, false);
+            set_flag(AssetFlag::Invalid, false);
+            if (img.dimensions[0] == 0 || img.dimensions[1] == 0 || img.data.empty())
+            {
+                DS_LOG_ERROR("Texture initialisation failed: empty image data");
+                set_flag(AssetFlag::Invalid);
+                return;
+            }
+
             auto rgb_img = img;
             extent = { img.dimensions[0], img.dimensions[1], 1 };
             params = param;
@@ -438,12 +448,21 @@ namespace diverse
             upload_2_gpu(format);
             if (gpu_texture)
                 set_flag(AssetFlag::UploadedGpu);
+            set_flag(AssetFlag::Loaded);
         }
         void Texture::init_from_path(const std::filesystem::path& path)
         {
             file_path = path.string();
-			auto img = load_image(path);
-			init_from_raw_image(img, TexParams{});
+            try
+            {
+			    auto img = load_image(path);
+			    init_from_raw_image(img, TexParams{});
+            }
+            catch (const std::exception& e)
+            {
+                DS_LOG_ERROR("Failed to load texture '{}': {}", path.string(), e.what());
+                set_flag(AssetFlag::Invalid);
+            }
         }
     }
 }

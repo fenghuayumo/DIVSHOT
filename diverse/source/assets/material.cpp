@@ -175,19 +175,19 @@ namespace diverse
     {
         auto flag = true;
         if(albedo)
-			flag &= albedo->is_flag_set(AssetFlag::UploadedGpu);
+			flag &= albedo->is_flag_set(AssetFlag::UploadedGpu) || albedo->is_flag_set(AssetFlag::Invalid);
         if (normal)
-            flag &= normal->is_flag_set(AssetFlag::UploadedGpu);
+            flag &= normal->is_flag_set(AssetFlag::UploadedGpu) || normal->is_flag_set(AssetFlag::Invalid);
         if (roughness)
-            flag &= roughness->is_flag_set(AssetFlag::UploadedGpu);
+            flag &= roughness->is_flag_set(AssetFlag::UploadedGpu) || roughness->is_flag_set(AssetFlag::Invalid);
         if(metallic)
-			flag &= metallic->is_flag_set(AssetFlag::UploadedGpu);
+			flag &= metallic->is_flag_set(AssetFlag::UploadedGpu) || metallic->is_flag_set(AssetFlag::Invalid);
         if(ao)
-            flag &= ao->is_flag_set(AssetFlag::UploadedGpu);
+            flag &= ao->is_flag_set(AssetFlag::UploadedGpu) || ao->is_flag_set(AssetFlag::Invalid);
         if(metallic)
-            flag &= metallic->is_flag_set(AssetFlag::UploadedGpu);
+            flag &= metallic->is_flag_set(AssetFlag::UploadedGpu) || metallic->is_flag_set(AssetFlag::Invalid);
         if(emissive)
-            flag &= emissive->is_flag_set(AssetFlag::UploadedGpu);
+            flag &= emissive->is_flag_set(AssetFlag::UploadedGpu) || emissive->is_flag_set(AssetFlag::Invalid);
         return flag;
     }
 }

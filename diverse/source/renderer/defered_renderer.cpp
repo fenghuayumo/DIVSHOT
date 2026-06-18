@@ -544,9 +544,20 @@ namespace diverse
 	{
 		if (!texture)
 			return true;
+		if (texture->is_flag_set(AssetFlag::Invalid))
+			return true;
+		if (!texture->is_flag_set(AssetFlag::Loaded))
+			return false;
 
 		if (!texture->is_flag_set(AssetFlag::UploadedGpu))
 			texture->upload_to_gpu(rg_renderer->device);
+		if (!texture->is_flag_set(AssetFlag::UploadedGpu))
+		{
+			texture->set_flag(AssetFlag::Invalid);
+			return true;
+		}
+
+		upload_image(texture->gpu_texture);
 
 		return texture->is_flag_set(AssetFlag::UploadedGpu) &&
 			gpu_scene.bindless_image_ids.find(texture->gpu_texture.get()) != gpu_scene.bindless_image_ids.end();
@@ -587,9 +598,9 @@ namespace diverse
 			if(!material) continue;
 			auto& matprop = material->get_properties();
 			auto& pbr_tex = material->get_textures();
-			if(!pbr_tex.is_upload_2_gpu()) continue;
+			if(!are_material_textures_bound(pbr_tex)) continue;
 			//if(material.is_flag_set(AssetFlag::UploadedGpu) && !material.dirty_flag()) continue;
-			if (!material->is_flag_set(AssetFlag::UploadedGpu) || !are_material_textures_bound(pbr_tex))
+			if (!material->is_flag_set(AssetFlag::UploadedGpu))
 			{
 				gpu_scene.mat_2_mat_buf_id[material] = gpu_scene.material_datas.size();
 				gpu_scene.material_datas.push_back(&matprop);

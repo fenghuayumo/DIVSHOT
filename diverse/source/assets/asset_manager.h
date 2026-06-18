@@ -218,7 +218,15 @@ namespace diverse
                 auto load_texture = [&](const std::string& filePath, SharedPtr<asset::Texture>& texture) {
                     texture = createSharedPtr<asset::Texture>();
                     futures.emplace_back(std::async(std::launch::async, [filePath, texture]()->void {
-                        texture->init_from_path(filePath);
+                        try
+                        {
+                            texture->init_from_path(filePath);
+                        }
+                        catch (const std::exception& e)
+                        {
+                            DS_LOG_ERROR("Texture async load failed '{}': {}", filePath, e.what());
+                            texture->set_flag(AssetFlag::Invalid);
+                        }
                     }));
                     return true;
                 };
@@ -238,7 +246,16 @@ namespace diverse
                 auto load_material = [&](const std::string& filePath, SharedPtr<Material>& material) {
                     material = createSharedPtr<Material>();
                     futures.emplace_back(std::async(std::launch::async, [filePath, material]()->void {
-                        material->load_material(filePath, filePath);
+                        try
+                        {
+                            material->load_material(filePath, filePath);
+                            material->set_flag(AssetFlag::Loaded);
+                        }
+                        catch (const std::exception& e)
+                        {
+                            DS_LOG_ERROR("Material async load failed '{}': {}", filePath, e.what());
+                            material->set_flag(AssetFlag::Invalid);
+                        }
                         }));
                     return true;
                 };
@@ -254,7 +271,15 @@ namespace diverse
                     meshModel->set_primitive_type(PrimitiveType::File);
 
                     futures.emplace_back(std::async(std::launch::async, [filePath, meshModel]()->void {
-                        meshModel->load_model(filePath);
+                        try
+                        {
+                            meshModel->load_model(filePath);
+                        }
+                        catch (const std::exception& e)
+                        {
+                            DS_LOG_ERROR("MeshModel async load failed '{}': {}", filePath, e.what());
+                            meshModel->set_flag(AssetFlag::Invalid);
+                        }
                         }));
                     return true;
 				};
@@ -268,7 +293,15 @@ namespace diverse
                     meshModel = createSharedPtr<PointCloud>();
 
                     futures.emplace_back(std::async(std::launch::async, [filePath, meshModel]()->void {
-                        meshModel->load(filePath);
+                        try
+                        {
+                            meshModel->load(filePath);
+                        }
+                        catch (const std::exception& e)
+                        {
+                            DS_LOG_ERROR("PointCloud async load failed '{}': {}", filePath, e.what());
+                            meshModel->set_flag(AssetFlag::Invalid);
+                        }
                     }));
                     return true;
 				};

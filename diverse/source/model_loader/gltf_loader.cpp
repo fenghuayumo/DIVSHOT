@@ -34,6 +34,8 @@
 #include <ozz-animation/src/animation/offline/gltf/gltf2ozz.cc>
 #include <ozz/animation/runtime/local_to_model_job.h>
 #include <utility/thread_pool.h>
+#include <algorithm>
+#include <mutex>
 
 namespace tinygltf
 {
@@ -100,6 +102,100 @@ namespace diverse
     static HashMap(int, int) GLTF_COMPONENT_LENGTH_LOOKUP;
     static HashMap(int, int) GLTF_COMPONENT_BYTE_SIZE_LOOKUP;
     static bool HashMapsInitialised = false;
+    static std::mutex GLTFHashMapMutex;
+
+    const uint8_t* AccessorElementPtr(const tinygltf::Model& model, const tinygltf::Accessor& accessor, size_t index, size_t& stride)
+    {
+        if(accessor.bufferView < 0 || accessor.bufferView >= static_cast<int>(model.bufferViews.size()))
+            return nullptr;
+        const auto& bufferView = model.bufferViews[accessor.bufferView];
+        if(bufferView.buffer < 0 || bufferView.buffer >= static_cast<int>(model.buffers.size()))
+            return nullptr;
+        const auto& buffer = model.buffers[bufferView.buffer];
+
+        int componentLength = 0;
+        int componentTypeByteSize = 0;
+        HashMapFind(&GLTF_COMPONENT_LENGTH_LOOKUP, accessor.type, &componentLength);
+        HashMapFind(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, accessor.componentType, &componentTypeByteSize);
+        if(componentLength <= 0 || componentTypeByteSize <= 0)
+            return nullptr;
+
+        stride = accessor.ByteStride(bufferView);
+        if(stride == 0)
+            stride = size_t(componentLength) * size_t(componentTypeByteSize);
+
+        const size_t offset = bufferView.byteOffset + accessor.byteOffset + index * stride;
+        const size_t elementSize = size_t(componentLength) * size_t(componentTypeByteSize);
+        if(offset + elementSize > buffer.data.size())
+            return nullptr;
+        return buffer.data.data() + offset;
+    }
+
+    float ReadAccessorFloatComponent(const uint8_t* data, int componentType, int componentIndex, bool normalized)
+    {
+        switch(componentType)
+        {
+        case TINYGLTF_COMPONENT_TYPE_BYTE:
+        {
+            const auto value = reinterpret_cast<const int8_t*>(data)[componentIndex];
+            return normalized ? std::max(float(value) / 127.0f, -1.0f) : float(value);
+        }
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+        {
+            const auto value = reinterpret_cast<const uint8_t*>(data)[componentIndex];
+            return normalized ? float(value) / 255.0f : float(value);
+        }
+        case TINYGLTF_COMPONENT_TYPE_SHORT:
+        {
+            const auto value = reinterpret_cast<const int16_t*>(data)[componentIndex];
+            return normalized ? std::max(float(value) / 32767.0f, -1.0f) : float(value);
+        }
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+        {
+            const auto value = reinterpret_cast<const uint16_t*>(data)[componentIndex];
+            return normalized ? float(value) / 65535.0f : float(value);
+        }
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+        {
+            const auto value = reinterpret_cast<const uint32_t*>(data)[componentIndex];
+            return float(value);
+        }
+        case TINYGLTF_COMPONENT_TYPE_FLOAT:
+            return reinterpret_cast<const float*>(data)[componentIndex];
+        default:
+            return 0.0f;
+        }
+    }
+
+    uint32_t ReadAccessorUIntComponent(const uint8_t* data, int componentType, int componentIndex)
+    {
+        switch(componentType)
+        {
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+            return reinterpret_cast<const uint8_t*>(data)[componentIndex];
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+            return reinterpret_cast<const uint16_t*>(data)[componentIndex];
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+            return reinterpret_cast<const uint32_t*>(data)[componentIndex];
+        default:
+            return 0;
+        }
+    }
+
+    glm::vec4 ReadAccessorVec4(const tinygltf::Model& model, const tinygltf::Accessor& accessor, size_t index, const glm::vec4& fallback = glm::vec4(0.0f))
+    {
+        size_t stride = 0;
+        const auto* data = AccessorElementPtr(model, accessor, index, stride);
+        if(!data)
+            return fallback;
+
+        int componentLength = 0;
+        HashMapFind(&GLTF_COMPONENT_LENGTH_LOOKUP, accessor.type, &componentLength);
+        glm::vec4 value = fallback;
+        for(int componentIndex = 0; componentIndex < std::min(componentLength, 4); componentIndex++)
+            value[componentIndex] = ReadAccessorFloatComponent(data, accessor.componentType, componentIndex, accessor.normalized);
+        return value;
+    }
 
     std::vector<SharedPtr<Material>> LoadMaterials(tinygltf::Model& gltfModel,const std::string& basePath)
     {
@@ -114,10 +210,10 @@ namespace diverse
 
         auto TextureName = [&](int index)
         {
-            if(index >= 0)
+            if(index >= 0 && index < static_cast<int>(gltfModel.textures.size()))
             {
                 const tinygltf::Texture& tex = gltfModel.textures[index];
-                if (tex.source != -1)
+                if (tex.source >= 0 && tex.source < static_cast<int>(gltfModel.images.size()))
                 {
                     auto Image = &gltfModel.images.at(tex.source);
                     auto image_path = std::filesystem::path(Image->uri);
@@ -196,34 +292,42 @@ namespace diverse
                 if(metallicGlossinessWorkflow->second.Has("diffuseTexture"))
                 {
                     int index       = metallicGlossinessWorkflow->second.Get("diffuseTexture").Get("index").Get<int>();
-                    auto tex = gltfModel.textures[index];
-                    auto img_path = std::filesystem::path(basePath) / gltfModel.images[tex.source].uri;
-                    textures.albedo = ResourceManager<asset::Texture>::get().get_resource(img_path.string());
-                    if (tex.extensions.count("KHR_texture_transform"))
+                    if(index >= 0 && index < static_cast<int>(gltfModel.textures.size()) &&
+                        gltfModel.textures[index].source >= 0 && gltfModel.textures[index].source < static_cast<int>(gltfModel.images.size()))
                     {
-                        auto offset_json = tex.extensions["KHR_texture_transform"].Get("offset");
-                        auto scale_json = tex.extensions["KHR_texture_transform"].Get("scale");
-                        auto offset = glm::vec2(offset_json.Get(0).Get<double>(), offset_json.Get(1).Get<double>());
-                        auto scale = glm::vec2(scale_json.Get(0).Get<double>(), scale_json.Get(1).Get<double>());
-                        auto rotation = tex.extensions["KHR_texture_transform"].Get("rotation").Get<double>();
-                        properties.map_transforms[0] = texture_transform_to_matrix(rotation, scale, offset);
+                        auto tex = gltfModel.textures[index];
+                        auto img_path = std::filesystem::path(basePath) / gltfModel.images[tex.source].uri;
+                        textures.albedo = ResourceManager<asset::Texture>::get().get_resource(img_path.string());
+                        if (tex.extensions.count("KHR_texture_transform"))
+                        {
+                            auto offset_json = tex.extensions["KHR_texture_transform"].Get("offset");
+                            auto scale_json = tex.extensions["KHR_texture_transform"].Get("scale");
+                            auto offset = glm::vec2(offset_json.Get(0).Get<double>(), offset_json.Get(1).Get<double>());
+                            auto scale = glm::vec2(scale_json.Get(0).Get<double>(), scale_json.Get(1).Get<double>());
+                            auto rotation = tex.extensions["KHR_texture_transform"].Get("rotation").Get<double>();
+                            properties.map_transforms[0] = texture_transform_to_matrix(rotation, scale, offset);
+                        }
                     }
                 }
 
                 if(metallicGlossinessWorkflow->second.Has("metallicGlossinessTexture"))
                 {
                     int index           = metallicGlossinessWorkflow->second.Get("metallicGlossinessTexture").Get("index").Get<int>();
-                    auto tex = gltfModel.textures[index];
-                    auto img_path = std::filesystem::path(basePath) / gltfModel.images[tex.source].uri;
-                    textures.metallic  = ResourceManager<asset::Texture>::get().get_resource(img_path.string());
-                    if (tex.extensions.count("KHR_texture_transform"))
+                    if(index >= 0 && index < static_cast<int>(gltfModel.textures.size()) &&
+                        gltfModel.textures[index].source >= 0 && gltfModel.textures[index].source < static_cast<int>(gltfModel.images.size()))
                     {
-                        auto offset_json = tex.extensions["KHR_texture_transform"].Get("offset");
-                        auto scale_json = tex.extensions["KHR_texture_transform"].Get("scale");
-                        auto offset = glm::vec2(offset_json.Get(0).Get<double>(), offset_json.Get(1).Get<double>());
-                        auto scale = glm::vec2(scale_json.Get(0).Get<double>(), scale_json.Get(1).Get<double>());
-                        auto rotation = tex.extensions["KHR_texture_transform"].Get("rotation").Get<double>();
-                        properties.map_transforms[1] = texture_transform_to_matrix(rotation, scale, offset);
+                        auto tex = gltfModel.textures[index];
+                        auto img_path = std::filesystem::path(basePath) / gltfModel.images[tex.source].uri;
+                        textures.metallic  = ResourceManager<asset::Texture>::get().get_resource(img_path.string());
+                        if (tex.extensions.count("KHR_texture_transform"))
+                        {
+                            auto offset_json = tex.extensions["KHR_texture_transform"].Get("offset");
+                            auto scale_json = tex.extensions["KHR_texture_transform"].Get("scale");
+                            auto offset = glm::vec2(offset_json.Get(0).Get<double>(), offset_json.Get(1).Get<double>());
+                            auto scale = glm::vec2(scale_json.Get(0).Get<double>(), scale_json.Get(1).Get<double>());
+                            auto rotation = tex.extensions["KHR_texture_transform"].Get("rotation").Get<double>();
+                            properties.map_transforms[1] = texture_transform_to_matrix(rotation, scale, offset);
+                        }
                     }
                 }
 
@@ -312,7 +416,16 @@ namespace diverse
             std::vector<Vertex> vertices;
             std::vector<AnimVertex> animVertices;
 
-            uint32_t vertexCount = (uint32_t)(primitive.attributes.empty() ? 0 : model.accessors.at(primitive.attributes.at("POSITION")).count);
+            auto positionAttribute = primitive.attributes.find("POSITION");
+            if(positionAttribute == primitive.attributes.end())
+            {
+                DS_LOG_WARN("Skipping glTF primitive without POSITION attribute");
+                continue;
+            }
+
+            uint32_t vertexCount = (uint32_t)model.accessors.at(positionAttribute->second).count;
+            if(vertexCount == 0)
+                continue;
 
             bool hasNormals    = false;
             bool hasTangents   = false;
@@ -342,40 +455,17 @@ namespace diverse
             {
                 // Get accessor info
                 auto& accessor   = model.accessors.at(attribute.second);
-                auto& bufferView = model.bufferViews.at(accessor.bufferView);
-                auto& buffer     = model.buffers.at(bufferView.buffer);
-                // int componentLength       = GLTF_COMPONENT_LENGTH_LOOKUP.at(accessor.type);
-                // int componentTypeByteSize = GLTF_COMPONENT_BYTE_SIZE_LOOKUP.at(accessor.componentType);
-
-                int componentLength       = 0; // GLTF_COMPONENT_LENGTH_LOOKUP.at(indexAccessor.type);
-                int componentTypeByteSize = 0; // GLTF_COMPONENT_BYTE_SIZE_LOOKUP.at(indexAccessor.componentType);
-
-                HashMapFind(&GLTF_COMPONENT_LENGTH_LOOKUP, accessor.type, &componentLength);
-                HashMapFind(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, accessor.componentType, &componentTypeByteSize);
-
-                int stride = accessor.ByteStride(bufferView);
-
-                // Extra vertex data from buffer
-                size_t bufferOffset = bufferView.byteOffset + accessor.byteOffset;
-                int bufferLength    = static_cast<int>(accessor.count) * componentLength * componentTypeByteSize;
-                // auto first                = buffer.data.begin() + bufferOffset;
-                // auto last                 = buffer.data.begin() + bufferOffset + bufferLength;
-
-                std::vector<uint8_t> data = std::vector<uint8_t>();
-                data.resize(bufferLength);
-                uint8_t* arrayData = data.data();
-                memcpy(arrayData, buffer.data.data() + bufferOffset, bufferLength);
 
                 // -------- Position attribute -----------
 
                 if(attribute.first == "POSITION")
                 {
                     size_t positionCount            = accessor.count;
-                    glm::vec3* positions = reinterpret_cast<glm::vec3*>(data.data());
                     //for(auto p = 0; p < positionCount; ++p)
                     parallel_for<size_t>(0, positionCount, [&](size_t p)
                     {
-                        vertices[p].Position = parentTransform.get_world_matrix() * glm::vec4(positions[p],1.0f);
+                        const auto position = ReadAccessorVec4(model, accessor, p, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+                        vertices[p].Position = parentTransform.get_world_matrix() * glm::vec4(glm::vec3(position),1.0f);
                         DS_ASSERT(!glm::isinf(vertices[p].Position.x) && !glm::isinf(vertices[p].Position.y) && !glm::isinf(vertices[p].Position.z) && 
                         !glm::isnan(vertices[p].Position.x) && !glm::isnan(vertices[p].Position.y) && !glm::isnan(vertices[p].Position.z));
                     });
@@ -386,12 +476,12 @@ namespace diverse
                 else if(attribute.first == "NORMAL")
                 {
                     size_t normalCount            = accessor.count;
-                    glm::vec3* normals = reinterpret_cast<glm::vec3*>(data.data());
+                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix())));
                     //for(auto p = 0; p < normalCount; ++p)
                     parallel_for<size_t>(0, normalCount, [&](size_t p)
                     {
-                        glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix())));
-                        vertices[p].Normal = normalMatrix * normals[p];
+                        const auto normal = ReadAccessorVec4(model, accessor, p);
+                        vertices[p].Normal = normalMatrix * glm::vec3(normal);
                         DS_ASSERT(!glm::isinf(vertices[p].Normal.x) && !glm::isinf(vertices[p].Normal.y) && !glm::isinf(vertices[p].Normal.z) && 
                         !glm::isnan(vertices[p].Normal.x) && !glm::isnan(vertices[p].Normal.y) && !glm::isnan(vertices[p].Normal.z));
                     });
@@ -402,10 +492,9 @@ namespace diverse
                 else if(attribute.first == "TEXCOORD_0")
                 {
                     size_t uvCount            = accessor.count;
-                    glm::vec2* uvs = reinterpret_cast<glm::vec2*>(data.data());
                     for(auto p = 0; p < uvCount; ++p)
                     {
-                        vertices[p].TexCoords = uvs[p];
+                        vertices[p].TexCoords = glm::vec2(ReadAccessorVec4(model, accessor, p));
                     }
                 }
 
@@ -414,10 +503,9 @@ namespace diverse
                 else if(attribute.first == "COLOR_0")
                 {
                     size_t uvCount                = accessor.count;
-                    glm::vec4* colours = reinterpret_cast<glm::vec4*>(data.data());
                     for(auto p = 0; p < uvCount; ++p)
                     {
-                        vertices[p].Colours = colours[p];
+                        vertices[p].Colours = ReadAccessorVec4(model, accessor, p, glm::vec4(1.0f));
                     }
                 }
 
@@ -427,10 +515,10 @@ namespace diverse
                 {
                     hasTangents               = true;
                     size_t uvCount            = accessor.count;
-                    glm::vec3* uvs = reinterpret_cast<glm::vec3*>(data.data());
+                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix())));
                     parallel_for<size_t>(0, uvCount, [&](size_t p)
                     {
-                        vertices[p].Tangent = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix()))) * uvs[p];
+                        vertices[p].Tangent = normalMatrix * glm::vec3(ReadAccessorVec4(model, accessor, p));
                         DS_ASSERT(!glm::isinf(vertices[p].Tangent.x) && !glm::isinf(vertices[p].Tangent.y) && !glm::isinf(vertices[p].Tangent.z) && 
                         !glm::isnan(vertices[p].Tangent.x) && !glm::isnan(vertices[p].Tangent.y) && !glm::isnan(vertices[p].Tangent.z));
                     });
@@ -440,11 +528,11 @@ namespace diverse
                 {
                     hasBitangents             = true;
                     size_t uvCount            = accessor.count;
-                    glm::vec3* uvs = reinterpret_cast<glm::vec3*>(data.data());
+                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix())));
                     //for(auto p = 0; p < uvCount; ++p)
                     parallel_for<size_t>(0, uvCount, [&](size_t p)
                     {
-                        vertices[p].Bitangent = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix()))) * uvs[p];
+                        vertices[p].Bitangent = normalMatrix * glm::vec3(ReadAccessorVec4(model, accessor, p));
                         DS_ASSERT(!glm::isinf(vertices[p].Bitangent.x) && !glm::isinf(vertices[p].Bitangent.y) && !glm::isinf(vertices[p].Bitangent.z) && !glm::isnan(vertices[p].Bitangent.x) && !glm::isnan(vertices[p].Bitangent.y) && !glm::isnan(vertices[p].Bitangent.z));
                     });
                 }
@@ -459,43 +547,35 @@ namespace diverse
 
                     if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
                     {
-                        maths::Vector4Simple* weights = reinterpret_cast<maths::Vector4Simple*>(data.data());
                         for(auto p = 0; p < weightCount; ++p)
                         {
-                            animVertices[p].Weights[0] = weights[p].x;
-                            animVertices[p].Weights[1] = weights[p].y;
-                            animVertices[p].Weights[2] = weights[p].z;
-                            animVertices[p].Weights[3] = weights[p].w;
+                            const auto weights = ReadAccessorVec4(model, accessor, p);
+                            animVertices[p].Weights[0] = weights.x;
+                            animVertices[p].Weights[1] = weights.y;
+                            animVertices[p].Weights[2] = weights.z;
+                            animVertices[p].Weights[3] = weights.w;
                         }
                     }
                     else if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
                     {
                         for(auto i = 0; i < weightCount; ++i)
                         {
-                            const uint8_t& x = *(uint8_t*)((size_t)data.data() + i * stride + 0 * sizeof(uint16_t));
-                            const uint8_t& y = *(uint8_t*)((size_t)data.data() + i * stride + 1 * sizeof(uint16_t));
-                            const uint8_t& z = *(uint8_t*)((size_t)data.data() + i * stride + 2 * sizeof(uint16_t));
-                            const uint8_t& w = *(uint8_t*)((size_t)data.data() + i * stride + 3 * sizeof(uint16_t));
-
-                            animVertices[i].Weights[0] = (float)x / 65535.0f;
-                            animVertices[i].Weights[1] = (float)y / 65535.0f;
-                            animVertices[i].Weights[2] = (float)z / 65535.0f;
-                            animVertices[i].Weights[3] = (float)w / 65535.0f;
+                            const auto weights = ReadAccessorVec4(model, accessor, i);
+                            animVertices[i].Weights[0] = weights.x;
+                            animVertices[i].Weights[1] = weights.y;
+                            animVertices[i].Weights[2] = weights.z;
+                            animVertices[i].Weights[3] = weights.w;
                         }
                     }
                     else if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
                     {
                         for(auto i = 0; i < weightCount; ++i)
                         {
-                            const uint8_t& x = *(uint8_t*)((size_t)data.data() + i * stride + 0);
-                            const uint8_t& y = *(uint8_t*)((size_t)data.data() + i * stride + 1);
-                            const uint8_t& z = *(uint8_t*)((size_t)data.data() + i * stride + 2);
-                            const uint8_t& w = *(uint8_t*)((size_t)data.data() + i * stride + 3);
-
-                            animVertices[i].Weights[0] = (float)x / 255.0f;
-                            animVertices[i].Weights[1] = (float)y / 255.0f;
-                            animVertices[i].Weights[2] = (float)z / 255.0f;
-                            animVertices[i].Weights[3] = (float)w / 255.0f;
+                            const auto weights = ReadAccessorVec4(model, accessor, i);
+                            animVertices[i].Weights[0] = weights.x;
+                            animVertices[i].Weights[1] = weights.y;
+                            animVertices[i].Weights[2] = weights.z;
+                            animVertices[i].Weights[3] = weights.w;
                         }
                     }
                     else
@@ -513,48 +593,41 @@ namespace diverse
                     size_t jointCount = accessor.count;
                     if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
                     {
-                        struct JointTmp
-                        {
-                            uint16_t ind[4];
-                        };
-
-                        uint16_t* joints = reinterpret_cast<uint16_t*>(data.data());
                         for(auto p = 0; p < jointCount; ++p)
                         {
-                            const JointTmp& joint = *(const JointTmp*)(data.data() + p * stride);
-
-                            animVertices[p].BoneInfoIndices[0] = (uint32_t)joint.ind[0];
-                            animVertices[p].BoneInfoIndices[1] = (uint32_t)joint.ind[1];
-                            animVertices[p].BoneInfoIndices[2] = (uint32_t)joint.ind[2];
-                            animVertices[p].BoneInfoIndices[3] = (uint32_t)joint.ind[3];
+                            size_t stride = 0;
+                            const auto* data = AccessorElementPtr(model, accessor, p, stride);
+                            if(!data) continue;
+                            animVertices[p].BoneInfoIndices[0] = ReadAccessorUIntComponent(data, accessor.componentType, 0);
+                            animVertices[p].BoneInfoIndices[1] = ReadAccessorUIntComponent(data, accessor.componentType, 1);
+                            animVertices[p].BoneInfoIndices[2] = ReadAccessorUIntComponent(data, accessor.componentType, 2);
+                            animVertices[p].BoneInfoIndices[3] = ReadAccessorUIntComponent(data, accessor.componentType, 3);
                         }
                     }
                     else if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
                     {
-                        uint8_t* joints = reinterpret_cast<uint8_t*>(data.data());
                         for(auto p = 0; p < jointCount; ++p)
                         {
-                            animVertices[p].BoneInfoIndices[0] = (uint32_t)joints[p * 4];
-                            animVertices[p].BoneInfoIndices[1] = (uint32_t)joints[p * 4 + 1];
-                            animVertices[p].BoneInfoIndices[2] = (uint32_t)joints[p * 4 + 2];
-                            animVertices[p].BoneInfoIndices[3] = (uint32_t)joints[p * 4 + 3];
+                            size_t stride = 0;
+                            const auto* data = AccessorElementPtr(model, accessor, p, stride);
+                            if(!data) continue;
+                            animVertices[p].BoneInfoIndices[0] = ReadAccessorUIntComponent(data, accessor.componentType, 0);
+                            animVertices[p].BoneInfoIndices[1] = ReadAccessorUIntComponent(data, accessor.componentType, 1);
+                            animVertices[p].BoneInfoIndices[2] = ReadAccessorUIntComponent(data, accessor.componentType, 2);
+                            animVertices[p].BoneInfoIndices[3] = ReadAccessorUIntComponent(data, accessor.componentType, 3);
                         }
                     }
                     else if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
                     {
-                        struct JointTmp
-                        {
-                            uint32_t ind[4];
-                        };
-
                         for(size_t i = 0; i < jointCount; ++i)
                         {
-                            const JointTmp& joint = *(const JointTmp*)(data.data() + i * stride);
-
-                            animVertices[i].BoneInfoIndices[0] = joint.ind[0];
-                            animVertices[i].BoneInfoIndices[1] = joint.ind[1];
-                            animVertices[i].BoneInfoIndices[2] = joint.ind[2];
-                            animVertices[i].BoneInfoIndices[3] = joint.ind[3];
+                            size_t stride = 0;
+                            const auto* data = AccessorElementPtr(model, accessor, i, stride);
+                            if(!data) continue;
+                            animVertices[i].BoneInfoIndices[0] = ReadAccessorUIntComponent(data, accessor.componentType, 0);
+                            animVertices[i].BoneInfoIndices[1] = ReadAccessorUIntComponent(data, accessor.componentType, 1);
+                            animVertices[i].BoneInfoIndices[2] = ReadAccessorUIntComponent(data, accessor.componentType, 2);
+                            animVertices[i].BoneInfoIndices[3] = ReadAccessorUIntComponent(data, accessor.componentType, 3);
                         }
                     }
                     else
@@ -571,54 +644,17 @@ namespace diverse
                 const tinygltf::Accessor& indicesAccessor = model.accessors[primitive.indices];
                 indices.resize(indicesAccessor.count);
                 {
-                    // Get accessor info
-                    auto indexAccessor   = model.accessors.at(primitive.indices);
-                    auto indexBufferView = model.bufferViews.at(indexAccessor.bufferView);
-                    auto indexBuffer     = model.buffers.at(indexBufferView.buffer);
-
-                    int componentLength       = 0; // GLTF_COMPONENT_LENGTH_LOOKUP.at(indexAccessor.type);
-                    int componentTypeByteSize = 0; // GLTF_COMPONENT_BYTE_SIZE_LOOKUP.at(indexAccessor.componentType);
-
-                    HashMapFind(&GLTF_COMPONENT_LENGTH_LOOKUP, indexAccessor.type, &componentLength);
-                    HashMapFind(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, indexAccessor.componentType, &componentTypeByteSize);
-
-                    // Extra index data
-                    size_t bufferOffset = indexBufferView.byteOffset + indexAccessor.byteOffset;
-                    int bufferLength    = static_cast<int>(indexAccessor.count) * componentLength * componentTypeByteSize;
-       
-                    std::vector<uint8_t> data = std::vector<uint8_t>();
-                    data.resize(bufferLength);
-                    uint8_t* arrayData = data.data();
-                    MemoryCopy(arrayData, indexBuffer.data.data() + bufferOffset, bufferLength);
-
-                    size_t indicesCount = indexAccessor.count;
-                    if(componentTypeByteSize == 1)
+                    size_t indicesCount = indicesAccessor.count;
+                    for(size_t iCount = 0; iCount < indicesCount; iCount++)
                     {
-                        uint8_t* in = reinterpret_cast<uint8_t*>(data.data());
-                        for(auto iCount = 0; iCount < indicesCount; iCount++)
+                        size_t stride = 0;
+                        const auto* data = AccessorElementPtr(model, indicesAccessor, iCount, stride);
+                        if(!data)
                         {
-                            indices[iCount] = (uint32_t)in[iCount];
+                            indices.resize(iCount);
+                            break;
                         }
-                    }
-                    else if(componentTypeByteSize == 2)
-                    {
-                        uint16_t* in = reinterpret_cast<uint16_t*>(data.data());
-                        for(auto iCount = 0; iCount < indicesCount; iCount++)
-                        {
-                            indices[iCount] = (uint32_t)in[iCount];
-                        }
-                    }
-                    else if(componentTypeByteSize == 4)
-                    {
-                        auto in = reinterpret_cast<uint32_t*>(data.data());
-                        for(auto iCount = 0; iCount < indicesCount; iCount++)
-                        {
-                            indices[iCount] = in[iCount];
-                        }
-                    }
-                    else
-                    {
-                        DS_LOG_WARN("Unsupported indices data type - {}", componentTypeByteSize);
+                        indices[iCount] = ReadAccessorUIntComponent(data, indicesAccessor.componentType, 0);
                     }
                 }
             }
@@ -626,7 +662,7 @@ namespace diverse
             {
                 DS_LOG_WARN("Missing Indices - Generating new");
 
-                const auto& accessor = model.accessors[primitive.attributes.find("POSITION")->second];
+                const auto& accessor = model.accessors[positionAttribute->second];
                 indices.reserve(accessor.count);
                 //                for (auto i = 0; i < accessor.count; i++)
                 //                       indices.push_back(i);
@@ -638,6 +674,26 @@ namespace diverse
                     indices.push_back(uint32_t(vi + 2));
                 }
             }
+            if(indices.size() < 3)
+                continue;
+
+            std::vector<uint32_t> validIndices;
+            validIndices.reserve(indices.size());
+            for(size_t index = 0; index + 2 < indices.size(); index += 3)
+            {
+                const auto i0 = indices[index + 0];
+                const auto i1 = indices[index + 1];
+                const auto i2 = indices[index + 2];
+                if(i0 < vertices.size() && i1 < vertices.size() && i2 < vertices.size())
+                {
+                    validIndices.push_back(i0);
+                    validIndices.push_back(i1);
+                    validIndices.push_back(i2);
+                }
+            }
+            indices.swap(validIndices);
+            if(indices.empty())
+                continue;
 
             if(!hasNormals)
                 Mesh::generate_normals(vertices.data(), uint32_t(vertices.size()), indices.data(), uint32_t(indices.size()));
@@ -787,67 +843,70 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
 
-        if(!HashMapsInitialised)
         {
-            HashMapInit(&GLTF_COMPONENT_LENGTH_LOOKUP);
-            HashMapInit(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP);
-
-            int key   = (int)TINYGLTF_TYPE_SCALAR;
-            int value = 1;
+            std::lock_guard hashMapLock(GLTFHashMapMutex);
+            if(!HashMapsInitialised)
             {
-                HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
-                key   = (int)TINYGLTF_TYPE_VEC2;
-                value = 2;
-                HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+                HashMapInit(&GLTF_COMPONENT_LENGTH_LOOKUP);
+                HashMapInit(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP);
 
-                key   = (int)TINYGLTF_TYPE_VEC3;
-                value = 3;
-                HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+                int key   = (int)TINYGLTF_TYPE_SCALAR;
+                int value = 1;
+                {
+                    HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+                    key   = (int)TINYGLTF_TYPE_VEC2;
+                    value = 2;
+                    HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
 
-                key   = (int)TINYGLTF_TYPE_VEC4;
-                value = 4;
-                HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+                    key   = (int)TINYGLTF_TYPE_VEC3;
+                    value = 3;
+                    HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
 
-                key   = (int)TINYGLTF_TYPE_MAT2;
-                value = 4;
-                HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+                    key   = (int)TINYGLTF_TYPE_VEC4;
+                    value = 4;
+                    HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
 
-                key   = (int)TINYGLTF_TYPE_MAT3;
-                value = 9;
-                HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+                    key   = (int)TINYGLTF_TYPE_MAT2;
+                    value = 4;
+                    HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
 
-                key   = (int)TINYGLTF_TYPE_MAT4;
-                value = 16;
-                HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+                    key   = (int)TINYGLTF_TYPE_MAT3;
+                    value = 9;
+                    HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+
+                    key   = (int)TINYGLTF_TYPE_MAT4;
+                    value = 16;
+                    HashMapInsert(&GLTF_COMPONENT_LENGTH_LOOKUP, key, value);
+                }
+
+                {
+                    key   = (int)TINYGLTF_COMPONENT_TYPE_BYTE;
+                    value = 1;
+                    HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
+
+                    key   = (int)TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+                    value = 1;
+                    HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
+
+                    key   = (int)TINYGLTF_COMPONENT_TYPE_SHORT;
+                    value = 2;
+                    HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
+
+                    key   = (int)TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
+                    value = 2;
+                    HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
+
+                    key   = (int)TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+                    value = 4;
+                    HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
+
+                    key   = (int)TINYGLTF_COMPONENT_TYPE_FLOAT;
+                    value = 4;
+                    HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
+                }
+
+                HashMapsInitialised = true;
             }
-
-            {
-                key   = (int)TINYGLTF_COMPONENT_TYPE_BYTE;
-                value = 1;
-                HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
-
-                key   = (int)TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
-                value = 1;
-                HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
-
-                key   = (int)TINYGLTF_COMPONENT_TYPE_SHORT;
-                value = 2;
-                HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
-
-                key   = (int)TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
-                value = 2;
-                HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
-
-                key   = (int)TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
-                value = 4;
-                HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
-
-                key   = (int)TINYGLTF_COMPONENT_TYPE_FLOAT;
-                value = 4;
-                HashMapInsert(&GLTF_COMPONENT_BYTE_SIZE_LOOKUP, key, value);
-            }
-
-            HashMapsInitialised = true;
         }
 
         tinygltf::Model model;

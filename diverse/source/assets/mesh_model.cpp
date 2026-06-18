@@ -76,30 +76,51 @@ namespace diverse
     void MeshModel::load_model(const std::string& path)
     {
         DS_PROFILE_FUNCTION();
+        set_flag(AssetFlag::Loaded, false);
+        set_flag(AssetFlag::UploadedGpu, false);
+        set_flag(AssetFlag::Invalid, false);
+        meshes.clear();
+        local_bounding_box.clear();
         file_path = path;
         std::string physicalPath;
         if (!diverse::FileSystem::get().resolve_physical_path(path, physicalPath))
         {
             DS_LOG_INFO("Failed to load MeshModel - {0}", path);
+            set_flag(AssetFlag::Invalid);
             return;
         }
 
         std::string resolvedPath = physicalPath;
 
-        const std::string fileExtension = stringutility::get_file_extension(path);
+        const std::string fileExtension = stringutility::to_lower(stringutility::get_file_extension(path));
         bool ret = false;
-        if (fileExtension == "obj")
-            ret = load_obj(resolvedPath);
-        else if (fileExtension == "gltf" || fileExtension == "glb")
-            ret = load_gltf(resolvedPath);
-        else if (fileExtension == "fbx" || fileExtension == "FBX")
-            ret = load_fbx(resolvedPath);
-        else if(fileExtension == "ply")
-            ret = load_ply(resolvedPath);
-        else
-            DS_LOG_ERROR("Unsupported File Type : {0}", fileExtension);
+        try
+        {
+            if (fileExtension == "obj")
+                ret = load_obj(resolvedPath);
+            else if (fileExtension == "gltf" || fileExtension == "glb")
+                ret = load_gltf(resolvedPath);
+            else if (fileExtension == "fbx")
+                ret = load_fbx(resolvedPath);
+            else if(fileExtension == "ply")
+                ret = load_ply(resolvedPath);
+            else
+                DS_LOG_ERROR("Unsupported File Type : {0}", fileExtension);
+        }
+        catch (const std::exception& e)
+        {
+            DS_LOG_ERROR("Failed to load MeshModel '{}': {}", path, e.what());
+            ret = false;
+        }
         if (!ret)
         {
+            meshes.clear();
+            set_flag(AssetFlag::Invalid);
+            return;
+        }
+        if (meshes.empty())
+        {
+            DS_LOG_ERROR("MeshModel '{}' contains no renderable meshes", path);
             set_flag(AssetFlag::Invalid);
             return;
         }

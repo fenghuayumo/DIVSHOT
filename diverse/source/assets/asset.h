@@ -1,6 +1,7 @@
 #pragma once
 #include "core/core.h"
 #include "core/uuid.h"
+#include <atomic>
 
 #define SET_ASSET_TYPE(type)                        \
     static AssetType get_static_type()                \
@@ -45,14 +46,51 @@ namespace diverse
     class Asset
     {
     public:
-        uint16_t flags = (uint16_t)AssetFlag::None;
+        std::atomic<uint16_t> flags = (uint16_t)AssetFlag::None;
+
+        Asset() = default;
+        Asset(const Asset& other)
+            : flags(other.flags.load(std::memory_order_acquire))
+            , handle(other.handle)
+        {
+        }
+
+        Asset(Asset&& other) noexcept
+            : flags(other.flags.load(std::memory_order_acquire))
+            , handle(other.handle)
+        {
+        }
+
+        Asset& operator=(const Asset& other)
+        {
+            if(this != &other)
+            {
+                flags.store(other.flags.load(std::memory_order_acquire), std::memory_order_release);
+                handle = other.handle;
+            }
+            return *this;
+        }
+
+        Asset& operator=(Asset&& other) noexcept
+        {
+            if(this != &other)
+            {
+                flags.store(other.flags.load(std::memory_order_acquire), std::memory_order_release);
+                handle = other.handle;
+            }
+            return *this;
+        }
 
         virtual ~Asset() { }
 
         static AssetType get_static_type() { return AssetType::None; }
         virtual AssetType get_asset_type() const { return AssetType::None; }
 
-        bool is_valid() const { return ((flags & (uint16_t)AssetFlag::Missing) | (flags & (uint16_t)AssetFlag::Invalid)) == 0; }
+        bool is_valid() const
+        {
+            const auto currentFlags = flags.load(std::memory_order_acquire);
+            return ((currentFlags & (uint16_t)AssetFlag::Missing) | (currentFlags & (uint16_t)AssetFlag::Invalid)) == 0;
+        }
 
         virtual bool operator==(const Asset& other) const
         {
@@ -64,13 +102,13 @@ namespace diverse
             return !(*this == other);
         }
 
-        bool is_flag_set(AssetFlag flag) const { return (uint16_t)flag & flags; }
+        bool is_flag_set(AssetFlag flag) const { return (flags.load(std::memory_order_acquire) & (uint16_t)flag) != 0; }
         void set_flag(AssetFlag flag, bool value = true)
         {
             if(value)
-                flags |= (uint16_t)flag;
+                flags.fetch_or((uint16_t)flag, std::memory_order_release);
             else
-                flags &= ~(uint16_t)flag;
+                flags.fetch_and((uint16_t)~(uint16_t)flag, std::memory_order_release);
         }
 
         UUID handle;
