@@ -1,6 +1,11 @@
 #pragma once
 #include "graph.h"
 #include "temporal.h"
+#include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
 
 namespace diverse
 {
@@ -70,6 +75,9 @@ namespace diverse
 					TemporalGraph& rg,
 					rhi::Swapchain* swapchain) -> RecordedRhiFrame;
 			auto submit_recorded_frame(const RecordedRhiFrame& frame) -> void;
+			auto start_rhi_thread() -> void;
+			auto stop_rhi_thread() -> void;
+			auto wait_for_rhi_idle() -> void;
 
 			auto prepare_frame(TemporalGraph& rg, std::function<void(TemporalGraph&)> prepare_frame_graph) -> void;
 
@@ -79,6 +87,17 @@ namespace diverse
 			//auto clear_transient_resources() -> void;
 			auto clear_resources()->void;
 			auto refresh_shaders()->void;
+		private:
+			auto rhi_thread_main() -> void;
+			auto submit_recorded_frame_immediate(const RecordedRhiFrame& frame) -> void;
+
+			std::thread rhi_thread;
+			std::mutex rhi_thread_mutex;
+			std::condition_variable rhi_thread_cv;
+			std::deque<RecordedRhiFrame> pending_rhi_frames;
+			std::atomic_bool rhi_thread_running = false;
+			bool rhi_thread_stop_requested = false;
+			bool rhi_thread_busy = false;
 		};
 	}
 }

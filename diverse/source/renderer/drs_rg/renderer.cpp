@@ -31,10 +31,12 @@ namespace diverse
 
 
             frame_descriptor_set = device->create_descriptor_set(dynamic_constants.buffer.get(), FRAME_CONSTANTS_LAYOUT,"frame_render_set");
+            start_rhi_thread();
         }
 
         Renderer::~Renderer()
         {
+            stop_rhi_thread();
         }
 
         auto RhiSubmitter::submit_and_present(const RecordedRhiFrame& frame) -> void
@@ -66,7 +68,6 @@ namespace diverse
             rg.release_resources(transient_resource_cache);
 
             dynamic_constants.advance_frame();
-            rhi_submitter.retire_frame(recorded_frame.device_frame);
             current_frame = nullptr;
             frame_alloctor().free();
         }
@@ -76,7 +77,10 @@ namespace diverse
         {
             threading::assert_render_thread();
             if (!current_frame)
+            {
+                wait_for_rhi_idle();
                 current_frame = device->begin_frame();
+            }
             for (auto cb : {current_frame->main_cmd_buf, current_frame->presentation_cmd_buf }) {
                 cb->begin();
             }
@@ -117,13 +121,120 @@ namespace diverse
 
         auto Renderer::submit_recorded_frame(const RecordedRhiFrame& frame) -> void
         {
+            if (!frame.device_frame)
+                return;
+
+            if (!rhi_thread_running.load(std::memory_order_acquire))
+            {
+                submit_recorded_frame_immediate(frame);
+                return;
+            }
+
+            {
+                std::lock_guard lock(rhi_thread_mutex);
+                pending_rhi_frames.push_back(frame);
+            }
+            rhi_thread_cv.notify_one();
+        }
+
+        auto Renderer::submit_recorded_frame_immediate(const RecordedRhiFrame& frame) -> void
+        {
             rhi_submitter.submit_and_present(frame);
+            rhi_submitter.retire_frame(frame.device_frame);
+        }
+
+        auto Renderer::start_rhi_thread() -> void
+        {
+            if (rhi_thread_running.load(std::memory_order_acquire))
+                return;
+
+            {
+                std::lock_guard lock(rhi_thread_mutex);
+                rhi_thread_stop_requested = false;
+                rhi_thread_busy = false;
+                pending_rhi_frames.clear();
+            }
+
+            rhi_thread_running.store(true, std::memory_order_release);
+            rhi_thread = std::thread([this]() {
+                rhi_thread_main();
+            });
+        }
+
+        auto Renderer::stop_rhi_thread() -> void
+        {
+            if (!rhi_thread_running.load(std::memory_order_acquire) && !rhi_thread.joinable())
+                return;
+
+            if (threading::is_rhi_thread())
+                return;
+
+            {
+                std::lock_guard lock(rhi_thread_mutex);
+                rhi_thread_stop_requested = true;
+            }
+            rhi_thread_cv.notify_all();
+
+            if (rhi_thread.joinable())
+                rhi_thread.join();
+        }
+
+        auto Renderer::wait_for_rhi_idle() -> void
+        {
+            if (!rhi_thread_running.load(std::memory_order_acquire) || threading::is_rhi_thread())
+                return;
+
+            std::unique_lock lock(rhi_thread_mutex);
+            rhi_thread_cv.wait(lock, [this]() {
+                return pending_rhi_frames.empty() && !rhi_thread_busy;
+            });
+        }
+
+        auto Renderer::rhi_thread_main() -> void
+        {
+            threading::mark_rhi_thread();
+
+            for (;;)
+            {
+                RecordedRhiFrame frame;
+                {
+                    std::unique_lock lock(rhi_thread_mutex);
+                    rhi_thread_cv.wait(lock, [this]() {
+                        return rhi_thread_stop_requested || !pending_rhi_frames.empty();
+                    });
+
+                    if (rhi_thread_stop_requested && pending_rhi_frames.empty())
+                        break;
+
+                    frame = std::move(pending_rhi_frames.front());
+                    pending_rhi_frames.pop_front();
+                    rhi_thread_busy = true;
+                }
+
+                submit_recorded_frame_immediate(frame);
+
+                {
+                    std::lock_guard lock(rhi_thread_mutex);
+                    rhi_thread_busy = false;
+                }
+                rhi_thread_cv.notify_all();
+            }
+
+            {
+                std::lock_guard lock(rhi_thread_mutex);
+                rhi_thread_busy = false;
+                rhi_thread_running.store(false, std::memory_order_release);
+            }
+            rhi_thread_cv.notify_all();
         }
 
         auto Renderer::prepare_frame_constants(TemporalGraph& rg,std::function<FrameConstantsLayout(rhi::DynamicConstants&)> prepare_frame_constants) -> void
         {
             if (!current_frame)
+            {
+                wait_for_rhi_idle();
                 current_frame = device->begin_frame();
+            }
             frame_constants_layout = prepare_frame_constants(dynamic_constants);
             register_render_graph(rg);
         }
@@ -201,6 +312,7 @@ namespace diverse
 
         auto Renderer::clear_resources() -> void
         {
+            wait_for_rhi_idle();
             temporal_rg_state.resources.clear();
             transient_resource_cache.clear_resource();
         }

@@ -722,11 +722,15 @@ namespace diverse
 					pending_render_commands.empty() &&
 					!render_thread_busy;
 			});
+			if (rg_renderer)
+				rg_renderer->wait_for_rhi_idle();
 			return;
 		}
 
 		threading::assert_render_thread();
 		flush_render_commands();
+		if (rg_renderer)
+			rg_renderer->wait_for_rhi_idle();
 		retire_deferred_releases(true);
 	}
 
