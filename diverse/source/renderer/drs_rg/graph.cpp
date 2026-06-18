@@ -4,10 +4,166 @@
 #include "core/ds_log.h"
 #include <algorithm>
 #include <optional>
+#include <sstream>
 namespace diverse
 {
     namespace rg
     {
+        namespace
+        {
+            auto pass_kind_name(PassKind kind) -> const char*
+            {
+                switch (kind)
+                {
+                case PassKind::Custom:
+                    return "Custom";
+                case PassKind::Compute:
+                    return "Compute";
+                case PassKind::Raster:
+                    return "Raster";
+                case PassKind::RayTracing:
+                    return "RayTracing";
+                case PassKind::MeshShader:
+                    return "MeshShader";
+                case PassKind::Transfer:
+                    return "Transfer";
+                case PassKind::Present:
+                    return "Present";
+                default:
+                    return "Unknown";
+                }
+            }
+
+            auto pass_queue_name(PassQueue queue) -> const char*
+            {
+                switch (queue)
+                {
+                case PassQueue::Graphics:
+                    return "Graphics";
+                case PassQueue::AsyncCompute:
+                    return "AsyncCompute";
+                case PassQueue::Transfer:
+                    return "Transfer";
+                default:
+                    return "Unknown";
+                }
+            }
+
+            auto pass_execution_stage_name(PassExecutionStage stage) -> const char*
+            {
+                switch (stage)
+                {
+                case PassExecutionStage::Main:
+                    return "Main";
+                case PassExecutionStage::Presentation:
+                    return "Presentation";
+                default:
+                    return "Unknown";
+                }
+            }
+
+            auto resource_type_name(const GraphResourceInfo& resource) -> const char*
+            {
+                if (resource.ty == GraphResourceInfo::Type::Created)
+                {
+                    const auto& create_info = resource.graph_resource_create_info();
+                    switch (create_info.desc.ty)
+                    {
+                    case GraphResourceDesc::Type::Image:
+                        return "CreatedImage";
+                    case GraphResourceDesc::Type::Buffer:
+                        return "CreatedBuffer";
+                    case GraphResourceDesc::Type::RayTracingAcceleration:
+                        return "CreatedRayTracingAcceleration";
+                    default:
+                        return "CreatedUnknown";
+                    }
+                }
+
+                const auto& import_info = resource.graph_resource_import_info();
+                switch (import_info.ty)
+                {
+                case GraphResourceImportInfo::Type::Image:
+                    return "ImportedImage";
+                case GraphResourceImportInfo::Type::Buffer:
+                    return "ImportedBuffer";
+                case GraphResourceImportInfo::Type::RayTracingAcceleration:
+                    return "ImportedRayTracingAcceleration";
+                case GraphResourceImportInfo::Type::SwapchainImage:
+                    return "SwapchainImage";
+                default:
+                    return "ImportedUnknown";
+                }
+            }
+
+            auto resource_label(const std::vector<GraphResourceInfo>& resources, uint32 resource_id) -> std::string
+            {
+                std::ostringstream out;
+                out << "r" << resource_id;
+                if (resource_id >= resources.size())
+                    return out.str();
+
+                const auto& resource = resources[resource_id];
+                out << " " << resource_type_name(resource);
+                if (resource.ty == GraphResourceInfo::Type::Created)
+                {
+                    const auto& create_info = resource.graph_resource_create_info();
+                    if (!create_info.name.empty())
+                        out << " \"" << create_info.name << "\"";
+                }
+                return out.str();
+            }
+
+            auto dot_escape(const std::string& input) -> std::string
+            {
+                std::string escaped;
+                escaped.reserve(input.size());
+                for (const auto ch : input)
+                {
+                    switch (ch)
+                    {
+                    case '\\':
+                        escaped += "\\\\";
+                        break;
+                    case '"':
+                        escaped += "\\\"";
+                        break;
+                    case '\n':
+                    case '\r':
+                        escaped += "\\n";
+                        break;
+                    default:
+                        escaped += ch;
+                        break;
+                    }
+                }
+                return escaped;
+            }
+
+            auto pass_stage_for_schedule(const PassSchedule& schedule, uint32 pass_index) -> PassExecutionStage
+            {
+                return pass_index < schedule.first_presentation_pass ? PassExecutionStage::Main : PassExecutionStage::Presentation;
+            }
+
+            auto pass_fill_color(PassQueue queue, PassExecutionStage stage) -> const char*
+            {
+                if (stage == PassExecutionStage::Presentation)
+                    return "#f7e6a6";
+
+                switch (queue)
+                {
+                case PassQueue::Graphics:
+                    return "#dbeafe";
+                case PassQueue::AsyncCompute:
+                    return "#dcfce7";
+                case PassQueue::Transfer:
+                    return "#f1f5f9";
+                default:
+                    return "#ffffff";
+                }
+            }
+        }
+
         
         auto frame_alloctor() -> FrameAllocator&
         {
@@ -492,6 +648,125 @@ namespace diverse
             current_batch.ordered_end = static_cast<uint32>(scheduled_passes.size());
             batches.push_back(current_batch);
             return batches;
+        }
+
+        auto RenderGraph::dump_schedule_text() const -> std::string
+        {
+            const auto schedule = pass_schedule.ordered_passes.empty() && !passes.empty()
+                ? build_pass_schedule()
+                : pass_schedule;
+
+            std::ostringstream out;
+            out << "RenderGraph dump\n";
+            out << "passes: " << passes.size()
+                << ", resources: " << resources.size()
+                << ", dependencies: " << schedule.dependencies.size()
+                << ", first_presentation_pass: " << schedule.first_presentation_pass << "\n";
+
+            out << "\nordered passes:\n";
+            for (auto ordered_idx = 0u; ordered_idx < schedule.ordered_passes.size(); ordered_idx++)
+            {
+                const auto& scheduled_pass = schedule.ordered_passes[ordered_idx];
+                const auto& pass = passes[scheduled_pass.pass_index];
+                const auto stage = pass_stage_for_schedule(schedule, scheduled_pass.pass_index);
+                out << "  [" << ordered_idx << "] p" << scheduled_pass.pass_index
+                    << " \"" << pass.name << "\""
+                    << " kind=" << pass_kind_name(pass.scheduling.kind)
+                    << " queue=" << pass_queue_name(pass.scheduling.queue)
+                    << " stage=" << pass_execution_stage_name(stage)
+                    << " level=" << scheduled_pass.dependency_level
+                    << " parallel_hint=" << (pass.scheduling.parallel_recording_hint ? "true" : "false")
+                    << "\n";
+
+                if (!pass.read.empty())
+                {
+                    out << "    reads:";
+                    for (const auto& access : pass.read)
+                        out << " " << resource_label(resources, access.handle.id);
+                    out << "\n";
+                }
+
+                if (!pass.write.empty())
+                {
+                    out << "    writes:";
+                    for (const auto& access : pass.write)
+                        out << " " << resource_label(resources, access.handle.id);
+                    out << "\n";
+                }
+            }
+
+            out << "\nbatches:\n";
+            for (auto batch_idx = 0u; batch_idx < schedule.batches.size(); batch_idx++)
+            {
+                const auto& batch = schedule.batches[batch_idx];
+                out << "  [" << batch_idx << "]"
+                    << " stage=" << pass_execution_stage_name(batch.stage)
+                    << " queue=" << pass_queue_name(batch.queue)
+                    << " level=" << batch.dependency_level
+                    << " ordered_range=[" << batch.ordered_begin << ", " << batch.ordered_end << ")"
+                    << " parallel_hint=" << (batch.parallel_recording_hint ? "true" : "false")
+                    << "\n";
+            }
+
+            out << "\nqueue ranges:\n";
+            for (auto range_idx = 0u; range_idx < schedule.queue_ranges.size(); range_idx++)
+            {
+                const auto& range = schedule.queue_ranges[range_idx];
+                out << "  [" << range_idx << "]"
+                    << " queue=" << pass_queue_name(range.queue)
+                    << " ordered_range=[" << range.begin << ", " << range.end << ")"
+                    << " parallel_hint=" << (range.parallel_recording_hint ? "true" : "false")
+                    << "\n";
+            }
+
+            out << "\ndependencies:\n";
+            for (const auto& edge : schedule.dependencies)
+            {
+                out << "  p" << edge.from << " -> p" << edge.to
+                    << " via " << resource_label(resources, edge.resource_id)
+                    << "\n";
+            }
+
+            return out.str();
+        }
+
+        auto RenderGraph::dump_schedule_dot() const -> std::string
+        {
+            const auto schedule = pass_schedule.ordered_passes.empty() && !passes.empty()
+                ? build_pass_schedule()
+                : pass_schedule;
+
+            std::ostringstream out;
+            out << "digraph RenderGraph {\n";
+            out << "  rankdir=LR;\n";
+            out << "  graph [fontname=\"Consolas\"];\n";
+            out << "  node [shape=box, style=\"rounded,filled\", fontname=\"Consolas\", fontsize=10];\n";
+            out << "  edge [fontname=\"Consolas\", fontsize=9];\n";
+
+            for (const auto& scheduled_pass : schedule.ordered_passes)
+            {
+                const auto& pass = passes[scheduled_pass.pass_index];
+                const auto stage = pass_stage_for_schedule(schedule, scheduled_pass.pass_index);
+                std::ostringstream label;
+                label << "p" << scheduled_pass.pass_index << ": " << pass.name << "\n"
+                    << pass_kind_name(pass.scheduling.kind)
+                    << " / " << pass_queue_name(pass.scheduling.queue)
+                    << " / L" << scheduled_pass.dependency_level << "\n"
+                    << pass_execution_stage_name(stage);
+
+                out << "  p" << scheduled_pass.pass_index
+                    << " [label=\"" << dot_escape(label.str()) << "\""
+                    << ", fillcolor=\"" << pass_fill_color(pass.scheduling.queue, stage) << "\"];\n";
+            }
+
+            for (const auto& edge : schedule.dependencies)
+            {
+                out << "  p" << edge.from << " -> p" << edge.to
+                    << " [label=\"" << dot_escape(resource_label(resources, edge.resource_id)) << "\"];\n";
+            }
+
+            out << "}\n";
+            return out.str();
         }
 
         auto RenderGraph::compile(rhi::PipelineCache& pipeline_cache) -> void

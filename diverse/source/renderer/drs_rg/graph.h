@@ -5,6 +5,7 @@
 #include "transient_resource_cache.h"
 #include "core/frame_alloctor.h"
 #include <deque>
+#include <string>
 
 namespace diverse
 {
@@ -127,6 +128,8 @@ namespace diverse
             auto build_pass_queue_ranges(const std::vector<ScheduledPass>& scheduled_passes) const -> std::vector<PassQueueRange>;
             auto build_pass_execution_batches(const std::vector<ScheduledPass>& scheduled_passes, uint32 first_presentation_pass) const -> std::vector<PassExecutionBatch>;
             auto find_first_presentation_pass() const -> uint32;
+            auto dump_schedule_text() const -> std::string;
+            auto dump_schedule_dot() const -> std::string;
 
             template<typename Res>
                 requires std::derived_from<Res, rhi::GpuResource>

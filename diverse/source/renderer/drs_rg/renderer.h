@@ -2,9 +2,11 @@
 #include "graph.h"
 #include "temporal.h"
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <string>
 #include <thread>
 
 namespace diverse
@@ -49,6 +51,35 @@ namespace diverse
 			rhi::SwapchainImage swapchain_image = {};
 			std::shared_ptr<FrameSyncPoint> accepted_sync;
 			std::shared_ptr<FrameSyncPoint> submitted_sync;
+			std::chrono::steady_clock::time_point record_begin_time = {};
+			std::chrono::steady_clock::time_point record_end_time = {};
+			std::chrono::steady_clock::time_point enqueue_time = {};
+			uint64 debug_frame_index = 0;
+		};
+
+		struct RhiThreadProfileSnapshot
+		{
+			uint64 enqueued_frames = 0;
+			uint64 submitted_frames = 0;
+			uint64 completed_frames = 0;
+			uint32 pending_frames = 0;
+			uint32 max_pending_frames = 0;
+			double last_record_ms = 0.0;
+			double last_queue_wait_ms = 0.0;
+			double last_submit_ms = 0.0;
+			double last_frame_latency_ms = 0.0;
+			double average_record_ms = 0.0;
+			double average_queue_wait_ms = 0.0;
+			double average_submit_ms = 0.0;
+			double average_frame_latency_ms = 0.0;
+		};
+
+		struct RhiThreadDebugConfig
+		{
+			uint32 render_graph_dump_every_n_frames = 0;
+			uint32 rhi_profile_log_every_n_frames = 0;
+			bool render_graph_dump_dot = false;
+			std::string render_graph_dump_directory = "render_debug";
 		};
 
 		struct RhiSubmitter
@@ -92,6 +123,7 @@ namespace diverse
 			auto start_rhi_thread() -> void;
 			auto stop_rhi_thread() -> void;
 			auto wait_for_rhi_idle() -> void;
+			auto get_rhi_thread_profile() const -> RhiThreadProfileSnapshot;
 
 			auto prepare_frame(TemporalGraph& rg, std::function<void(TemporalGraph&)> prepare_frame_graph) -> void;
 
@@ -105,6 +137,15 @@ namespace diverse
 			auto begin_record_frame() -> void;
 			auto rhi_thread_main() -> void;
 			auto submit_recorded_frame_immediate(const RecordedRhiFrame& frame) -> void;
+			auto load_debug_config_from_environment() -> void;
+			auto dump_render_graph_debug(TemporalGraph& rg) -> void;
+			auto note_rhi_frame_enqueued(uint32 pending_frames) -> void;
+			auto update_rhi_queue_depth(uint32 pending_frames) -> void;
+			auto note_rhi_frame_completed(
+				const RecordedRhiFrame& frame,
+				std::chrono::steady_clock::time_point submit_begin_time,
+				std::chrono::steady_clock::time_point submit_end_time) -> RhiThreadProfileSnapshot;
+			auto log_rhi_profile_if_needed(const RhiThreadProfileSnapshot& profile) const -> void;
 
 			std::thread rhi_thread;
 			std::mutex rhi_thread_mutex;
@@ -118,6 +159,15 @@ namespace diverse
 			std::shared_ptr<FrameSyncPoint> current_frame_accepted_sync;
 			std::shared_ptr<FrameSyncPoint> current_frame_submitted_sync;
 			uint32 current_frame_slot = 0;
+			RhiThreadDebugConfig debug_config;
+			mutable std::mutex rhi_profile_mutex;
+			RhiThreadProfileSnapshot rhi_profile;
+			double total_record_ms = 0.0;
+			double total_queue_wait_ms = 0.0;
+			double total_submit_ms = 0.0;
+			double total_frame_latency_ms = 0.0;
+			uint64 render_graph_debug_frame_index = 0;
+			uint64 rhi_debug_frame_index = 0;
 		};
 	}
 }
