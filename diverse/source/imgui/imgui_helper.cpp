@@ -22,6 +22,81 @@ namespace diverse
     static char s_LabelIDBuffer[1024];
     static int s_UIContextID = 0;
 
+    namespace
+    {
+        ImVec4 GetTransformAxisColor(int axis)
+        {
+            switch (axis)
+            {
+            case 0: return ImVec4(0.90f, 0.12f, 0.12f, 1.0f);
+            case 1: return ImVec4(0.24f, 0.66f, 0.28f, 1.0f);
+            default: return ImVec4(0.08f, 0.38f, 0.86f, 1.0f);
+            }
+        }
+
+        bool DrawTransformAxisField(const char* axisLabel, int axis, float& value, float resetValue, float width)
+        {
+            ImGui::PushID(axisLabel);
+
+            const ImGuiStyle& style = ImGui::GetStyle();
+            const float frameHeight = ImGui::GetFrameHeight();
+            const float axisWidth = (frameHeight * 0.95f) < (width * 0.26f) ? (frameHeight * 0.95f) : (width * 0.26f);
+            const float clampedAxisWidth = axisWidth > 16.0f ? axisWidth : 16.0f;
+            const float valueWidth = (width - clampedAxisWidth) > 24.0f ? (width - clampedAxisWidth) : 24.0f;
+
+            const ImVec2 axisMin = ImGui::GetCursorScreenPos();
+            const ImVec2 axisSize(clampedAxisWidth, frameHeight);
+            const bool resetClicked = ImGui::InvisibleButton("##axisReset", axisSize);
+            if (resetClicked)
+                value = resetValue;
+
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
+            const ImVec4 axisColor = GetTransformAxisColor(axis);
+            const ImVec4 axisDisplayColor = ImGui::IsItemActive()
+                ? ImVec4(axisColor.x * 1.35f > 1.0f ? 1.0f : axisColor.x * 1.35f,
+                    axisColor.y * 1.35f > 1.0f ? 1.0f : axisColor.y * 1.35f,
+                    axisColor.z * 1.35f > 1.0f ? 1.0f : axisColor.z * 1.35f,
+                    1.0f)
+                : ImGui::IsItemHovered()
+                    ? ImVec4(axisColor.x * 1.18f > 1.0f ? 1.0f : axisColor.x * 1.18f,
+                        axisColor.y * 1.18f > 1.0f ? 1.0f : axisColor.y * 1.18f,
+                        axisColor.z * 1.18f > 1.0f ? 1.0f : axisColor.z * 1.18f,
+                        1.0f)
+                    : axisColor;
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Reset %s", axisLabel);
+
+            drawList->AddRectFilled(
+                axisMin,
+                ImVec2(axisMin.x + axisSize.x, axisMin.y + axisSize.y),
+                ImGui::ColorConvertFloat4ToU32(axisDisplayColor),
+                style.FrameRounding,
+                ImDrawFlags_RoundCornersLeft);
+
+            const ImVec2 labelSize = ImGui::CalcTextSize(axisLabel);
+            drawList->AddText(
+                ImVec2(axisMin.x + (axisSize.x - labelSize.x) * 0.5f, axisMin.y + (axisSize.y - labelSize.y) * 0.5f),
+                ImGui::ColorConvertFloat4ToU32(ImVec4(0.97f, 0.97f, 0.97f, 1.0f)),
+                axisLabel);
+
+            ImGui::SameLine(0.0f, 0.0f);
+            ImGui::SetNextItemWidth(valueWidth);
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.10f, 0.10f, 0.11f, 0.96f));
+            ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.18f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.20f, 0.20f, 0.22f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.93f, 0.93f, 0.94f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(axisColor.x, axisColor.y, axisColor.z, 0.38f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, style.FrameRounding);
+            const bool changed = ImGui::DragFloat("##value", &value, 0.1f, 0.0f, 0.0f, "%.3f") || resetClicked;
+            ImGui::PopStyleVar(2);
+            ImGui::PopStyleColor(5);
+
+            ImGui::PopID();
+            return changed;
+        }
+    }
+
     const char* ImGuiHelper::GenerateID()
     {
         sprintf(s_IDBuffer + 2, "%x", s_Counter++);
@@ -435,80 +510,24 @@ namespace diverse
 
     bool ImGuiHelper::PropertyVector3(const char* label, glm::vec3& values, float columnWidth, float resetValue)
     {
-        bool updated = false;
-        ImGuiIO& io = ImGui::GetIO();
-        auto boldFont = io.Fonts->Fonts[0];
-
         ImGui::PushID(label);
 
-        ImGui::Columns(2);
-        ImGui::SetColumnWidth(0, columnWidth);
-        ImGui::Text(label);
-        ImGui::NextColumn();
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const float availableWidth = ImGui::GetContentRegionAvail().x;
+        const float labelWidth = columnWidth > 0.0f ? columnWidth : 88.0f;
+        const float fieldSpacing = style.ItemInnerSpacing.x;
+        const float fieldWidth = (availableWidth - labelWidth - fieldSpacing * 2.0f) / 3.0f;
+        const float clampedFieldWidth = fieldWidth > 58.0f ? fieldWidth : 58.0f;
 
-        ImGui::PushMultiItemsWidths(3, ImGui::CalcItemWidth());
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextColored(ImVec4(0.74f, 0.74f, 0.76f, 1.0f), "%s", label);
+        ImGui::SameLine(labelWidth);
 
-        float lineHeight = GImGui->Font->FontSize + GImGui->Style.FramePadding.y * 2.0f;
-        float lineWidth = GImGui->Font->FontSize;
-        ImVec2 buttonSize = { lineWidth, lineHeight };
-
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.8f, 0.1f, 0.15f, 1.0f });
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{ 0.9f, 0.2f, 0.2f, 1.0f });
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{ 0.8f, 0.1f, 0.15f, 1.0f });
-        ImGui::PushFont(boldFont);
-        if (ImGui::Button("X", buttonSize))
-        { 
-            values.x = resetValue;
-            updated = true;
-        }
-        ImGui::PopFont();
-        ImGui::PopStyleColor(3);
-
-        ImGui::SameLine();
-        if(ImGui::DragFloat("##X", &values.x, 0.1f, 0.0f, 0.0f, "%.3f"))
-            updated = true;
-        ImGui::PopItemWidth();
-        ImGui::SameLine();
-
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f });
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{ 0.3f, 0.8f, 0.3f, 1.0f });
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f });
-        ImGui::PushFont(boldFont);
-        if (ImGui::Button("Y", buttonSize))
-        {
-            values.y = resetValue;
-            updated = true;
-        }
-        ImGui::PopFont();
-        ImGui::PopStyleColor(3);
-
-        ImGui::SameLine();
-        if(ImGui::DragFloat("##Y", &values.y, 0.1f, 0.0f, 0.0f, "%.3f"))
-            updated = true;
-        ImGui::PopItemWidth();
-        ImGui::SameLine();
-
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.1f, 0.25f, 0.8f, 1.0f });
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{ 0.2f, 0.35f, 0.9f, 1.0f });
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{ 0.1f, 0.25f, 0.8f, 1.0f });
-        ImGui::PushFont(boldFont);
-        if (ImGui::Button("Z", buttonSize))
-        {
-            values.z = resetValue;
-            updated = true;
-        }
-        ImGui::PopFont();
-        ImGui::PopStyleColor(3);
-
-        ImGui::SameLine();
-        if( ImGui::DragFloat("##Z", &values.z, 0.1f, 0.0f, 0.0f, "%.3f") )
-            updated = true;
-        ImGui::PopItemWidth();
-
-        ImGui::PopStyleVar();
-
-        ImGui::Columns(1);
+        bool updated = DrawTransformAxisField("X", 0, values.x, resetValue, clampedFieldWidth);
+        ImGui::SameLine(0.0f, fieldSpacing);
+        updated = DrawTransformAxisField("Y", 1, values.y, resetValue, clampedFieldWidth) || updated;
+        ImGui::SameLine(0.0f, fieldSpacing);
+        updated = DrawTransformAxisField("Z", 2, values.z, resetValue, clampedFieldWidth) || updated;
 
         ImGui::PopID();
 
