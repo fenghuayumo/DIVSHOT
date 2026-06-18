@@ -177,12 +177,20 @@ namespace diverse
 
     ImTextureID VKIMGUIRenderer::snapshot_texture_id(ImTextureID texture_id, ImGuiDrawDataSnapshot& snapshot)
     {
+        (void)snapshot;
         auto* src_texture_id = static_cast<ImGuiTextureID*>(texture_id);
-        if (!src_texture_id)
+        if (!src_texture_id || !src_texture_id->texture)
             return nullptr;
 
-        snapshot.texture_ids.push_back(*src_texture_id);
-        return &snapshot.texture_ids.back();
+        const TextureIdCacheKey key{ src_texture_id->texture.get(), src_texture_id->sampler_handle };
+        const auto cached_texture_id = m_StableTextureIDMap.find(key);
+        if (cached_texture_id != m_StableTextureIDMap.end())
+            return cached_texture_id->second;
+
+        m_StableTextureIDs.push_back(*src_texture_id);
+        auto* stable_texture_id = &m_StableTextureIDs.back();
+        m_StableTextureIDMap.emplace(key, stable_texture_id);
+        return stable_texture_id;
     }
 
     VkRenderPass VKIMGUIRenderer::create_render_pass()
@@ -254,6 +262,13 @@ namespace diverse
 
         wd->FrameIndex = vkswapchain->next_semaphore;
         auto& descriptorImageMap = ImGui_ImplVulkan_GetDescriptorImageMap();
+        descriptorImageMap.clear();
+        if (g_DescriptorPool[wd->FrameIndex] != VK_NULL_HANDLE)
+        {
+            const auto err = vkResetDescriptorPool(vkdevice->device, g_DescriptorPool[wd->FrameIndex], 0);
+            check_vk_result(err);
+            ImGui_ImplVulkan_ClearDescriptors(wd->FrameIndex);
+        }
         {
             for (int n = 0; n < draw_data->CmdListsCount; n++)
             {

@@ -292,13 +292,14 @@ namespace diverse
         if (now - second_timer > 1.0f)
         {
             DS_PROFILE_SCOPE("Application::FrameRateCalc");
-            second_timer += 1.0f;
+            const auto elapsed = now - second_timer;
 
-            stats.FramesPerSecond = frame_cnts;
-            stats.UpdatesPerSecond = update_cnts;
+            stats.FramesPerSecond = static_cast<uint32_t>(maths::Round(frame_cnts / elapsed));
+            stats.UpdatesPerSecond = static_cast<uint32_t>(maths::Round(update_cnts / elapsed));
 
             frame_cnts = 0;
             update_cnts = 0;
+            second_timer = static_cast<float>(now);
         }
         if (!is_minimized)
         {

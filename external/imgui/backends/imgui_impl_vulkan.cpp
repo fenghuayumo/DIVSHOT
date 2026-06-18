@@ -442,8 +442,11 @@ static void ImGui_ImplVulkan_SetupRenderState(ImDrawData* draw_data, VkPipeline 
     // Bind pipeline and descriptor sets:
     {
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-        VkDescriptorSet desc_set[1] = { bd->FontDescriptorSet };
-        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bd->PipelineLayout, 0, 1, desc_set, 0, NULL);
+        if (bd->FontDescriptorSet != VK_NULL_HANDLE)
+        {
+            VkDescriptorSet desc_set[1] = { bd->FontDescriptorSet };
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bd->PipelineLayout, 0, 1, desc_set, 0, NULL);
+        }
     }
 
     // Bind Vertex And Index Buffer:
@@ -591,14 +594,17 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
                         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bd->PipelineLayout, 0, 1, desc_set, 0, NULL);
                     }
                 }
-                else
+                else if (bd->FontDescriptorSet != VK_NULL_HANDLE)
                 {
                     //if (lastSet != g_DescriptorSet)
                     {
-                   //     desc_set[0] = g_DescriptorSet;
-                     //   lastSet = g_DescriptorSet;
+                        desc_set[0] = bd->FontDescriptorSet;
                         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bd->PipelineLayout, 0, 1, desc_set, 0, NULL);
                     }
+                }
+                else
+                {
+                    continue;
                 }
                                                                 
                 // Project scissor/clipping rectangles into framebuffer space
@@ -1927,18 +1933,8 @@ void ImGui_ImplVulkan_CreateDescriptorSets(ImDrawData* draw_data, uint32_t frame
     ImGui_ImplVulkan_InitInfo* v = &bd->VulkanInitInfo;
     auto& lDescriptorSets = *g_DescriptorSets;
     uint32_t imageInfoCount = 0;
-    VkDescriptorImageInfo imageInfo[1024];
-
-    // Create Descriptor Set:
-    if(!bd->FontDescriptorSet)
-    {
-        VkDescriptorSetAllocateInfo alloc_info = {};
-        alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        alloc_info.descriptorPool = v->DescriptorPools[0];
-        alloc_info.descriptorSetCount = 1;
-        alloc_info.pSetLayouts = &bd->DescriptorSetLayout;
-        vkAllocateDescriptorSets(v->Device, &alloc_info, &bd->FontDescriptorSet);
-    }
+    std::vector<VkDescriptorImageInfo> imageInfo;
+    imageInfo.reserve(static_cast<size_t>(draw_data->CmdListsCount));
 
     for (int n = 0; n < draw_data->CmdListsCount; n++)
     {
@@ -1977,6 +1973,9 @@ void ImGui_ImplVulkan_CreateDescriptorSets(ImDrawData* draw_data, uint32_t frame
                     if (findResult != lDescriptorSets.at(frameIndex).end() && findResult->second)
                     {
                         auto set = findResult->second;
+
+                        if (imageInfoCount >= imageInfo.size())
+                            imageInfo.resize(static_cast<size_t>(imageInfoCount) + 1);
 
                         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                         descriptorWrites[0].dstSet = set;

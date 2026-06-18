@@ -47,7 +47,7 @@ namespace diverse
     
     ImGuiTextureID* MetalIMGUIRenderer::add_texture(const std::shared_ptr<rhi::GpuTexture>& texture)
     {
-        if (m_CurrentTextureIDIndex > MAX_IMGUI_TEXTURES)
+        if (m_CurrentTextureIDIndex >= MAX_IMGUI_TEXTURES)
         {
             DS_LOG_ERROR("Exceeded max imgui textures");
             auto tex = dynamic_cast<rhi::GpuTextureMetal*>(texture.get());

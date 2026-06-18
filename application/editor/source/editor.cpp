@@ -2781,7 +2781,7 @@ namespace diverse
             float sizeOfGfxAPIDropDown = ImGui::GetFontSize() * 8;
             ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - size.x - ImGui::GetStyle().ItemSpacing.x * 2);
 
-            int fps = int(maths::Round(1000.0 / stats.FrameTime));
+            int fps = static_cast<int>(stats.FramesPerSecond);
             ImGui::Text("%.2f ms (%.i FPS)", stats.FrameTime, fps);
             ImGui::EndMainMenuBar();
         }

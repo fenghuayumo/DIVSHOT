@@ -55,7 +55,7 @@ namespace diverse
         auto    blit_texture(rhi::GpuTexture* src, rhi::GpuTexture* dst) -> void;
         auto    export_texture(rhi::GpuTexture* src) -> std::vector<u8>;
         auto    get_imgui_texID(const char* fpath)->ImGuiTextureID*;
-#define MAX_IMGUI_TEXTURES 1024
+#define MAX_IMGUI_TEXTURES 4096
         ImGuiTextureID m_TextureIDs[MAX_IMGUI_TEXTURES];
         uint32_t m_CurrentTextureIDIndex = 0;
 

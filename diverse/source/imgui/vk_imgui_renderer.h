@@ -2,6 +2,7 @@
 #include "imgui_renderer.h"
 #include "backend/drs_vulkan_rhi/vk_utils.h"
 #include "backend/drs_rhi/gpu_cmd_buffer.h"
+#include <functional>
 #include <memory>
 struct ImGui_ImplVulkanH_Window;
 namespace diverse
@@ -29,6 +30,29 @@ namespace diverse
 
         void             frame_render(ImGui_ImplVulkanH_Window* wd,rhi::CommandBuffer* cmd_buf, ImDrawData* draw_data);
     private:
+        struct TextureIdCacheKey
+        {
+            rhi::GpuTexture* texture = nullptr;
+            u64* sampler_handle = nullptr;
+
+            auto operator==(const TextureIdCacheKey& other) const -> bool
+            {
+                return texture == other.texture && sampler_handle == other.sampler_handle;
+            }
+        };
+
+        struct TextureIdCacheKeyHash
+        {
+            auto operator()(const TextureIdCacheKey& key) const noexcept -> std::size_t
+            {
+                const auto texture_hash = std::hash<void*>{}(key.texture);
+                const auto sampler_hash = std::hash<void*>{}(key.sampler_handle);
+                return texture_hash ^ (sampler_hash + 0x9e3779b9 + (texture_hash << 6) + (texture_hash >> 2));
+            }
+        };
+
+        std::deque<ImGuiTextureID> m_StableTextureIDs;
+        std::unordered_map<TextureIdCacheKey, ImGuiTextureID*, TextureIdCacheKeyHash> m_StableTextureIDMap;
         VkFramebuffer   m_Framebuffers[3];
         VkRenderPass    m_Renderpass;
         bool m_ClearScreen;
