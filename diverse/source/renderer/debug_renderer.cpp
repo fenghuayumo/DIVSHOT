@@ -31,7 +31,7 @@ namespace diverse
 #define _TRUNCATE 0
 #endif
 
-    void DebugRenderer::Init()
+    void DebugRenderer::init()
     {
         if(s_Instance)
             return;
@@ -39,16 +39,19 @@ namespace diverse
         s_Instance = new DebugRenderer();
     }
 
-    void DebugRenderer::Release()
+    void DebugRenderer::release()
     {
         DS_PROFILE_FUNCTION();
         delete s_Instance;
         s_Instance = nullptr;
     }
 
-    void DebugRenderer::Reset()
+    void DebugRenderer::reset()
     {
         DS_PROFILE_FUNCTION();
+        if(!s_Instance)
+            return;
+
         s_Instance->m_DrawList.m_DebugTriangles.clear();
         s_Instance->m_DrawList.m_DebugLines.clear();
         s_Instance->m_DrawList.m_DebugThickLines.clear();
@@ -66,7 +69,7 @@ namespace diverse
         s_Instance->m_MaxStatusEntryWidth = 0.0f;
     }
 
-    DebugDrawFrame DebugRenderer::CaptureFrame()
+    DebugDrawFrame DebugRenderer::capture_frame()
     {
         DS_PROFILE_FUNCTION();
         DebugDrawFrame frame;
@@ -85,14 +88,20 @@ namespace diverse
         return frame;
     }
 
-    void DebugRenderer::ClearLogEntries()
+    void DebugRenderer::clear_log_entries()
     {
+        if(!s_Instance)
+            return;
+
         s_Instance->m_vLogEntries.clear();
         s_Instance->m_LogEntriesOffset = 0;
     }
 
-    void DebugRenderer::SortLists()
+    void DebugRenderer::sort_lists()
     {
+        if(!s_Instance)
+            return;
+
         float cs_size_x = LOG_TEXT_SIZE / s_Instance->m_Width * 2.0f;
         float cs_size_y = LOG_TEXT_SIZE / s_Instance->m_Height * 2.0f;
         size_t log_len  = s_Instance->m_vLogEntries.size();
@@ -106,7 +115,7 @@ namespace diverse
             float alpha                             = 1.0f - ((float)log_len - (float)i) / (float)log_len;
             s_Instance->m_vLogEntries[idx].colour.w = alpha;
             float aspect                            = (float)s_Instance->m_Width / (float)s_Instance->m_Height;
-            DrawTextCs(glm::vec4(-aspect, -1.0f + ((log_len - i - 1) * cs_size_y) + cs_size_y, 0.0f, 1.0f), LOG_TEXT_SIZE, s_Instance->m_vLogEntries[idx].text, s_Instance->m_vLogEntries[idx].colour);
+            draw_text_cs(glm::vec4(-aspect, -1.0f + ((log_len - i - 1) * cs_size_y) + cs_size_y, 0.0f, 1.0f), LOG_TEXT_SIZE, s_Instance->m_vLogEntries[idx].text, s_Instance->m_vLogEntries[idx].colour);
         }
     }
 
@@ -121,7 +130,7 @@ namespace diverse
     }
 
     // Draw Point (circle)
-    void DebugRenderer::GenDrawPoint(bool ndt, const glm::vec3& pos, float point_radius, const glm::vec4& colour)
+    void DebugRenderer::gen_draw_point(bool ndt, const glm::vec3& pos, float point_radius, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         if(ndt)
@@ -130,28 +139,28 @@ namespace diverse
             s_Instance->m_DrawList.m_DebugPoints.emplace_back(pos, point_radius, colour);
     }
 
-    void DebugRenderer::DrawPoint(const glm::vec3& pos, float point_radius, const glm::vec3& colour)
+    void DebugRenderer::draw_point(const glm::vec3& pos, float point_radius, const glm::vec3& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawPoint(false, pos, point_radius, glm::vec4(colour, 1.0f));
+        gen_draw_point(false, pos, point_radius, glm::vec4(colour, 1.0f));
     }
-    void DebugRenderer::DrawPoint(const glm::vec3& pos, float point_radius, const glm::vec4& colour)
+    void DebugRenderer::draw_point(const glm::vec3& pos, float point_radius, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawPoint(false, pos, point_radius, colour);
+        gen_draw_point(false, pos, point_radius, colour);
     }
-    void DebugRenderer::DrawPointNDT(const glm::vec3& pos, float point_radius, const glm::vec3& colour)
+    void DebugRenderer::draw_point_ndt(const glm::vec3& pos, float point_radius, const glm::vec3& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawPoint(true, pos, point_radius, glm::vec4(colour, 1.0f));
+        gen_draw_point(true, pos, point_radius, glm::vec4(colour, 1.0f));
     }
-    void DebugRenderer::DrawPointNDT(const glm::vec3& pos, float point_radius, const glm::vec4& colour)
+    void DebugRenderer::draw_point_ndt(const glm::vec3& pos, float point_radius, const glm::vec4& colour)
     {
-        GenDrawPoint(true, pos, point_radius, colour);
+        gen_draw_point(true, pos, point_radius, colour);
     }
 
     // Draw Line with a given thickness
-    void DebugRenderer::GenDrawThickLine(bool ndt, const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec4& colour)
+    void DebugRenderer::gen_draw_thick_line(bool ndt, const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         if(ndt)
@@ -159,29 +168,29 @@ namespace diverse
         else
             s_Instance->m_DrawList.m_DebugThickLines.emplace_back(start, end, colour);
     }
-    void DebugRenderer::DrawThickLine(const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec3& colour)
+    void DebugRenderer::draw_thick_line(const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec3& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawThickLine(false, start, end, line_width, glm::vec4(colour, 1.0f));
+        gen_draw_thick_line(false, start, end, line_width, glm::vec4(colour, 1.0f));
     }
-    void DebugRenderer::DrawThickLine(const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec4& colour)
+    void DebugRenderer::draw_thick_line(const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawThickLine(false, start, end, line_width, colour);
+        gen_draw_thick_line(false, start, end, line_width, colour);
     }
-    void DebugRenderer::DrawThickLineNDT(const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec3& colour)
+    void DebugRenderer::draw_thick_line_ndt(const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec3& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawThickLine(true, start, end, line_width, glm::vec4(colour, 1.0f));
+        gen_draw_thick_line(true, start, end, line_width, glm::vec4(colour, 1.0f));
     }
-    void DebugRenderer::DrawThickLineNDT(const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec4& colour)
+    void DebugRenderer::draw_thick_line_ndt(const glm::vec3& start, const glm::vec3& end, float line_width, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawThickLine(true, start, end, line_width, colour);
+        gen_draw_thick_line(true, start, end, line_width, colour);
     }
 
     // Draw line with thickness of 1 screen pixel regardless of distance from camera
-    void DebugRenderer::GenDrawHairLine(bool ndt, const glm::vec3& start, const glm::vec3& end, const glm::vec4& colour)
+    void DebugRenderer::gen_draw_hair_line(bool ndt, const glm::vec3& start, const glm::vec3& end, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         if(ndt)
@@ -189,107 +198,110 @@ namespace diverse
         else
             s_Instance->m_DrawList.m_DebugLines.emplace_back(start, end, colour);
     }
-    void DebugRenderer::DrawHairLine(const glm::vec3& start, const glm::vec3& end, const glm::vec3& colour)
+    void DebugRenderer::draw_hair_line(const glm::vec3& start, const glm::vec3& end, const glm::vec3& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawHairLine(false, start, end, glm::vec4(colour, 1.0f));
+        gen_draw_hair_line(false, start, end, glm::vec4(colour, 1.0f));
     }
-    void DebugRenderer::DrawHairLine(const glm::vec3& start, const glm::vec3& end, const glm::vec4& colour)
+    void DebugRenderer::draw_hair_line(const glm::vec3& start, const glm::vec3& end, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawHairLine(false, start, end, colour);
+        gen_draw_hair_line(false, start, end, colour);
     }
-    void DebugRenderer::DrawHairLineNDT(const glm::vec3& start, const glm::vec3& end, const glm::vec3& colour)
+    void DebugRenderer::draw_hair_line_ndt(const glm::vec3& start, const glm::vec3& end, const glm::vec3& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawHairLine(true, start, end, glm::vec4(colour, 1.0f));
+        gen_draw_hair_line(true, start, end, glm::vec4(colour, 1.0f));
     }
-    void DebugRenderer::DrawHairLineNDT(const glm::vec3& start, const glm::vec3& end, const glm::vec4& colour)
+    void DebugRenderer::draw_hair_line_ndt(const glm::vec3& start, const glm::vec3& end, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawHairLine(true, start, end, colour);
+        gen_draw_hair_line(true, start, end, colour);
     }
 
     // Draw Matrix (x,y,z axis at pos)
-    void DebugRenderer::DrawMatrix(const glm::mat4& mtx)
+    void DebugRenderer::draw_matrix(const glm::mat4& mtx)
     {
         DS_PROFILE_FUNCTION();
         // glm::vec3 position = mtx[3];
-        // GenDrawHairLine(false, position, position + glm::vec3(mtx[0], mtx[1], mtx[2]), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-        // GenDrawHairLine(false, position, position + glm::vec3(mtx[4], mtx[5], mtx[6]), glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-        // GenDrawHairLine(false, position, position + glm::vec3(mtx[8], mtx[9], mtx[10]), glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+        // gen_draw_hair_line(false, position, position + glm::vec3(mtx[0], mtx[1], mtx[2]), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+        // gen_draw_hair_line(false, position, position + glm::vec3(mtx[4], mtx[5], mtx[6]), glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+        // gen_draw_hair_line(false, position, position + glm::vec3(mtx[8], mtx[9], mtx[10]), glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
     }
-    void DebugRenderer::DrawMatrix(const glm::mat3& mtx, const glm::vec3& position)
+    void DebugRenderer::draw_matrix(const glm::mat3& mtx, const glm::vec3& position)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawHairLine(false, position, position + mtx[0], glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-        GenDrawHairLine(false, position, position + mtx[1], glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-        GenDrawHairLine(false, position, position + mtx[2], glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+        gen_draw_hair_line(false, position, position + mtx[0], glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+        gen_draw_hair_line(false, position, position + mtx[1], glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+        gen_draw_hair_line(false, position, position + mtx[2], glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
     }
-    void DebugRenderer::DrawMatrixNDT(const glm::mat4& mtx)
+    void DebugRenderer::draw_matrix_ndt(const glm::mat4& mtx)
     {
         DS_PROFILE_FUNCTION();
         // glm::vec3 position = mtx[3];
-        // GenDrawHairLine(true, position, position + glm::vec3(mtx[0], mtx[1], mtx[2]), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-        // GenDrawHairLine(true, position, position + glm::vec3(mtx[4], mtx[5], mtx[6]), glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-        // GenDrawHairLine(true, position, position + glm::vec3(mtx[8], mtx[9], mtx[10]), glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+        // gen_draw_hair_line(true, position, position + glm::vec3(mtx[0], mtx[1], mtx[2]), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+        // gen_draw_hair_line(true, position, position + glm::vec3(mtx[4], mtx[5], mtx[6]), glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+        // gen_draw_hair_line(true, position, position + glm::vec3(mtx[8], mtx[9], mtx[10]), glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
     }
-    void DebugRenderer::DrawMatrixNDT(const glm::mat3& mtx, const glm::vec3& position)
+    void DebugRenderer::draw_matrix_ndt(const glm::mat3& mtx, const glm::vec3& position)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawHairLine(true, position, position + mtx[0], glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-        GenDrawHairLine(true, position, position + mtx[1], glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-        GenDrawHairLine(true, position, position + mtx[2], glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+        gen_draw_hair_line(true, position, position + mtx[0], glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+        gen_draw_hair_line(true, position, position + mtx[1], glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+        gen_draw_hair_line(true, position, position + mtx[2], glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
     }
 
     // Draw Triangle
-    void DebugRenderer::GenDrawTriangle(bool ndt, const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, const glm::vec4& colour)
+    void DebugRenderer::gen_draw_triangle(bool ndt, const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        s_Instance->m_DrawList.m_DebugTriangles.emplace_back(v0, v1, v2, colour);
+        if(ndt)
+            s_Instance->m_DrawListNDT.m_DebugTriangles.emplace_back(v0, v1, v2, colour);
+        else
+            s_Instance->m_DrawList.m_DebugTriangles.emplace_back(v0, v1, v2, colour);
     }
 
-    void DebugRenderer::DrawTriangle(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, const glm::vec4& colour)
+    void DebugRenderer::draw_triangle(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawTriangle(false, v0, v1, v2, colour);
+        gen_draw_triangle(false, v0, v1, v2, colour);
     }
 
-    void DebugRenderer::DrawTriangleNDT(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, const glm::vec4& colour)
+    void DebugRenderer::draw_triangle_ndt(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        GenDrawTriangle(true, v0, v1, v2, colour);
+        gen_draw_triangle(true, v0, v1, v2, colour);
     }
 
     // Draw Polygon (Renders as a triangle fan, so verts must be arranged in order)
-    void DebugRenderer::DrawPolygon(int n_verts, const glm::vec3* verts, const glm::vec4& colour)
+    void DebugRenderer::draw_polygon(int n_verts, const glm::vec3* verts, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         for(int i = 2; i < n_verts; ++i)
         {
-            GenDrawTriangle(false, verts[0], verts[i - 1], verts[i], colour);
+            gen_draw_triangle(false, verts[0], verts[i - 1], verts[i], colour);
         }
     }
 
-    void DebugRenderer::DrawPolygonNDT(int n_verts, const glm::vec3* verts, const glm::vec4& colour)
+    void DebugRenderer::draw_polygon_ndt(int n_verts, const glm::vec3* verts, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         for(int i = 2; i < n_verts; ++i)
         {
-            GenDrawTriangle(true, verts[0], verts[i - 1], verts[i], colour);
+            gen_draw_triangle(true, verts[0], verts[i - 1], verts[i], colour);
         }
     }
 
-    void DebugRenderer::DrawTextCs(const glm::vec4& cs_pos, const float font_size, const std::string& text, const glm::vec4& colour)
+    void DebugRenderer::draw_text_cs(const glm::vec4& cs_pos, const float font_size, const std::string& text, const glm::vec4& colour)
     {
-        glm::vec3 cs_size = glm::vec3(font_size / GetInstance()->m_Width, font_size / GetInstance()->m_Height, 0.0f);
+        glm::vec3 cs_size = glm::vec3(font_size / get_instance()->m_Width, font_size / get_instance()->m_Height, 0.0f);
         cs_size           = cs_size * cs_pos.w;
 
         // Work out the starting position of text based off desired alignment
         float x_offset      = 0.0f;
         const auto text_len = static_cast<int>(text.length());
 
-        DebugText& dText = GetInstance()->m_TextListCS.emplace_back();
+        DebugText& dText = get_instance()->m_TextListCS.emplace_back();
         dText.text       = text;
         dText.Position   = cs_pos;
         dText.colour     = colour;
@@ -301,17 +313,17 @@ namespace diverse
         //     glm::vec4 char_pos = glm::vec4(cs_pos.x + x_offset, cs_pos.y, cs_pos.z, cs_pos.w);
         //     glm::vec4 char_data = glm::vec4(cs_size.x, cs_size.y, static_cast<float>(text[i]), 0.0f);
 
-        //    GetInstance()->m_vChars.push_back(char_pos);
-        //    GetInstance()->m_vChars.push_back(char_data);
-        //    GetInstance()->m_vChars.push_back(colour);
-        //    GetInstance()->m_vChars.push_back(colour);    //We dont really need this, but we need the padding to match the same vertex format as all the other debug drawables
+        //    get_instance()->m_vChars.push_back(char_pos);
+        //    get_instance()->m_vChars.push_back(char_data);
+        //    get_instance()->m_vChars.push_back(colour);
+        //    get_instance()->m_vChars.push_back(colour);    //We dont really need this, but we need the padding to match the same vertex format as all the other debug drawables
 
         //    x_offset += cs_size.x * 1.2f;
         //}
     }
 
     // Draw Text WorldSpace
-    void DebugRenderer::DrawTextWs(const glm::vec3& pos, const float font_size, const glm::vec4& colour, const std::string text, ...)
+    void DebugRenderer::draw_text_ws(const glm::vec3& pos, const float font_size, const glm::vec4& colour, const std::string text, ...)
     {
         va_list args;
         va_start(args, text);
@@ -326,17 +338,17 @@ namespace diverse
 
         std::string formatted_text = std::string(buf, static_cast<size_t>(length));
 
-        // glm::vec4 cs_pos = GetInstance()->m_ProjViewMtx * glm::vec4(pos, 1.0f);
-        // DrawTextCs(cs_pos, font_size, formatted_text, colour);
+        // glm::vec4 cs_pos = get_instance()->m_ProjViewMtx * glm::vec4(pos, 1.0f);
+        // draw_text_cs(cs_pos, font_size, formatted_text, colour);
 
-        DebugText& dText = GetInstance()->m_TextList.emplace_back();
-        dText.text       = text;
+        DebugText& dText = get_instance()->m_TextList.emplace_back();
+        dText.text       = formatted_text;
         dText.Position   = glm::vec4(pos, 1.0f);
         dText.colour     = colour;
         dText.Size       = font_size;
     }
 
-    void DebugRenderer::DrawTextWsNDT(const glm::vec3& pos, const float font_size, const glm::vec4& colour, const std::string text, ...)
+    void DebugRenderer::draw_text_ws_ndt(const glm::vec3& pos, const float font_size, const glm::vec4& colour, const std::string text, ...)
     {
         va_list args;
         va_start(args, text);
@@ -351,22 +363,22 @@ namespace diverse
 
         std::string formatted_text = std::string(buf, static_cast<size_t>(length));
 
-        // glm::vec4 cs_pos = GetInstance()->m_ProjViewMtx * glm::vec4(pos, 1.0f);
+        // glm::vec4 cs_pos = get_instance()->m_ProjViewMtx * glm::vec4(pos, 1.0f);
         // cs_pos.z = (1.0f * cs_pos.w);
-        // DrawTextCs(cs_pos, font_size, formatted_text, colour);
+        // draw_text_cs(cs_pos, font_size, formatted_text, colour);
 
-        DebugText& dText = GetInstance()->m_TextListNDT.emplace_back();
-        dText.text       = text;
+        DebugText& dText = get_instance()->m_TextListNDT.emplace_back();
+        dText.text       = formatted_text;
         dText.Position   = glm::vec4(pos, 1.0f);
         dText.colour     = colour;
         dText.Size       = font_size;
     }
 
     // Status Entry
-    void DebugRenderer::AddStatusEntry(const glm::vec4& colour, const std::string text, ...)
+    void DebugRenderer::add_status_entry(const glm::vec4& colour, const std::string text, ...)
     {
-        float cs_size_x = STATUS_TEXT_SIZE / GetInstance()->m_Width * 2.0f;
-        float cs_size_y = STATUS_TEXT_SIZE / GetInstance()->m_Height * 2.0f;
+        float cs_size_x = STATUS_TEXT_SIZE / get_instance()->m_Width * 2.0f;
+        float cs_size_y = STATUS_TEXT_SIZE / get_instance()->m_Height * 2.0f;
 
         va_list args;
         va_start(args, text);
@@ -381,14 +393,14 @@ namespace diverse
 
         std::string formatted_text = std::string(buf, static_cast<size_t>(length));
 
-        DrawTextCs(glm::vec4(-1.0f + cs_size_x * 0.5f, 1.0f - (GetInstance()->m_NumStatusEntries * cs_size_y) + cs_size_y, -1.0f, 1.0f), STATUS_TEXT_SIZE, formatted_text, colour);
-        GetInstance()->m_NumStatusEntries++;
-        GetInstance()->m_MaxStatusEntryWidth = maths::Max(GetInstance()->m_MaxStatusEntryWidth, cs_size_x * 0.6f * length);
+        draw_text_cs(glm::vec4(-1.0f + cs_size_x * 0.5f, 1.0f - (get_instance()->m_NumStatusEntries * cs_size_y) + cs_size_y, -1.0f, 1.0f), STATUS_TEXT_SIZE, formatted_text, colour);
+        get_instance()->m_NumStatusEntries++;
+        get_instance()->m_MaxStatusEntryWidth = maths::Max(get_instance()->m_MaxStatusEntryWidth, cs_size_x * 0.6f * length);
     }
 
     // Log
 
-    void DebugRenderer::AddLogEntry(const glm::vec3& colour, const std::string& text)
+    void DebugRenderer::add_log_entry(const glm::vec3& colour, const std::string& text)
     {
         /*    time_t now = time(0);
         tm ltm;
@@ -401,18 +413,18 @@ namespace diverse
         le.text   = /*ss.str() + */ text; // +"\n";
         le.colour = glm::vec4(colour.x, colour.y, colour.z, 1.0f);
 
-        if(GetInstance()->m_vLogEntries.size() < MAX_LOG_SIZE)
-            GetInstance()->m_vLogEntries.push_back(le);
+        if(get_instance()->m_vLogEntries.size() < MAX_LOG_SIZE)
+            get_instance()->m_vLogEntries.push_back(le);
         else
         {
-            GetInstance()->m_vLogEntries[GetInstance()->m_LogEntriesOffset] = le;
-            GetInstance()->m_LogEntriesOffset                               = (GetInstance()->m_LogEntriesOffset + 1) % MAX_LOG_SIZE;
+            get_instance()->m_vLogEntries[get_instance()->m_LogEntriesOffset] = le;
+            get_instance()->m_LogEntriesOffset                               = (get_instance()->m_LogEntriesOffset + 1) % MAX_LOG_SIZE;
         }
 
         DS_LOG_WARN(text);
     }
 
-    void DebugRenderer::Log(const glm::vec3& colour, const std::string text, ...)
+    void DebugRenderer::log(const glm::vec3& colour, const std::string text, ...)
     {
         va_list args;
         va_start(args, text);
@@ -424,10 +436,10 @@ namespace diverse
         va_end(args);
 
         int length = (needed < 0) ? 1024 : needed;
-        AddLogEntry(colour, std::string(buf, static_cast<size_t>(length)));
+        add_log_entry(colour, std::string(buf, static_cast<size_t>(length)));
     }
 
-    void DebugRenderer::Log(const std::string text, ...)
+    void DebugRenderer::log(const std::string text, ...)
     {
         va_list args;
         va_start(args, text);
@@ -439,10 +451,10 @@ namespace diverse
         va_end(args);
 
         int length = (needed < 0) ? 1024 : needed;
-        AddLogEntry(glm::vec3(0.4f, 1.0f, 0.6f), std::string(buf, static_cast<size_t>(length)));
+        add_log_entry(glm::vec3(0.4f, 1.0f, 0.6f), std::string(buf, static_cast<size_t>(length)));
     }
 
-    void DebugRenderer::LogE(const char* filename, int linenumber, const std::string text, ...)
+    void DebugRenderer::log_e(const char* filename, int linenumber, const std::string text, ...)
     {
         // Error Format:
         //<text>
@@ -459,13 +471,13 @@ namespace diverse
 
         int length = (needed < 0) ? 1024 : needed;
 
-        Log(glm::vec3(1.0f, 0.25f, 0.25f), "[ERROR] %s:%d", filename, linenumber);
-        AddLogEntry(glm::vec3(1.0f, 0.5f, 0.5f), "\t \x01 \"" + std::string(buf, static_cast<size_t>(length)) + "\"");
+        log(glm::vec3(1.0f, 0.25f, 0.25f), "[ERROR] %s:%d", filename, linenumber);
+        add_log_entry(glm::vec3(1.0f, 0.5f, 0.5f), "\t \x01 \"" + std::string(buf, static_cast<size_t>(length)) + "\"");
 
         std::cout << std::endl;
     }
 
-    void DebugRenderer::DebugDraw(const maths::BoundingBox& box, const glm::vec4& edgeColour, bool cornersOnly, float width)
+    void DebugRenderer::debug_draw(const maths::BoundingBox& box, const glm::vec4& edgeColour, bool cornersOnly, float width)
     {
         DS_PROFILE_FUNCTION();
         glm::vec3 uuu = box.max();
@@ -482,118 +494,118 @@ namespace diverse
         // Draw edges
         if(!cornersOnly)
         {
-            DrawThickLineNDT(luu, uuu, width, edgeColour);
-            DrawThickLineNDT(lul, uul, width, edgeColour);
-            DrawThickLineNDT(llu, ulu, width, edgeColour);
-            DrawThickLineNDT(lll, ull, width, edgeColour);
+            draw_thick_line_ndt(luu, uuu, width, edgeColour);
+            draw_thick_line_ndt(lul, uul, width, edgeColour);
+            draw_thick_line_ndt(llu, ulu, width, edgeColour);
+            draw_thick_line_ndt(lll, ull, width, edgeColour);
 
-            DrawThickLineNDT(lul, lll, width, edgeColour);
-            DrawThickLineNDT(uul, ull, width, edgeColour);
-            DrawThickLineNDT(luu, llu, width, edgeColour);
-            DrawThickLineNDT(uuu, ulu, width, edgeColour);
+            draw_thick_line_ndt(lul, lll, width, edgeColour);
+            draw_thick_line_ndt(uul, ull, width, edgeColour);
+            draw_thick_line_ndt(luu, llu, width, edgeColour);
+            draw_thick_line_ndt(uuu, ulu, width, edgeColour);
 
-            DrawThickLineNDT(lll, llu, width, edgeColour);
-            DrawThickLineNDT(ull, ulu, width, edgeColour);
-            DrawThickLineNDT(lul, luu, width, edgeColour);
-            DrawThickLineNDT(uul, uuu, width, edgeColour);
+            draw_thick_line_ndt(lll, llu, width, edgeColour);
+            draw_thick_line_ndt(ull, ulu, width, edgeColour);
+            draw_thick_line_ndt(lul, luu, width, edgeColour);
+            draw_thick_line_ndt(uul, uuu, width, edgeColour);
         }
         else
         {
-            DrawThickLineNDT(luu, luu + (uuu - luu) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(luu + (uuu - luu) * 0.75f, uuu, width, edgeColour);
+            draw_thick_line_ndt(luu, luu + (uuu - luu) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(luu + (uuu - luu) * 0.75f, uuu, width, edgeColour);
 
-            DrawThickLineNDT(lul, lul + (uul - lul) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(lul + (uul - lul) * 0.75f, uul, width, edgeColour);
+            draw_thick_line_ndt(lul, lul + (uul - lul) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(lul + (uul - lul) * 0.75f, uul, width, edgeColour);
 
-            DrawThickLineNDT(llu, llu + (ulu - llu) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(llu + (ulu - llu) * 0.75f, ulu, width, edgeColour);
+            draw_thick_line_ndt(llu, llu + (ulu - llu) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(llu + (ulu - llu) * 0.75f, ulu, width, edgeColour);
 
-            DrawThickLineNDT(lll, lll + (ull - lll) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(lll + (ull - lll) * 0.75f, ull, width, edgeColour);
+            draw_thick_line_ndt(lll, lll + (ull - lll) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(lll + (ull - lll) * 0.75f, ull, width, edgeColour);
 
-            DrawThickLineNDT(lul, lul + (lll - lul) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(lul + (lll - lul) * 0.75f, lll, width, edgeColour);
+            draw_thick_line_ndt(lul, lul + (lll - lul) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(lul + (lll - lul) * 0.75f, lll, width, edgeColour);
 
-            DrawThickLineNDT(uul, uul + (ull - uul) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(uul + (ull - uul) * 0.75f, ull, width, edgeColour);
+            draw_thick_line_ndt(uul, uul + (ull - uul) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(uul + (ull - uul) * 0.75f, ull, width, edgeColour);
 
-            DrawThickLineNDT(luu, luu + (llu - luu) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(luu + (llu - luu) * 0.75f, llu, width, edgeColour);
+            draw_thick_line_ndt(luu, luu + (llu - luu) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(luu + (llu - luu) * 0.75f, llu, width, edgeColour);
 
-            DrawThickLineNDT(uuu, uuu + (ulu - uuu) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(uuu + (ulu - uuu) * 0.75f, ulu, width, edgeColour);
+            draw_thick_line_ndt(uuu, uuu + (ulu - uuu) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(uuu + (ulu - uuu) * 0.75f, ulu, width, edgeColour);
 
-            DrawThickLineNDT(lll, lll + (llu - lll) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(lll + (llu - lll) * 0.75f, llu, width, edgeColour);
+            draw_thick_line_ndt(lll, lll + (llu - lll) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(lll + (llu - lll) * 0.75f, llu, width, edgeColour);
 
-            DrawThickLineNDT(ull, ull + (ulu - ull) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(ull + (ulu - ull) * 0.75f, ulu, width, edgeColour);
+            draw_thick_line_ndt(ull, ull + (ulu - ull) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(ull + (ulu - ull) * 0.75f, ulu, width, edgeColour);
 
-            DrawThickLineNDT(lul, lul + (luu - lul) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(lul + (luu - lul) * 0.75f, luu, width, edgeColour);
+            draw_thick_line_ndt(lul, lul + (luu - lul) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(lul + (luu - lul) * 0.75f, luu, width, edgeColour);
 
-            DrawThickLineNDT(uul, uul + (uuu - uul) * 0.25f, width, edgeColour);
-            DrawThickLineNDT(uul + (uuu - uul) * 0.75f, uuu, width, edgeColour);
+            draw_thick_line_ndt(uul, uul + (uuu - uul) * 0.25f, width, edgeColour);
+            draw_thick_line_ndt(uul + (uuu - uul) * 0.75f, uuu, width, edgeColour);
         }
     }
 
-    void DebugRenderer::DebugDraw(const maths::BoundingSphere& sphere, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const maths::BoundingSphere& sphere, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
-        diverse::DebugRenderer::DrawPointNDT(sphere.get_center(), sphere.get_radius(), colour);
+        diverse::DebugRenderer::draw_point_ndt(sphere.get_center(), sphere.get_radius(), colour);
     }
 
-    void DebugRenderer::DebugDraw(maths::Frustum& frustum, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(maths::Frustum& frustum, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         auto* vertices = frustum.get_verticies();
 
-        DebugRenderer::DrawHairLine(vertices[0], vertices[1], colour);
-        DebugRenderer::DrawHairLine(vertices[1], vertices[2], colour);
-        DebugRenderer::DrawHairLine(vertices[2], vertices[3], colour);
-        DebugRenderer::DrawHairLine(vertices[3], vertices[0], colour);
-        DebugRenderer::DrawHairLine(vertices[4], vertices[5], colour);
-        DebugRenderer::DrawHairLine(vertices[5], vertices[6], colour);
-        DebugRenderer::DrawHairLine(vertices[6], vertices[7], colour);
-        DebugRenderer::DrawHairLine(vertices[7], vertices[4], colour);
-        DebugRenderer::DrawHairLine(vertices[0], vertices[4], colour);
-        DebugRenderer::DrawHairLine(vertices[1], vertices[5], colour);
-        DebugRenderer::DrawHairLine(vertices[2], vertices[6], colour);
-        DebugRenderer::DrawHairLine(vertices[3], vertices[7], colour);
+        DebugRenderer::draw_hair_line(vertices[0], vertices[1], colour);
+        DebugRenderer::draw_hair_line(vertices[1], vertices[2], colour);
+        DebugRenderer::draw_hair_line(vertices[2], vertices[3], colour);
+        DebugRenderer::draw_hair_line(vertices[3], vertices[0], colour);
+        DebugRenderer::draw_hair_line(vertices[4], vertices[5], colour);
+        DebugRenderer::draw_hair_line(vertices[5], vertices[6], colour);
+        DebugRenderer::draw_hair_line(vertices[6], vertices[7], colour);
+        DebugRenderer::draw_hair_line(vertices[7], vertices[4], colour);
+        DebugRenderer::draw_hair_line(vertices[0], vertices[4], colour);
+        DebugRenderer::draw_hair_line(vertices[1], vertices[5], colour);
+        DebugRenderer::draw_hair_line(vertices[2], vertices[6], colour);
+        DebugRenderer::draw_hair_line(vertices[3], vertices[7], colour);
     }
-    void DebugRenderer::DebugDraw(RectLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(RectLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
     {
 
     }
 
-    void DebugRenderer::DebugDraw(SpotLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(SpotLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
     {
         auto angle = light->get_outer_angle();//glm::radians(light->get_outer_angle());
         auto position = transform.get_world_position();
         auto rotation = transform.get_world_orientation();
-        DebugDrawCone(20, 4, angle, light->get_intensity(), position, rotation, colour);
+        debug_draw_cone(20, 4, angle, light->get_intensity(), position, rotation, colour);
     }
 
-    void DebugRenderer::DebugDraw(DirectionalLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(DirectionalLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
     {
         auto position = transform.get_world_position();
         auto rotation = transform.get_world_orientation();
         auto direction = transform.get_forward_direction();
         glm::vec3 offset(0.0f, 0.1f, 0.0f);
-        DrawHairLine(position + offset, position + direction * 2.0f + offset, colour);
-        DrawHairLine(position - offset, position + direction * 2.0f - offset, colour);
+        draw_hair_line(position + offset, position + direction * 2.0f + offset, colour);
+        draw_hair_line(position - offset, position + direction * 2.0f - offset, colour);
 
-        DrawHairLine(position, position + direction * 2.0f, colour);
-        DebugDrawCone(20, 4, 30.0f, 1.5f, position - direction * 1.5f, rotation, colour);
+        draw_hair_line(position, position + direction * 2.0f, colour);
+        debug_draw_cone(20, 4, 30.0f, 1.5f, position - direction * 1.5f, rotation, colour);
     }
-    void DebugRenderer::DebugDraw(PointLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(PointLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
     {
         auto position = transform.get_world_position();
         auto rotation = transform.get_world_orientation();
-        DebugDrawSphere(light->get_radius(), position, colour);
+        debug_draw_sphere(light->get_radius(), position, colour);
     }
 
-    void DebugRenderer::DebugDrawCircle(int numVerts, float radius, const glm::vec3& position, const glm::quat& rotation, const glm::vec4& colour)
+    void DebugRenderer::debug_draw_circle(int numVerts, float radius, const glm::vec3& position, const glm::quat& rotation, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         float step = 360.0f / float(numVerts);
@@ -608,36 +620,36 @@ namespace diverse
             float ny       = maths::Sin(step * (i + 1)) * radius;
             glm::vec3 next = glm::vec3(nx, ny, 0.0f);
 
-            DrawHairLine(position + (rotation * current), position + (rotation * next), colour);
+            draw_hair_line(position + (rotation * current), position + (rotation * next), colour);
         }
     }
-    void DebugRenderer::DebugDrawSphere(float radius, const glm::vec3& position, const glm::vec4& colour)
+    void DebugRenderer::debug_draw_sphere(float radius, const glm::vec3& position, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         float offset = 0.0f;
-        DebugDrawCircle(20, radius, position, glm::quat(glm::vec3(0.0f, 0.0f, 0.0f)), colour);
-        DebugDrawCircle(20, radius, position, glm::quat(glm::vec3(90.0f, 0.0f, 0.0f)), colour);
-        DebugDrawCircle(20, radius, position, glm::quat(glm::vec3(0.0f, 90.0f, 90.0f)), colour);
+        debug_draw_circle(20, radius, position, glm::quat(glm::vec3(0.0f, 0.0f, 0.0f)), colour);
+        debug_draw_circle(20, radius, position, glm::quat(glm::vec3(90.0f, 0.0f, 0.0f)), colour);
+        debug_draw_circle(20, radius, position, glm::quat(glm::vec3(0.0f, 90.0f, 90.0f)), colour);
     }
 
-    void DebugRenderer::DebugDrawCone(int numCircleVerts, int numLinesToCircle, float angle, float length, const glm::vec3& position, const glm::quat& rotation, const glm::vec4& colour)
+    void DebugRenderer::debug_draw_cone(int numCircleVerts, int numLinesToCircle, float angle, float length, const glm::vec3& position, const glm::quat& rotation, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         float endAngle        = maths::Tan(angle * 0.5f) * length;
         glm::vec3 forward     = -(rotation * glm::vec3(0.0f, 0.0f, -1.0f));
         glm::vec3 endPosition = position + forward * length;
         float offset          = 0.0f;
-        DebugDrawCircle(numCircleVerts, endAngle, endPosition, rotation, colour);
+        debug_draw_circle(numCircleVerts, endAngle, endPosition, rotation, colour);
 
         for(int i = 0; i < numLinesToCircle; i++)
         {
             float a         = i * 90.0f;
             glm::vec3 point = rotation * glm::vec3(maths::Cos(a), maths::Sin(a), 0.0f) * endAngle;
-            DrawHairLine(position, position + point + forward * length, colour);
+            draw_hair_line(position, position + point + forward * length, colour);
         }
     }
 
-    void DebugDrawArc(int numVerts, float radius, const glm::vec3& start, const glm::vec3& end, const glm::quat& rotation, const glm::vec4& colour)
+    void debug_drawArc(int numVerts, float radius, const glm::vec3& start, const glm::vec3& end, const glm::quat& rotation, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         float step    = 180.0f / numVerts;
@@ -655,11 +667,11 @@ namespace diverse
             float ny       = maths::Sin(step * (i + 1)) * radius;
             glm::vec3 next = glm::vec3(nx, ny, 0.0f);
 
-            DebugRenderer::DrawHairLine(arcCentre + (rot * current), arcCentre + (rot * next), colour);
+            DebugRenderer::draw_hair_line(arcCentre + (rot * current), arcCentre + (rot * next), colour);
         }
     }
 
-    void DebugRenderer::DebugDrawCapsule(const glm::vec3& position, const glm::quat& rotation, float height, float radius, const glm::vec4& colour)
+    void DebugRenderer::debug_draw_capsule(const glm::vec3& position, const glm::quat& rotation, float height, float radius, const glm::vec4& colour)
     {
         DS_PROFILE_FUNCTION();
         glm::vec3 up = (rotation * glm::vec3(0.0f, 1.0f, 0.0f));
@@ -667,8 +679,8 @@ namespace diverse
         glm::vec3 topSphereCentre    = position + up * (height * 0.5f);
         glm::vec3 bottomSphereCentre = position - up * (height * 0.5f);
 
-        DebugDrawCircle(20, radius, topSphereCentre, rotation * glm::quat(glm::vec3(glm::radians(90.0f), 0.0f, 0.0f)), colour);
-        DebugDrawCircle(20, radius, bottomSphereCentre, rotation * glm::quat(glm::vec3(glm::radians(90.0f), 0.0f, 0.0f)), colour);
+        debug_draw_circle(20, radius, topSphereCentre, rotation * glm::quat(glm::vec3(glm::radians(90.0f), 0.0f, 0.0f)), colour);
+        debug_draw_circle(20, radius, bottomSphereCentre, rotation * glm::quat(glm::vec3(glm::radians(90.0f), 0.0f, 0.0f)), colour);
 
         // Draw 10 arcs
         // Sides
@@ -679,7 +691,7 @@ namespace diverse
             float x = maths::Sin(step * i) * radius;
 
             glm::vec3 offset = rotation * glm::vec4(x, 0.0f, z, 0.0f);
-            DrawHairLine(bottomSphereCentre + offset, topSphereCentre + offset, colour);
+            draw_hair_line(bottomSphereCentre + offset, topSphereCentre + offset, colour);
 
             if(i < 10)
             {
@@ -688,16 +700,16 @@ namespace diverse
 
                 glm::vec3 offset2 = rotation * glm::vec4(x2, 0.0f, z2, 0.0f);
                 // Top Hemishpere
-                DebugDrawArc(20, radius, topSphereCentre + offset, topSphereCentre + offset2, rotation, colour);
+                debug_drawArc(20, radius, topSphereCentre + offset, topSphereCentre + offset2, rotation, colour);
                 // Bottom Hemisphere
-                DebugDrawArc(20, radius, bottomSphereCentre + offset, bottomSphereCentre + offset2, rotation * glm::quat(glm::vec3(glm::radians(180.0f), 0.0f, 0.0f)), colour);
+                debug_drawArc(20, radius, bottomSphereCentre + offset, bottomSphereCentre + offset2, rotation * glm::quat(glm::vec3(glm::radians(180.0f), 0.0f, 0.0f)), colour);
             }
         }
     }
 
-    void DebugRenderer::DebugDraw(const maths::Ray& ray, const glm::vec4& colour, float distance)
+    void DebugRenderer::debug_draw(const maths::Ray& ray, const glm::vec4& colour, float distance)
     {
         DS_PROFILE_FUNCTION();
-        DrawHairLine(ray.Origin, ray.Origin + ray.Direction * distance, colour);
+        draw_hair_line(ray.Origin, ray.Origin + ray.Direction * distance, colour);
     }
 }

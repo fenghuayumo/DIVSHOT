@@ -236,7 +236,7 @@ namespace diverse
 							), 
 							{}, "depth_tex");
 		temporal_upscale_extent = main_render_tex->desc.extent_2d();
-		DebugRenderer::Init();
+		DebugRenderer::init();
 		
 		grid_renderer.reset(new GridRenderer(rg_renderer->device));
 		gaussian.reset(new GaussianRenderPass(this));
@@ -429,7 +429,7 @@ namespace diverse
 		packet.delta_t = delta_dt;
 		packet.swapchain_extent = swapchain_extent;
 		packet.ui_frame = ui_renderer ? ui_renderer->consume_frame() : std::nullopt;
-		packet.debug_draw_frame = DebugRenderer::CaptureFrame();
+		packet.debug_draw_frame = DebugRenderer::capture_frame();
 		packet.frame_desc.render_extent = main_render_tex->desc.extent_2d();//swapchain_extent;
 		auto projection = camera->get_projection_matrix();
 		auto invProj = glm::inverse(projection);
@@ -1398,7 +1398,7 @@ namespace diverse
 		threading::assert_render_thread();
 		wait_for_render_idle();
 		released = true;
-		DebugRenderer::Release();
+		DebugRenderer::release();
         rg_renderer.reset();
 		debug_render_pass.reset();
 		gaussian.reset();

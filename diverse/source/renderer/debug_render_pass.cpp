@@ -86,6 +86,14 @@ namespace diverse
 		{
 			delete[] buf;
 		}
+        for (auto buf : point_buffers)
+		{
+			delete[] buf;
+		}
+        for (auto buf : quad_buffers)
+		{
+			delete[] buf;
+		}
     }
 
     auto DebugRenderPass::render(
@@ -403,7 +411,7 @@ namespace diverse
                             debug_draw_data.point_vertex_buffers[point_batch_drawcall_index].get()
                         };
                         u32 strides[] = {
-                            sizeof(LineVertexData)
+                            sizeof(PointVertexData)
                         };
                         u64 offsets[] = {
                             0
@@ -437,10 +445,10 @@ namespace diverse
                     },
                     std::move(pipeline_desc)
                 );
-                if ((int)debug_draw_data.renderer2d_data.vertex_buffers.size() - 1 < (int)debug_draw_data.renderer2d_data.batch_drawcall_index)
+                if ((int)debug_draw_data.renderer2d_data.vertex_buffers[current_frame].size() - 1 < (int)debug_draw_data.renderer2d_data.batch_drawcall_index)
                 {
                     debug_draw_data.renderer2d_data.vertex_buffers[current_frame].emplace_back(rg.device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(
-                        RENDERER_LINE_BUFFER_SIZE, rhi::BufferUsageFlags::VERTEX_BUFFER), "render2d_vertex_buf", nullptr));
+                        debug_draw_data.renderer2d_data.limits.BufferSize, rhi::BufferUsageFlags::VERTEX_BUFFER), "render2d_vertex_buf", nullptr));
                 }
                 debug_draw_data.renderer2d_data.vertex_data = quad_buffers[current_frame];
                 for (auto& triangleInfo : triangles)
@@ -508,7 +516,7 @@ namespace diverse
                             debug_draw_data.renderer2d_data.vertex_buffers[current_frame][quad_batch_drawcall_index].get()
                         };
                         u32 strides[] = {
-                            sizeof(LineVertexData)
+                            sizeof(VertexData)
                         };
                         u64 offsets[] = {
                             0
@@ -521,12 +529,14 @@ namespace diverse
 
                 debug_draw_data.renderer2d_data.vertex_data = quad_buffers[current_frame];
                 debug_draw_data.renderer2d_data.index_count = 0;
+                debug_draw_data.renderer2d_data.batch_drawcall_index++;
                 pass.rg->record_pass(std::move(pass.pass));
             }
         }
 
         debug_draw_data.point_batch_drawcall_index = 0;
         debug_draw_data.line_batch_drawcall_index = 0;
+        debug_draw_data.renderer2d_data.batch_drawcall_index = 0;
     }
 
 }

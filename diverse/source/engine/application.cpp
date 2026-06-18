@@ -265,7 +265,7 @@ namespace diverse
             DS_PROFILE_SCOPE("Application::Render");
             
             imgui_manager->render([&](){imgui_render();});
-            DebugRenderer::Reset();
+            DebugRenderer::reset();
             debug_draw();
             render();
             frame_cnts++;

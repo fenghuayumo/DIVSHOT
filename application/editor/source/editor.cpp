@@ -853,9 +853,9 @@ namespace diverse
             return;
         }
 
-        DebugRenderer::DrawHairLine(glm::vec3(-5000.0f, 0.0f, 0.0f), glm::vec3(5000.0f, 0.0f, 0.0f), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-        DebugRenderer::DrawHairLine(glm::vec3(0.0f, -5000.0f, 0.0f), glm::vec3(0.0f, 5000.0f, 0.0f), glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-        DebugRenderer::DrawHairLine(glm::vec3(0.0f, 0.0f, -5000.0f), glm::vec3(0.0f, 0.0f, 5000.0f), glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+        DebugRenderer::draw_hair_line(glm::vec3(-5000.0f, 0.0f, 0.0f), glm::vec3(5000.0f, 0.0f, 0.0f), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+        DebugRenderer::draw_hair_line(glm::vec3(0.0f, -5000.0f, 0.0f), glm::vec3(0.0f, 5000.0f, 0.0f), glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+        DebugRenderer::draw_hair_line(glm::vec3(0.0f, 0.0f, -5000.0f), glm::vec3(0.0f, 0.0f, 5000.0f), glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
         
         //m_Renderer->draw_3dgrid();
 #endif
@@ -1120,7 +1120,7 @@ namespace diverse
                         auto viewT = gstrain.getCameraPos(i);
                         auto view = glm::translate(glm::identity<glm::mat4>(), viewT) * glm::mat4_cast(viewR);
                         maths::Frustum cameraFrustum(projection, glm::inverse(view) * glm::inverse(transform.get_world_matrix()));
-                        DebugRenderer::DebugDraw(cameraFrustum, current_train_view_id == i ? glm::vec4(0.8,0,0,0.9): glm::vec4(0.9f));
+                        DebugRenderer::debug_draw(cameraFrustum, current_train_view_id == i ? glm::vec4(0.8,0,0,0.9): glm::vec4(0.9f));
                     }
                 }
             }
@@ -1136,19 +1136,19 @@ namespace diverse
                     auto point_light = registry.try_get<PointLightComponent>(select_ent);
                     if (point_light && transform)
                     {
-                        DebugRenderer::DebugDraw(point_light, *transform, glm::vec4(glm::vec3(point_light->get_radiance()), 0.2f));
+                        DebugRenderer::debug_draw(point_light, *transform, glm::vec4(glm::vec3(point_light->get_radiance()), 0.2f));
                     }
 
                     auto spot_light = registry.try_get<SpotLightComponent>(select_ent);
                     if (spot_light && transform)
                     {
-                        DebugRenderer::DebugDraw(spot_light, *transform, glm::vec4(glm::vec3(spot_light->get_radiance()), 0.2f));
+                        DebugRenderer::debug_draw(spot_light, *transform, glm::vec4(glm::vec3(spot_light->get_radiance()), 0.2f));
                     }
 
                     auto rect_light = registry.try_get<RectLightComponent>(select_ent);
                     if (rect_light && transform)
                     {
-                        DebugRenderer::DebugDraw(rect_light, *transform, glm::vec4(glm::vec3(rect_light->get_radiance()), 0.2f));
+                        DebugRenderer::debug_draw(rect_light, *transform, glm::vec4(glm::vec3(rect_light->get_radiance()), 0.2f));
                     }
 
                     #define drawdebugBox(T)                                                 \
@@ -1158,7 +1158,7 @@ namespace diverse
                         {                                                                   \
                             auto& worldTransform = transform->get_world_matrix();           \
                             auto bbCopy = model->ModelRef->get_world_bounding_box(worldTransform); \
-                            DebugRenderer::DebugDraw(bbCopy, selectedColour, true);         \
+                            DebugRenderer::debug_draw(bbCopy, selectedColour, true);         \
                         }                                                                   \
                     }
                     drawdebugBox(GaussianComponent);
