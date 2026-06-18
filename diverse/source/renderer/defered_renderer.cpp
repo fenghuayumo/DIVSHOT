@@ -189,6 +189,7 @@ namespace diverse
 	}
 	DeferedRenderer::~DeferedRenderer()
 	{
+		stop_render_thread();
 		release();
 	}
 	void DeferedRenderer::init(std::array<u32, 2> swapchain_extent)
@@ -254,7 +255,123 @@ namespace diverse
 		if (!packet)
 			return;
 
-		submit_render_frame_packet(std::move(*packet));
+		if (is_render_thread_running())
+			enqueue_render_frame_packet(std::move(*packet));
+		else
+			submit_render_frame_packet(std::move(*packet));
+	}
+
+	auto DeferedRenderer::start_render_thread() -> void
+	{
+		threading::assert_game_thread();
+		if (render_thread_running.load(std::memory_order_acquire))
+			return;
+
+		{
+			std::lock_guard lock(render_thread_mutex);
+			render_thread_stop_requested = false;
+			render_thread_busy = false;
+			pending_render_frames.clear();
+			queued_render_frame_serial = 0;
+			completed_render_frame_serial = 0;
+		}
+
+		render_thread_running.store(true, std::memory_order_release);
+		render_thread = std::thread([this]() {
+			render_thread_main();
+		});
+	}
+
+	auto DeferedRenderer::stop_render_thread() -> void
+	{
+		if (!render_thread_running.load(std::memory_order_acquire))
+			return;
+
+		if (threading::is_render_thread())
+			return;
+
+		wait_for_render_idle();
+		{
+			std::lock_guard lock(render_thread_mutex);
+			render_thread_stop_requested = true;
+		}
+		render_thread_cv.notify_all();
+
+		if (render_thread.joinable())
+			render_thread.join();
+	}
+
+	auto DeferedRenderer::enqueue_render_frame_packet(RenderFramePacket&& packet) -> void
+	{
+		if (!render_thread_running.load(std::memory_order_acquire))
+		{
+			submit_render_frame_packet(std::move(packet));
+			return;
+		}
+
+		{
+			std::lock_guard lock(render_thread_mutex);
+			while (pending_render_frames.size() >= MaxPendingRenderFrames)
+			{
+				pending_render_frames.pop_front();
+				completed_render_frame_serial++;
+			}
+			pending_render_frames.push_back(std::move(packet));
+			queued_render_frame_serial++;
+		}
+		render_thread_cv.notify_one();
+	}
+
+	auto DeferedRenderer::render_thread_main() -> void
+	{
+		threading::mark_render_thread();
+
+		for (;;)
+		{
+			std::optional<RenderFramePacket> packet;
+			{
+				std::unique_lock lock(render_thread_mutex);
+				render_thread_cv.wait(lock, [this]() {
+					std::lock_guard command_lock(render_command_mutex);
+					return render_thread_stop_requested || !pending_render_frames.empty() || !pending_render_commands.empty();
+				});
+
+				if (render_thread_stop_requested && pending_render_frames.empty())
+				{
+					std::lock_guard command_lock(render_command_mutex);
+					if (pending_render_commands.empty())
+						break;
+				}
+
+				if (!pending_render_frames.empty())
+				{
+					packet = std::move(pending_render_frames.front());
+					pending_render_frames.pop_front();
+				}
+				render_thread_busy = true;
+			}
+
+			flush_render_commands();
+			if (packet)
+			{
+				submit_render_frame_packet(std::move(*packet));
+				{
+					std::lock_guard lock(render_thread_mutex);
+					completed_render_frame_serial++;
+				}
+			}
+
+			{
+				std::lock_guard lock(render_thread_mutex);
+				render_thread_busy = false;
+			}
+			render_thread_cv.notify_all();
+		}
+
+		flush_render_commands();
+		release();
+		render_thread_running.store(false, std::memory_order_release);
+		render_thread_cv.notify_all();
 	}
 
 	auto DeferedRenderer::build_render_frame_packet(f32 delta_dt, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>
@@ -456,12 +573,26 @@ namespace diverse
 
 	auto DeferedRenderer::enqueue_render_command(std::function<void()>&& command) -> void
 	{
-		std::lock_guard lock(render_command_mutex);
-		pending_render_commands.push_back(std::move(command));
+		{
+			std::lock_guard lock(render_command_mutex);
+			pending_render_commands.push_back(std::move(command));
+		}
+		render_thread_cv.notify_one();
 	}
 
 	auto DeferedRenderer::flush_render_commands() -> void
 	{
+		if (!threading::is_render_thread() && render_thread_running.load(std::memory_order_acquire))
+		{
+			auto barrier = std::make_shared<std::promise<void>>();
+			auto future = barrier->get_future();
+			enqueue_render_command([barrier]() {
+				barrier->set_value();
+			});
+			future.wait();
+			return;
+		}
+
 		threading::assert_render_thread();
 		std::vector<std::function<void()>> commands;
 		{
@@ -478,6 +609,27 @@ namespace diverse
 
 	auto DeferedRenderer::wait_for_render_idle() -> void
 	{
+		if (!threading::is_render_thread() && render_thread_running.load(std::memory_order_acquire))
+		{
+			u64 target_frame = 0;
+			{
+				std::lock_guard lock(render_thread_mutex);
+				target_frame = queued_render_frame_serial;
+			}
+
+			flush_render_commands();
+
+			std::unique_lock lock(render_thread_mutex);
+			render_thread_cv.wait(lock, [this, target_frame]() {
+				std::lock_guard command_lock(render_command_mutex);
+				return completed_render_frame_serial >= target_frame &&
+					pending_render_frames.empty() &&
+					pending_render_commands.empty() &&
+					!render_thread_busy;
+			});
+			return;
+		}
+
 		threading::assert_render_thread();
 		flush_render_commands();
 		retire_deferred_releases(true);
@@ -1119,8 +1271,11 @@ namespace diverse
 
 	auto DeferedRenderer::release()->void
 	{
+		if (released)
+			return;
 		threading::assert_render_thread();
 		wait_for_render_idle();
+		released = true;
 		DebugRenderer::Release();
         rg_renderer.reset();
 		debug_render_pass.reset();
@@ -1180,13 +1335,24 @@ namespace diverse
 	{
 		override_camera = camera;
 		override_camera_transform = overrideCameraTransform;
-		grid_renderer->set_override_camera(camera, camera_transform);
+		if (threading::is_render_thread() || !render_thread_running.load(std::memory_order_acquire))
+		{
+			if (grid_renderer)
+				grid_renderer->set_override_camera(camera, overrideCameraTransform);
+		}
+		else
+		{
+			enqueue_render_command([this, camera, overrideCameraTransform]() {
+				if (grid_renderer)
+					grid_renderer->set_override_camera(camera, overrideCameraTransform);
+			});
+		}
 	}
 
 	auto DeferedRenderer::handle_new_scene(Scene* scene)->void
 	{
 		threading::assert_render_thread();
-		set_current_scene(scene);
+		DS_UNUSED(scene);
 	}
 
 	auto DeferedRenderer::upload_mesh_model(MeshModel* model) -> void

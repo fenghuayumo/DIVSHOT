@@ -11,9 +11,14 @@
 #include "sky_pass.h"
 #include "light.h"
 #include "scene/component/gaussian_crop.h"
+#include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <functional>
+#include <future>
 #include <mutex>
 #include <optional>
+#include <thread>
 
 namespace diverse
 {
@@ -189,6 +194,10 @@ namespace diverse
 		void	render(std::array<u32, 2> swapchain_extent);
 		auto	build_render_frame_packet(f32 delta_t, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>;
 		auto	submit_render_frame_packet(RenderFramePacket&& packet)->void;
+		auto	start_render_thread()->void;
+		auto	stop_render_thread()->void;
+		auto	enqueue_render_frame_packet(RenderFramePacket&& packet)->void;
+		auto	is_render_thread_running() const -> bool { return render_thread_running.load(std::memory_order_acquire); }
 		auto	prepare_render_graph(rg::TemporalGraph& rg, const FrameParamDesc& frame_desc, const EnvironmentFrameParams& environment) -> rg::Handle<rhi::GpuTexture>;
 		auto	retire_frame(const std::vector<MeshFrameState>& mesh_frame_states) -> void;
 		auto	prepare_frame_constants(rhi::DynamicConstants& dynamic_constants, const FrameParamDesc& frame_desc, const CameraFrameParams& camera_params, f32 delta_t) -> rg::FrameConstantsLayout;
@@ -257,6 +266,7 @@ namespace diverse
 				const EnvironmentFrameParams& environment,
 				rg::Handle<rhi::GpuTexture>& accum_img,
 				rg::Handle<rhi::GpuTexture>& depth_img) -> rg::Handle<rhi::GpuTexture>;
+		auto	render_thread_main()->void;
 	public:
 		std::vector<RenderGSCommand> gs_command_queue;
 		std::vector<RenderMeshCommand> mesh_command_queue;
@@ -306,6 +316,16 @@ namespace diverse
 		std::vector<std::function<void(rg::RenderGraph&,rg::Handle<rhi::GpuTexture>&)>> gpu_events;
 		std::mutex render_command_mutex;
 		std::vector<std::function<void()>> pending_render_commands;
+		std::thread render_thread;
+		mutable std::mutex render_thread_mutex;
+		std::condition_variable render_thread_cv;
+		std::deque<RenderFramePacket> pending_render_frames;
+		std::atomic_bool render_thread_running = false;
+		bool render_thread_stop_requested = false;
+		bool render_thread_busy = false;
+		u64 queued_render_frame_serial = 0;
+		u64 completed_render_frame_serial = 0;
+		static constexpr size_t MaxPendingRenderFrames = 1;
 		struct DeferredRelease
 		{
 			u64 retire_frame = 0;
@@ -327,5 +347,6 @@ namespace diverse
 
 		bool		reset_pt = false;
 		bool 		skip_gs_render = false;
+		bool		released = false;
 	};
 }

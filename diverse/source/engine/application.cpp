@@ -132,6 +132,9 @@ namespace diverse
         imgui_manager->init();
         DS_LOG_INFO("Initialised ImGui Manager");
 
+        main_renderer->set_current_scene(scene_manager->get_current_scene());
+        main_renderer->start_render_thread();
+
         current_state = AppState::Running;
     }
 
@@ -142,6 +145,8 @@ namespace diverse
 
         if (main_renderer)
             main_renderer->wait_for_render_idle();
+        if (main_renderer)
+            main_renderer->stop_render_thread();
 
         ArenaRelease(frame_arena);
 
@@ -182,6 +187,7 @@ namespace diverse
         if (!main_renderer)
             return;
 
+        main_renderer->set_current_scene(scene);
         main_renderer->enqueue_render_command([renderer = main_renderer.get(), scene]() {
             renderer->handle_new_scene(scene);
         });
@@ -229,6 +235,12 @@ namespace diverse
 
         Input::get().reset_pressed();
         window->process_input();
+
+        if (main_renderer && main_renderer->is_render_thread_running())
+        {
+            DS_PROFILE_SCOPE("Application::WaitForRenderThread");
+            main_renderer->wait_for_render_idle();
+        }
 
         {
             DS_PROFILE_SCOPE("ImGui::NewFrame");
@@ -314,7 +326,7 @@ namespace diverse
         const auto delta_time = static_cast<f32>(Engine::get_time_step().get_seconds());
         auto packet = main_renderer->build_render_frame_packet(delta_time, get_window_size());
         if (packet)
-            main_renderer->submit_render_frame_packet(std::move(*packet));
+            main_renderer->enqueue_render_frame_packet(std::move(*packet));
     }
 
     void Application::imgui_render()
@@ -435,12 +447,17 @@ namespace diverse
 
     void Application::refresh_shaders()
     {
-        main_renderer->refresh_shaders();
+        main_renderer->enqueue_render_command([renderer = main_renderer.get()]() {
+            renderer->refresh_shaders();
+        });
+        main_renderer->flush_render_commands();
     }
 
     void Application::invalidate_pt_state()
     {
-        main_renderer->invalidate_pt_state();
+        main_renderer->enqueue_render_command([renderer = main_renderer.get()]() {
+            renderer->invalidate_pt_state();
+        });
     }
 
     void Application::open_project(const std::string& filePath)
