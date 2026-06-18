@@ -1,15 +1,16 @@
+#include "inc/binding.hlsl"
 #include "inc/frame_constants.hlsl"
 #include "inc/pack_unpack.hlsl"
 #include "inc/uv.hlsl"
 #include "inc/samplers.hlsl"
 #include "inc/bilinear.hlsl"
 
-[[vk::binding(0)]] Texture2D<float> depth_tex;
-[[vk::binding(1)]] Texture2D<float3> geometric_normal_tex;
-[[vk::binding(2)]] Texture2D<float> prev_depth_tex;
-[[vk::binding(3)]] Texture2D<float3> velocity_tex;
-[[vk::binding(4)]] RWTexture2D<float4> output_tex;
-[[vk::binding(5)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float> depth_tex;
+DS_RESOURCE(1) Texture2D<float3> geometric_normal_tex;
+DS_RESOURCE(2) Texture2D<float> prev_depth_tex;
+DS_RESOURCE(3) Texture2D<float3> velocity_tex;
+DS_RESOURCE(4) RWTexture2D<float4> output_tex;
+DS_CBUFFER(5) cbuffer _ {
     float4 output_tex_size;
 };
 

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/bindless.hlsl"
 #include "gaussian_common.hlsl"
@@ -8,7 +9,7 @@ struct VS_OUTPUT
     [[vk::location(0)]] float4 colour : COLOR0;
 };
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     float4x4 model_matrix;
 
     float point_size;

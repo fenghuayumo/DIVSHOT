@@ -1,3 +1,4 @@
+#include "inc/binding.hlsl"
 #include "inc/samplers.hlsl"
 #include "inc/frame_constants.hlsl"
 #include "inc/pack_unpack.hlsl"
@@ -24,18 +25,18 @@
 #define USE_DIFFUSE_GI_FOR_ROUGH_SPEC 0
 #define USE_DIFFUSE_GI_FOR_ROUGH_SPEC_MIN_ROUGHNESS 0.7
 
-[[vk::binding(0)]] Texture2D<float4> gbuffer_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float> shadow_mask_tex;
-[[vk::binding(3)]] Texture2D<float4> rtr_tex;
-[[vk::binding(4)]] Texture2D<float4> rtdgi_tex;
+DS_RESOURCE(0) Texture2D<float4> gbuffer_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float> shadow_mask_tex;
+DS_RESOURCE(3) Texture2D<float4> rtr_tex;
+DS_RESOURCE(4) Texture2D<float4> rtdgi_tex;
 DEFINE_IRCACHE_BINDINGS(5, 6, 7, 8, 9, 10, 11, 12, 13)
 DEFINE_WRC_BINDINGS(14)
-[[vk::binding(15)]] RWTexture2D<float4> temporal_output_tex;
-[[vk::binding(16)]] RWTexture2D<float4> output_tex;
-[[vk::binding(17)]] TextureCube<float4> unconvolved_sky_cube_tex;
-[[vk::binding(18)]] TextureCube<float4> sky_cube_tex;
-[[vk::binding(19)]] cbuffer _ {
+DS_RESOURCE(15) RWTexture2D<float4> temporal_output_tex;
+DS_RESOURCE(16) RWTexture2D<float4> output_tex;
+DS_RESOURCE(17) TextureCube<float4> unconvolved_sky_cube_tex;
+DS_RESOURCE(18) TextureCube<float4> sky_cube_tex;
+DS_CBUFFER(19) cbuffer _ {
     float4 output_tex_size;
     uint debug_shading_mode;
     uint debug_show_wrc;

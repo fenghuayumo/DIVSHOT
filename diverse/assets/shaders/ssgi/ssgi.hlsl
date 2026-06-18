@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/math_const.hlsl"
 #include "../inc/math.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -7,16 +8,16 @@
 #include "../inc/gbuffer.hlsl"
 #include "../inc/blue_noise.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> gbuffer_tex;
+DS_RESOURCE(0) Texture2D<float4> gbuffer_tex;
 // Matches resolution of the output
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float4> half_view_normal_tex;
-[[vk::binding(3)]] Texture2D<float4> prev_radiance_tex;
-[[vk::binding(4)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(5)]] RWTexture2D<float4> output_tex;
-//[[vk::binding(6)]] RWTexture2D<float4> bent_normal_out_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float4> half_view_normal_tex;
+DS_RESOURCE(3) Texture2D<float4> prev_radiance_tex;
+DS_RESOURCE(4) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(5) RWTexture2D<float4> output_tex;
+//DS_RESOURCE(6) RWTexture2D<float4> bent_normal_out_tex;
 
-[[vk::binding(6)]] cbuffer _ {
+DS_CBUFFER(6) cbuffer _ {
     float4 input_tex_size;
     float4 output_tex_size;
 };

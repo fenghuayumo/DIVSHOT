@@ -1,10 +1,11 @@
+#include "../inc/binding.hlsl"
 #include "../inc/color/math.hlsl"
 
 #include "../inc/color/standard_observer.hlsl"
 #include "../inc/color/ipt.hlsl"
 #include "../inc/color/bezold_brucke.hlsl"
 
-[[vk::binding(0)]] RWTexture1D<float2> output_tex;
+DS_RESOURCE(0) RWTexture1D<float2> output_tex;
 
 [numthreads(64, 1, 1)]
 void main(in uint px : SV_DispatchThreadID) {

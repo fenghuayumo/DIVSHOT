@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"

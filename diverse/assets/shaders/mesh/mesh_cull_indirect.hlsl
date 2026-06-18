@@ -1,8 +1,9 @@
+#include "../inc/binding.hlsl"
 #include "inc/frame_constants.hlsl"
 #include "inc/mesh_draw.hlsl"
 
-[[vk::binding(0)]] StructuredBuffer<MeshDrawGpuData> mesh_draws;
-[[vk::binding(1)]] StructuredBuffer<InstanceTransform> instance_transforms_dyn;
+DS_RESOURCE(0) StructuredBuffer<MeshDrawGpuData> mesh_draws;
+DS_RESOURCE(1) StructuredBuffer<InstanceTransform> instance_transforms_dyn;
 
 struct IndirectDrawArgsInstanced {
     uint vertex_count_per_instance;
@@ -11,10 +12,10 @@ struct IndirectDrawArgsInstanced {
     uint start_instance_location;
 };
 
-[[vk::binding(2)]] RWStructuredBuffer<IndirectDrawArgsInstanced> indirect_args;
-[[vk::binding(3)]] RWStructuredBuffer<uint> indirect_count;
+DS_RESOURCE(2) RWStructuredBuffer<IndirectDrawArgsInstanced> indirect_args;
+DS_RESOURCE(3) RWStructuredBuffer<uint> indirect_count;
 
-[[vk::binding(4)]] cbuffer _ {
+DS_CBUFFER(4) cbuffer _ {
     uint draw_count;
     uint3 _padding;
 };

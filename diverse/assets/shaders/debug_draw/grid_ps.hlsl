@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 
 #include "../inc/frame_constants.hlsl"
 struct PS_Out
@@ -6,7 +7,7 @@ struct PS_Out
     float depth : SV_Depth;
 };
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     float4 u_CameraPos;
     float4 u_CameraForward;
     float u_Near;

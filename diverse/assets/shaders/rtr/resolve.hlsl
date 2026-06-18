@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/color.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -13,24 +14,24 @@
 #include "rtr_settings.hlsl"
 #include "rtr_restir_pack_unpack.inc.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> gbuffer_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float4> hit0_tex;
-[[vk::binding(3)]] Texture2D<float4> hit1_tex;
-[[vk::binding(4)]] Texture2D<float4> hit2_tex;
-[[vk::binding(5)]] Texture2D<float4> history_tex;
-[[vk::binding(6)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(7)]] Texture2D<float4> half_view_normal_tex;
-[[vk::binding(8)]] Texture2D<float> half_depth_tex;
-[[vk::binding(9)]] Texture2D<float2> ray_len_history_tex;
-[[vk::binding(10)]] Texture2D<float4> restir_irradiance_tex;
-[[vk::binding(11)]] Texture2D<float4> restir_ray_tex;
-[[vk::binding(12)]] Texture2D<uint2> restir_reservoir_tex;
-[[vk::binding(13)]] Texture2D<float4> restir_ray_orig_tex;
-[[vk::binding(14)]] Texture2D<float4> restir_hit_normal_tex;
-[[vk::binding(15)]] RWTexture2D<float3> output_tex;
-[[vk::binding(16)]] RWTexture2D<float2> ray_len_output_tex;
-[[vk::binding(17)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> gbuffer_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float4> hit0_tex;
+DS_RESOURCE(3) Texture2D<float4> hit1_tex;
+DS_RESOURCE(4) Texture2D<float4> hit2_tex;
+DS_RESOURCE(5) Texture2D<float4> history_tex;
+DS_RESOURCE(6) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(7) Texture2D<float4> half_view_normal_tex;
+DS_RESOURCE(8) Texture2D<float> half_depth_tex;
+DS_RESOURCE(9) Texture2D<float2> ray_len_history_tex;
+DS_RESOURCE(10) Texture2D<float4> restir_irradiance_tex;
+DS_RESOURCE(11) Texture2D<float4> restir_ray_tex;
+DS_RESOURCE(12) Texture2D<uint2> restir_reservoir_tex;
+DS_RESOURCE(13) Texture2D<float4> restir_ray_orig_tex;
+DS_RESOURCE(14) Texture2D<float4> restir_hit_normal_tex;
+DS_RESOURCE(15) RWTexture2D<float3> output_tex;
+DS_RESOURCE(16) RWTexture2D<float2> ray_len_output_tex;
+DS_CBUFFER(17) cbuffer _ {
     float4 output_tex_size;
     int4 spatial_resolve_offsets[16 * 4 * 8];
 };

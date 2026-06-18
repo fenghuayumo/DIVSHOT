@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 
 struct PsIn
@@ -16,7 +17,7 @@ struct PsOut {
     float depth : SV_Depth;
 };
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     float4 gs_translation;
     float4 gs_scaling;
     float4 gs_rotation;

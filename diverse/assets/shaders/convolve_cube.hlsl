@@ -1,12 +1,13 @@
+#include "inc/binding.hlsl"
 #include "inc/math.hlsl"
 #include "inc/quasi_random.hlsl"
 #include "inc/monte_carlo.hlsl"
 #include "inc/samplers.hlsl"
 #include "inc/cube_map.hlsl"
 
-[[vk::binding(0)]] TextureCube<float4> input_tex;
-[[vk::binding(1)]] RWTexture2DArray<float4> output_tex;
-[[vk::binding(2)]] cbuffer _ {
+DS_RESOURCE(0) TextureCube<float4> input_tex;
+DS_RESOURCE(1) RWTexture2DArray<float4> output_tex;
+DS_CBUFFER(2) cbuffer _ {
     uint face_width;
 }
 

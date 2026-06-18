@@ -1,7 +1,8 @@
-[[vk::binding(0)]] Texture2D<float4> src_tex;
-[[vk::binding(1)]] RWTexture2D<float4> dst_tex;
+#include "inc/binding.hlsl"
+DS_RESOURCE(0) Texture2D<float4> src_tex;
+DS_RESOURCE(1) RWTexture2D<float4> dst_tex;
 
-[[vk::binding(2)]] cbuffer _ {
+DS_CBUFFER(2) cbuffer _ {
     uint alpha;
     uint3 padding;
 };

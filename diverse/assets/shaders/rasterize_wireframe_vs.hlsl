@@ -1,10 +1,11 @@
+#include "inc/binding.hlsl"
 #include "inc/frame_constants.hlsl"
 #include "inc/mesh.hlsl"
 #include "inc/bindless.hlsl"
 #include "inc/mesh_draw.hlsl"
 
-[[vk::binding(0)]] StructuredBuffer<InstanceTransform> instance_transforms_dyn;
-[[vk::binding(1)]] StructuredBuffer<MeshDrawGpuData> mesh_draws;
+DS_RESOURCE(0) StructuredBuffer<InstanceTransform> instance_transforms_dyn;
+DS_RESOURCE(1) StructuredBuffer<MeshDrawGpuData> mesh_draws;
 
 struct VsOut {
 	float4 position: SV_Position;

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 // 3DGUT Fragment Shader for Gaussian Splatting
 // 
 // Supports both pinhole and fisheye cameras with optional Depth of Field (DOF)
@@ -12,7 +13,7 @@
 #include "threedgut_projection.hlsl"
 
 // Push constants (must match mesh shader)
-[[vk::binding(0)]] cbuffer PushConstants {
+DS_CBUFFER(0) cbuffer PushConstants {
     float4x4 model_matrix;
     uint buf_id;
     uint surface_width;

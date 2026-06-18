@@ -1,9 +1,10 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "gaussian_common.hlsl"
-[[vk::binding(0)]] RWStructuredBuffer<uint> point_list_key_buffer;
-[[vk::binding(1)]] RWStructuredBuffer<uint> point_list_value_buffer;
-[[vk::binding(2)]] cbuffer _ {
+DS_RESOURCE(0) RWStructuredBuffer<uint> point_list_key_buffer;
+DS_RESOURCE(1) RWStructuredBuffer<uint> point_list_value_buffer;
+DS_CBUFFER(2) cbuffer _ {
     uint max_gaussians;
 };
 

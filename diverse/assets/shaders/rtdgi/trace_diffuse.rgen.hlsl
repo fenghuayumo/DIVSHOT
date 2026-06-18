@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -17,27 +18,27 @@
 #include "rtdgi_restir_settings.hlsl"
 #include "near_field_settings.hlsl"
 // #include "../ddgi/gi_common.hlsl"
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
-[[vk::binding(0)]] Texture2D<float3> half_view_normal_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float4> reprojected_gi_tex;
-[[vk::binding(3)]] Texture2D<float4> reprojection_tex;
+DS_RESOURCE(0) Texture2D<float3> half_view_normal_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float4> reprojected_gi_tex;
+DS_RESOURCE(3) Texture2D<float4> reprojection_tex;
 DEFINE_IRCACHE_BINDINGS(4, 5, 6, 7, 8, 9, 10, 11, 12)
 DEFINE_WRC_BINDINGS(13)
-[[vk::binding(14)]] TextureCube<float4> sky_cube_tex;
-[[vk::binding(15)]] Texture2D<float3> ray_orig_history_tex;
-[[vk::binding(16)]] RWTexture2D<float4> candidate_irradiance_out_tex;
-[[vk::binding(17)]] RWTexture2D<float4> candidate_normal_out_tex;
-[[vk::binding(18)]] RWTexture2D<float4> candidate_hit_out_tex;
-[[vk::binding(19)]] Texture2D<float> rt_history_invalidity_in_tex;
-[[vk::binding(20)]] RWTexture2D<float> rt_history_invalidity_out_tex;
-[[vk::binding(21)]] cbuffer _ {
+DS_RESOURCE(14) TextureCube<float4> sky_cube_tex;
+DS_RESOURCE(15) Texture2D<float3> ray_orig_history_tex;
+DS_RESOURCE(16) RWTexture2D<float4> candidate_irradiance_out_tex;
+DS_RESOURCE(17) RWTexture2D<float4> candidate_normal_out_tex;
+DS_RESOURCE(18) RWTexture2D<float4> candidate_hit_out_tex;
+DS_RESOURCE(19) Texture2D<float> rt_history_invalidity_in_tex;
+DS_RESOURCE(20) RWTexture2D<float> rt_history_invalidity_out_tex;
+DS_CBUFFER(21) cbuffer _ {
     float4 gbuffer_tex_size;
    // DDGIUniforms ddgi;
 };
-// [[vk::binding(22)]]  Texture2D s_Irradiance;
-// [[vk::binding(23)]]  Texture2D s_Depth;
+// DS_RESOURCE(22)  Texture2D s_Irradiance;
+// DS_RESOURCE(23)  Texture2D s_Depth;
 
 
 //#define IRCACHE_LOOKUP_DONT_KEEP_ALIVE

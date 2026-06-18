@@ -1,5 +1,6 @@
-[[vk::binding(0)]] Texture2D<float2> input_tex;
-[[vk::binding(1)]] RWTexture2D<float2> output_tex;
+#include "../inc/binding.hlsl"
+DS_RESOURCE(0) Texture2D<float2> input_tex;
+DS_RESOURCE(1) RWTexture2D<float2> output_tex;
 
 [numthreads(8, 8, 1)]
 void main(uint2 px: SV_DispatchThreadID) {

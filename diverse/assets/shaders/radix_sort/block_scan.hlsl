@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 
 
 #define GROUP_SIZE 256
@@ -10,14 +11,14 @@
 #define op_type OpType_Sum
 #define data_type_str uint
 #define identity_str (op_type == OpType_Min ? 4294967295u : 0)
-[[vk::binding(0)]] RWStructuredBuffer<data_type_str> g_InputKeys;
-[[vk::binding(1)]] RWStructuredBuffer<data_type_str> g_OutputKeys;
-// [[vk::binding(2)]] RWStructuredBuffer<data_type_str> g_PartialResults;
+DS_RESOURCE(0) RWStructuredBuffer<data_type_str> g_InputKeys;
+DS_RESOURCE(1) RWStructuredBuffer<data_type_str> g_OutputKeys;
+// DS_RESOURCE(2) RWStructuredBuffer<data_type_str> g_PartialResults;
 
 #if USE_ARGS
-[[vk::binding(2)]] RWStructuredBuffer<uint> g_CountBuffer;
+DS_RESOURCE(2) RWStructuredBuffer<uint> g_CountBuffer;
 #else
-[[vk::binding(2)]] cbuffer _ {
+DS_CBUFFER(2) cbuffer _ {
     uint g_Count;
 };
 #endif

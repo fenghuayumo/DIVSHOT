@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "../inc/bindless.hlsl"
@@ -17,8 +18,8 @@ struct VS_OUTPUT
 //     row_major float3x4 previous;
 // };
 
-// [[vk::binding(0)]] StructuredBuffer<InstanceTransform> instance_transforms_dyn;
-[[vk::binding(0)]] cbuffer _ {
+// DS_RESOURCE(0) StructuredBuffer<InstanceTransform> instance_transforms_dyn;
+DS_CBUFFER(0) cbuffer _ {
     float4x4 model_matrix;
     uint buf_id;
     uint surface_width;
@@ -29,7 +30,7 @@ struct VS_OUTPUT
     float4 tintColor; // w: transparency
     float4 color_offset;//w: splat_scale_size
 };
-[[vk::binding(1)]] StructuredBuffer<uint> point_list_value_buffer;
+DS_RESOURCE(1) StructuredBuffer<uint> point_list_value_buffer;
 
 static const float alphaCullThreshold = 1.0 / 255.0;
 

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/image.hlsl"
 #include "../inc/samplers.hlsl"
 
@@ -14,7 +15,7 @@ struct Ps_Out
     float4 colour : SV_Target0;
 };
 
-[[vk::binding(0)]] Texture2D<float4> textures[16];
+DS_RESOURCE(0) Texture2D<float4> textures[16];
 
 #define GAMMA 2.2
 #define DISABLE_GAMMA_CORRECTION 0

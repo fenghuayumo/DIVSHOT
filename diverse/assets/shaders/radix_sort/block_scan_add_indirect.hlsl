@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 
 #define PARTIAL_RESULT 1
 #define USE_ARGS       1
@@ -13,14 +14,14 @@
 #define data_type_str uint
 #define identity_str (op_type == OpType_Min ? 4294967295u : 0)
 
-[[vk::binding(0)]] RWStructuredBuffer<data_type_str> g_InputKeys;
-[[vk::binding(1)]] RWStructuredBuffer<data_type_str> g_OutputKeys;
-[[vk::binding(2)]] RWStructuredBuffer<data_type_str> g_PartialResults;
+DS_RESOURCE(0) RWStructuredBuffer<data_type_str> g_InputKeys;
+DS_RESOURCE(1) RWStructuredBuffer<data_type_str> g_OutputKeys;
+DS_RESOURCE(2) RWStructuredBuffer<data_type_str> g_PartialResults;
 
 #if USE_ARGS
-[[vk::binding(3)]] RWStructuredBuffer<uint> g_CountBuffer;
+DS_RESOURCE(3) RWStructuredBuffer<uint> g_CountBuffer;
 #else
-[[vk::binding(3)]] cbuffer _ {
+DS_CBUFFER(3) cbuffer _ {
     uint g_Count;
 };
 #endif

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/color.hlsl"
@@ -7,19 +8,19 @@
 #include "../inc/unjitter_taa.hlsl"
 #include "taa_common.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-[[vk::binding(1)]] Texture2D<float4> history_tex;
-[[vk::binding(2)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(3)]] Texture2D<float2> closest_velocity_tex;
-[[vk::binding(4)]] Texture2D<float2> velocity_history_tex;
-[[vk::binding(5)]] Texture2D<float> depth_tex;
-[[vk::binding(6)]] Texture2D<float3> smooth_var_history_tex;
-[[vk::binding(7)]] Texture2D<float> input_prob_tex;
-[[vk::binding(8)]] RWTexture2D<float4> temporal_output_tex;
-[[vk::binding(9)]] RWTexture2D<float4> output_tex;
-[[vk::binding(10)]] RWTexture2D<float3> smooth_var_output_tex;
-[[vk::binding(11)]] RWTexture2D<float2> velocity_output_tex;
-[[vk::binding(12)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+DS_RESOURCE(1) Texture2D<float4> history_tex;
+DS_RESOURCE(2) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(3) Texture2D<float2> closest_velocity_tex;
+DS_RESOURCE(4) Texture2D<float2> velocity_history_tex;
+DS_RESOURCE(5) Texture2D<float> depth_tex;
+DS_RESOURCE(6) Texture2D<float3> smooth_var_history_tex;
+DS_RESOURCE(7) Texture2D<float> input_prob_tex;
+DS_RESOURCE(8) RWTexture2D<float4> temporal_output_tex;
+DS_RESOURCE(9) RWTexture2D<float4> output_tex;
+DS_RESOURCE(10) RWTexture2D<float3> smooth_var_output_tex;
+DS_RESOURCE(11) RWTexture2D<float2> velocity_output_tex;
+DS_CBUFFER(12) cbuffer _ {
     float4 input_tex_size;
     float4 output_tex_size;
 };

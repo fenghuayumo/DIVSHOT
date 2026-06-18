@@ -1,17 +1,18 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/hash.hlsl"
 #include "../inc/mesh.hlsl" // for VertexPacked
 
-[[vk::binding(0)]] RWByteAddressBuffer ircache_meta_buf;
-[[vk::binding(1)]] RWByteAddressBuffer ircache_grid_meta_buf;
-[[vk::binding(2)]] RWStructuredBuffer<uint> ircache_entry_cell_buf;
-[[vk::binding(3)]] RWStructuredBuffer<uint> ircache_life_buf;
-[[vk::binding(4)]] RWStructuredBuffer<uint> ircache_pool_buf;
-[[vk::binding(5)]] RWStructuredBuffer<VertexPacked> ircache_spatial_buf;
-[[vk::binding(6)]] RWStructuredBuffer<VertexPacked> ircache_reposition_proposal_buf;
-[[vk::binding(7)]] RWStructuredBuffer<uint> ircache_reposition_proposal_count_buf;
-[[vk::binding(8)]] RWStructuredBuffer<float4> ircache_irradiance_buf;
-[[vk::binding(9)]] RWStructuredBuffer<uint> entry_occupancy_buf;
+DS_RESOURCE(0) RWByteAddressBuffer ircache_meta_buf;
+DS_RESOURCE(1) RWByteAddressBuffer ircache_grid_meta_buf;
+DS_RESOURCE(2) RWStructuredBuffer<uint> ircache_entry_cell_buf;
+DS_RESOURCE(3) RWStructuredBuffer<uint> ircache_life_buf;
+DS_RESOURCE(4) RWStructuredBuffer<uint> ircache_pool_buf;
+DS_RESOURCE(5) RWStructuredBuffer<VertexPacked> ircache_spatial_buf;
+DS_RESOURCE(6) RWStructuredBuffer<VertexPacked> ircache_reposition_proposal_buf;
+DS_RESOURCE(7) RWStructuredBuffer<uint> ircache_reposition_proposal_count_buf;
+DS_RESOURCE(8) RWStructuredBuffer<float4> ircache_irradiance_buf;
+DS_RESOURCE(9) RWStructuredBuffer<uint> entry_occupancy_buf;
 
 #include "ircache_constants.hlsl"
 

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -15,27 +16,27 @@
 #include "rtr_settings.hlsl"
 // #include "../ddgi/gi_common.hlsl"
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
-[[vk::binding(0)]] Texture2D<float4> gbuffer_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
+DS_RESOURCE(0) Texture2D<float4> gbuffer_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
 DEFINE_BLUE_NOISE_SAMPLER_BINDINGS(2, 3, 4)
-[[vk::binding(5)]] Texture2D<float4> rtdgi_tex;
-[[vk::binding(6)]] TextureCube<float4> sky_cube_tex;
+DS_RESOURCE(5) Texture2D<float4> rtdgi_tex;
+DS_RESOURCE(6) TextureCube<float4> sky_cube_tex;
 DEFINE_IRCACHE_BINDINGS(7, 8, 9, 10, 11, 12, 13, 14, 15)
 DEFINE_WRC_BINDINGS(16)
-[[vk::binding(17)]] RWTexture2D<float4> out0_tex;
-[[vk::binding(18)]] RWTexture2D<float4> out1_tex;
-[[vk::binding(19)]] RWTexture2D<float4> out2_tex;
-[[vk::binding(20)]] RWTexture2D<uint> rng_out_tex;
-[[vk::binding(21)]] cbuffer _ {
+DS_RESOURCE(17) RWTexture2D<float4> out0_tex;
+DS_RESOURCE(18) RWTexture2D<float4> out1_tex;
+DS_RESOURCE(19) RWTexture2D<float4> out2_tex;
+DS_RESOURCE(20) RWTexture2D<uint> rng_out_tex;
+DS_CBUFFER(21) cbuffer _ {
     // DDGIUniforms ddgi;
     float4 gbuffer_tex_size;
     uint reuse_rtdgi_rays;
 };
  
-// [[vk::binding(22)]]  Texture2D s_Irradiance;
-// [[vk::binding(23)]]  Texture2D s_Depth;
+// DS_RESOURCE(22)  Texture2D s_Irradiance;
+// DS_RESOURCE(23)  Texture2D s_Depth;
 // #define USE_DEFINE_CASCADE
 // #define SCALE_CELL_DIAMETER 1
 // #define IRCACHE_USE_TRILINEAR 1

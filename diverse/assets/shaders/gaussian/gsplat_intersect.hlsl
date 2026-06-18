@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "../inc/bindless.hlsl"
@@ -26,9 +27,9 @@
 //     uint buf_id;
 // } push_constants;
 
-[[vk::binding(0)]] StructuredBuffer<uint> image_mask;
-[[vk::binding(1)]] Texture2D<uint> pick_rect_image;
-[[vk::binding(2)]] cbuffer _ {
+DS_RESOURCE(0) StructuredBuffer<uint> image_mask;
+DS_RESOURCE(1) Texture2D<uint> pick_rect_image;
+DS_CBUFFER(2) cbuffer _ {
     int surface_width;
     int surface_height;
     uint num_gaussians;

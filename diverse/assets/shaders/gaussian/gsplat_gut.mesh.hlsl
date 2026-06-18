@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 // 3DGUT Mesh Shader for Gaussian Splatting with Fisheye Camera Support
 // Based on NVIDIA's vk_gaussian_splatting implementation
 // 
@@ -52,7 +53,7 @@ float3x3 quatToRotationMatrix(float4 q)
 }
 
 // Push constants
-[[vk::binding(0)]] cbuffer PushConstants {
+DS_CBUFFER(0) cbuffer PushConstants {
     float4x4 model_matrix;
     uint buf_id;
     uint surface_width;
@@ -64,8 +65,8 @@ float3x3 quatToRotationMatrix(float4 q)
     float4 color_offset;
 };
 
-[[vk::binding(1)]] StructuredBuffer<uint> point_list_value_buffer;
-[[vk::binding(2)]] StructuredBuffer<uint> indirect_params;
+DS_RESOURCE(1) StructuredBuffer<uint> point_list_value_buffer;
+DS_RESOURCE(2) StructuredBuffer<uint> indirect_params;
 
 // Get color with SH evaluation
 float3 get_color(uint index, float3 direction) {

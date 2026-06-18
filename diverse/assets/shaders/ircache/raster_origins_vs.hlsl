@@ -1,12 +1,13 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/math.hlsl"
 #include "../inc/mesh.hlsl" // for VertexPacked
 #include "ircache_constants.hlsl"
 
-[[vk::binding(0)]] ByteAddressBuffer ircache_meta_buf;
-[[vk::binding(1)]] ByteAddressBuffer ircache_grid_meta_buf;
-[[vk::binding(2)]] StructuredBuffer<uint> ircache_life_buf;
-[[vk::binding(3)]] StructuredBuffer<VertexPacked> ircache_spatial_buf;
+DS_RESOURCE(0) ByteAddressBuffer ircache_meta_buf;
+DS_RESOURCE(1) ByteAddressBuffer ircache_grid_meta_buf;
+DS_RESOURCE(2) StructuredBuffer<uint> ircache_life_buf;
+DS_RESOURCE(3) StructuredBuffer<VertexPacked> ircache_spatial_buf;
 
 struct VsOut {
 	float4 position: SV_Position;

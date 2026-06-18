@@ -1,4 +1,5 @@
-[[vk::binding(0)]] RWStructuredBuffer<uint> b_globalHist; // buffer holding global device level offsets
+#include "../inc/binding.hlsl"
+DS_RESOURCE(0) RWStructuredBuffer<uint> b_globalHist; // buffer holding global device level offsets
 
 // Clear the global histogram, as we will be adding to it atomically
 [numthreads(1024, 1, 1)]

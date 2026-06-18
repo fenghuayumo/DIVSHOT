@@ -1,10 +1,11 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> ssgi_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float4> normal_tex;
-[[vk::binding(3)]] RWTexture2D<float4> output_tex;
+DS_RESOURCE(0) Texture2D<float4> ssgi_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float4> normal_tex;
+DS_RESOURCE(3) RWTexture2D<float4> output_tex;
 
 #define USE_AO_ONLY 1
 

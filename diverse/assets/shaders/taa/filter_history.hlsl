@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/color.hlsl"
@@ -5,9 +6,9 @@
 #include "../inc/math.hlsl"
 #include "taa_common.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-[[vk::binding(1)]] RWTexture2D<float3> output_tex;
-[[vk::binding(2)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+DS_RESOURCE(1) RWTexture2D<float3> output_tex;
+DS_CBUFFER(2) cbuffer _ {
     float4 input_tex_size;
     float4 output_tex_size;
 };

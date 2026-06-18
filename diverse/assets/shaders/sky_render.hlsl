@@ -1,3 +1,4 @@
+#include "inc/binding.hlsl"
 #include "inc/samplers.hlsl"
 #include "inc/frame_constants.hlsl"
 #include "inc/pack_unpack.hlsl"
@@ -5,9 +6,9 @@
 #include "inc/hash.hlsl"
 #include "inc/color.hlsl"
 
-[[vk::binding(0)]] RWTexture2D<float4> output_tex;
-[[vk::binding(1)]] TextureCube<float4> convolved_sky_cube_tex;
-[[vk::binding(2)]] cbuffer _ {
+DS_RESOURCE(0) RWTexture2D<float4> output_tex;
+DS_RESOURCE(1) TextureCube<float4> convolved_sky_cube_tex;
+DS_CBUFFER(2) cbuffer _ {
     float4 output_tex_size;
 };
 

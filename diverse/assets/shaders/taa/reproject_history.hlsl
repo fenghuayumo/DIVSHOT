@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/color.hlsl"
@@ -5,12 +6,12 @@
 #include "../inc/frame_constants.hlsl"
 #include "taa_common.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> history_tex;
-[[vk::binding(1)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(2)]] Texture2D<float> depth_tex;
-[[vk::binding(3)]] RWTexture2D<float4> output_tex;
-[[vk::binding(4)]] RWTexture2D<float2> closest_velocity_output;
-[[vk::binding(5)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> history_tex;
+DS_RESOURCE(1) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(2) Texture2D<float> depth_tex;
+DS_RESOURCE(3) RWTexture2D<float4> output_tex;
+DS_RESOURCE(4) RWTexture2D<float2> closest_velocity_output;
+DS_CBUFFER(5) cbuffer _ {
     float4 input_tex_size;
     float4 output_tex_size;
 };

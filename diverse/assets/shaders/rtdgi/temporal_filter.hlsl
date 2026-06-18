@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/color.hlsl"
 #include "../inc/uv.hlsl"
@@ -20,15 +21,15 @@
     float working_luma(float3 v) { return v.x; }
 #endif
 
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-[[vk::binding(1)]] Texture2D<float4> history_tex;
-[[vk::binding(2)]] Texture2D<float2> variance_history_tex;
-[[vk::binding(3)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(4)]] Texture2D<float2> rt_history_invalidity_tex;
-[[vk::binding(5)]] RWTexture2D<float4> output_tex;
-[[vk::binding(6)]] RWTexture2D<float4> history_output_tex;
-[[vk::binding(7)]] RWTexture2D<float2> variance_history_output_tex;
-[[vk::binding(8)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+DS_RESOURCE(1) Texture2D<float4> history_tex;
+DS_RESOURCE(2) Texture2D<float2> variance_history_tex;
+DS_RESOURCE(3) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(4) Texture2D<float2> rt_history_invalidity_tex;
+DS_RESOURCE(5) RWTexture2D<float4> output_tex;
+DS_RESOURCE(6) RWTexture2D<float4> history_output_tex;
+DS_RESOURCE(7) RWTexture2D<float2> variance_history_output_tex;
+DS_CBUFFER(8) cbuffer _ {
     float4 output_tex_size;
     float4 gbuffer_tex_size;
 };

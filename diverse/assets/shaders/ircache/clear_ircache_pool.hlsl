@@ -1,7 +1,8 @@
+#include "../inc/binding.hlsl"
 #include "ircache_constants.hlsl"
 
-[[vk::binding(0)]] RWStructuredBuffer<uint> ircache_pool_buf;
-[[vk::binding(1)]] RWStructuredBuffer<uint> ircache_life_buf;
+DS_RESOURCE(0) RWStructuredBuffer<uint> ircache_pool_buf;
+DS_RESOURCE(1) RWStructuredBuffer<uint> ircache_life_buf;
 
 [numthreads(64, 1, 1)]
 void main(uint idx: SV_DispatchThreadID) {

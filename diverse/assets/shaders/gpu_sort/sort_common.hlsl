@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 // General macros
 #define PART_SIZE       3840U       //size of a partition tile
 
@@ -16,23 +17,23 @@
 #define DS_KEYS_PER_THREAD  15U     //The number of keys per thread in a Downsweep Threadblock
 #define MAX_DS_SMEM         4096U   //shared memory for downsweep kernel
 
-[[vk::binding(0)]] cbuffer cbParallelSort {
+DS_CBUFFER(0) cbuffer cbParallelSort {
     uint e_numKeys;
     uint e_radixShift;
     uint e_threadBlocks;
     uint padding0;
 };
 
-[[vk::binding(1)]] RWStructuredBuffer<uint> b_sort; // buffer to be sorted
-[[vk::binding(2)]] RWStructuredBuffer<uint> b_alt; // payload buffer
-[[vk::binding(3)]] RWStructuredBuffer<uint> b_sortPayload; // double buffer
-[[vk::binding(4)]] RWStructuredBuffer<uint> b_altPayload; // double buffer payload
-[[vk::binding(5)]] RWStructuredBuffer<uint> b_globalHist; // buffer holding global device level offsets
+DS_RESOURCE(1) RWStructuredBuffer<uint> b_sort; // buffer to be sorted
+DS_RESOURCE(2) RWStructuredBuffer<uint> b_alt; // payload buffer
+DS_RESOURCE(3) RWStructuredBuffer<uint> b_sortPayload; // double buffer
+DS_RESOURCE(4) RWStructuredBuffer<uint> b_altPayload; // double buffer payload
+DS_RESOURCE(5) RWStructuredBuffer<uint> b_globalHist; // buffer holding global device level offsets
                                        // for each digit during a binning pass
-[[vk::binding(6)]] RWStructuredBuffer<uint> b_passHist;        //buffer used to store device level offsets for 
+DS_RESOURCE(6) RWStructuredBuffer<uint> b_passHist;        //buffer used to store device level offsets for 
                                             //each partition tile for each digit during a binning pass
 #ifdef GPU_SORT_INDIRECT
-[[vk::binding(7)]] ByteAddressBuffer b_count;; // buffer to be sorted
+DS_RESOURCE(7) ByteAddressBuffer b_count;; // buffer to be sorted
 #endif
 groupshared uint g_us[RADIX * 2];           //Shared memory for upsweep kernel
 groupshared uint g_scan[SCAN_DIM];          //Shared memory for the scan kernel

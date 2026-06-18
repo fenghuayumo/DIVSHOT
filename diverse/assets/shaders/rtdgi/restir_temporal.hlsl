@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -15,27 +16,27 @@
 #include "rtdgi_restir_settings.hlsl"
 #include "rtdgi_common.hlsl"
 
-[[vk::binding(0)]] Texture2D<float3> half_view_normal_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float4> candidate_radiance_tex;
-[[vk::binding(3)]] Texture2D<float3> candidate_normal_tex;
-[[vk::binding(4)]] Texture2D<float4> candidate_hit_tex;
-[[vk::binding(5)]] Texture2D<float4> radiance_history_tex;
-[[vk::binding(6)]] Texture2D<float3> ray_orig_history_tex;
-[[vk::binding(7)]] Texture2D<float4> ray_history_tex;
-[[vk::binding(8)]] Texture2D<uint2> reservoir_history_tex;
-[[vk::binding(9)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(10)]] Texture2D<float4> hit_normal_history_tex;
-[[vk::binding(11)]] Texture2D<float4> candidate_history_tex;
-[[vk::binding(12)]] Texture2D<float2> rt_invalidity_tex;
-[[vk::binding(13)]] RWTexture2D<float4> radiance_out_tex;
-[[vk::binding(14)]] RWTexture2D<float3> ray_orig_output_tex;
-[[vk::binding(15)]] RWTexture2D<float4> ray_output_tex;
-[[vk::binding(16)]] RWTexture2D<float4> hit_normal_output_tex;
-[[vk::binding(17)]] RWTexture2D<uint2> reservoir_out_tex;
-[[vk::binding(18)]] RWTexture2D<float4> candidate_out_tex;
-[[vk::binding(19)]] RWTexture2D<uint4> temporal_reservoir_packed_tex;
-[[vk::binding(20)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float3> half_view_normal_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float4> candidate_radiance_tex;
+DS_RESOURCE(3) Texture2D<float3> candidate_normal_tex;
+DS_RESOURCE(4) Texture2D<float4> candidate_hit_tex;
+DS_RESOURCE(5) Texture2D<float4> radiance_history_tex;
+DS_RESOURCE(6) Texture2D<float3> ray_orig_history_tex;
+DS_RESOURCE(7) Texture2D<float4> ray_history_tex;
+DS_RESOURCE(8) Texture2D<uint2> reservoir_history_tex;
+DS_RESOURCE(9) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(10) Texture2D<float4> hit_normal_history_tex;
+DS_RESOURCE(11) Texture2D<float4> candidate_history_tex;
+DS_RESOURCE(12) Texture2D<float2> rt_invalidity_tex;
+DS_RESOURCE(13) RWTexture2D<float4> radiance_out_tex;
+DS_RESOURCE(14) RWTexture2D<float3> ray_orig_output_tex;
+DS_RESOURCE(15) RWTexture2D<float4> ray_output_tex;
+DS_RESOURCE(16) RWTexture2D<float4> hit_normal_output_tex;
+DS_RESOURCE(17) RWTexture2D<uint2> reservoir_out_tex;
+DS_RESOURCE(18) RWTexture2D<float4> candidate_out_tex;
+DS_RESOURCE(19) RWTexture2D<uint4> temporal_reservoir_packed_tex;
+DS_CBUFFER(20) cbuffer _ {
     float4 gbuffer_tex_size;
 };
 

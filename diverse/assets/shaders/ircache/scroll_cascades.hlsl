@@ -1,13 +1,14 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/hash.hlsl"
 
-[[vk::binding(0)]] ByteAddressBuffer ircache_grid_meta_buf;
-[[vk::binding(1)]] RWByteAddressBuffer ircache_grid_meta_buf2;
-[[vk::binding(2)]] RWStructuredBuffer<uint> ircache_entry_cell_buf;
-[[vk::binding(3)]] RWStructuredBuffer<float4> ircache_irradiance_buf;
-[[vk::binding(4)]] RWStructuredBuffer<uint> ircache_life_buf;
-[[vk::binding(5)]] RWStructuredBuffer<uint> ircache_pool_buf;
-[[vk::binding(6)]] RWByteAddressBuffer ircache_meta_buf;
+DS_RESOURCE(0) ByteAddressBuffer ircache_grid_meta_buf;
+DS_RESOURCE(1) RWByteAddressBuffer ircache_grid_meta_buf2;
+DS_RESOURCE(2) RWStructuredBuffer<uint> ircache_entry_cell_buf;
+DS_RESOURCE(3) RWStructuredBuffer<float4> ircache_irradiance_buf;
+DS_RESOURCE(4) RWStructuredBuffer<uint> ircache_life_buf;
+DS_RESOURCE(5) RWStructuredBuffer<uint> ircache_pool_buf;
+DS_RESOURCE(6) RWByteAddressBuffer ircache_meta_buf;
 
 #include "ircache_constants.hlsl"
 #include "ircache_grid.hlsl"

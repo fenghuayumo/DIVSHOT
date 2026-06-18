@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/color.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -15,18 +16,18 @@
 #include "rtdgi_common.hlsl"
 
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
-[[vk::binding(0)]] Texture2D<float4> radiance_tex;
-[[vk::binding(1)]] Texture2D<uint2> reservoir_input_tex;
-[[vk::binding(2)]] Texture2D<float4> gbuffer_tex;
-[[vk::binding(3)]] Texture2D<float> depth_tex;
-[[vk::binding(4)]] Texture2D<float4> half_view_normal_tex;
-[[vk::binding(5)]] Texture2D<float> half_depth_tex;
-[[vk::binding(6)]] Texture2D<float4> ssao_tex;
-[[vk::binding(7)]] Texture2D<uint4> temporal_reservoir_packed_tex;
-[[vk::binding(8)]] RWTexture2D<float4> eval_output_tex;
-[[vk::binding(9)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> radiance_tex;
+DS_RESOURCE(1) Texture2D<uint2> reservoir_input_tex;
+DS_RESOURCE(2) Texture2D<float4> gbuffer_tex;
+DS_RESOURCE(3) Texture2D<float> depth_tex;
+DS_RESOURCE(4) Texture2D<float4> half_view_normal_tex;
+DS_RESOURCE(5) Texture2D<float> half_depth_tex;
+DS_RESOURCE(6) Texture2D<float4> ssao_tex;
+DS_RESOURCE(7) Texture2D<uint4> temporal_reservoir_packed_tex;
+DS_RESOURCE(8) RWTexture2D<float4> eval_output_tex;
+DS_CBUFFER(9) cbuffer _ {
     float4 gbuffer_tex_size;
     float4 output_tex_size;
 };

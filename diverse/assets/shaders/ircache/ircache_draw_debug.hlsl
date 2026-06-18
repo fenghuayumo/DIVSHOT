@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/uv.hlsl"
@@ -12,21 +13,21 @@
 #define USE_GEOMETRIC_NORMALS 1
 #define USE_DEBUG_OUT 1
 
-[[vk::binding(0)]] Texture2D<float4> gbuffer_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float4> geometric_normals_tex;
-[[vk::binding(3)]] RWByteAddressBuffer ircache_meta_buf;
-[[vk::binding(4)]] RWByteAddressBuffer ircache_grid_meta_buf;
-[[vk::binding(5)]] RWStructuredBuffer<uint> ircache_entry_cell_buf;
-[[vk::binding(6)]] StructuredBuffer<VertexPacked> ircache_spatial_buf;
-[[vk::binding(7)]] StructuredBuffer<float4> ircache_irradiance_buf;
-[[vk::binding(8)]] RWTexture2D<float4> debug_out_tex;
-[[vk::binding(9)]] RWStructuredBuffer<uint> ircache_pool_buf;
-[[vk::binding(10)]] RWStructuredBuffer<uint> ircache_life_buf;
-[[vk::binding(11)]] RWStructuredBuffer<VertexPacked> ircache_reposition_proposal_buf;
-[[vk::binding(12)]] RWStructuredBuffer<uint> ircache_reposition_proposal_count_buf;
+DS_RESOURCE(0) Texture2D<float4> gbuffer_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float4> geometric_normals_tex;
+DS_RESOURCE(3) RWByteAddressBuffer ircache_meta_buf;
+DS_RESOURCE(4) RWByteAddressBuffer ircache_grid_meta_buf;
+DS_RESOURCE(5) RWStructuredBuffer<uint> ircache_entry_cell_buf;
+DS_RESOURCE(6) StructuredBuffer<VertexPacked> ircache_spatial_buf;
+DS_RESOURCE(7) StructuredBuffer<float4> ircache_irradiance_buf;
+DS_RESOURCE(8) RWTexture2D<float4> debug_out_tex;
+DS_RESOURCE(9) RWStructuredBuffer<uint> ircache_pool_buf;
+DS_RESOURCE(10) RWStructuredBuffer<uint> ircache_life_buf;
+DS_RESOURCE(11) RWStructuredBuffer<VertexPacked> ircache_reposition_proposal_buf;
+DS_RESOURCE(12) RWStructuredBuffer<uint> ircache_reposition_proposal_count_buf;
 
-[[vk::binding(13)]] cbuffer _ {
+DS_CBUFFER(13) cbuffer _ {
     float4 gbuffer_tex_size;
 };
 

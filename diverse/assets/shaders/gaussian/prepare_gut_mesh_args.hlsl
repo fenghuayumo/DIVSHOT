@@ -1,10 +1,11 @@
+#include "../inc/binding.hlsl"
 // Prepare indirect dispatch arguments for GUT mesh shader
 // Converts splat count to mesh shader workgroup count
 
-[[vk::binding(0)]] StructuredBuffer<uint> count_buffer;
-[[vk::binding(1)]] RWStructuredBuffer<uint> indirect_args;
+DS_RESOURCE(0) StructuredBuffer<uint> count_buffer;
+DS_RESOURCE(1) RWStructuredBuffer<uint> indirect_args;
 
-[[vk::binding(2)]] cbuffer Constants {
+DS_CBUFFER(2) cbuffer Constants {
     uint workgroup_size;
     uint3 padding;
 };

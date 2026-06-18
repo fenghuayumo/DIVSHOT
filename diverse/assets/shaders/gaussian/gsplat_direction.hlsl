@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 
 #include "../inc/bindless.hlsl"
 #include "../inc/color/srgb.hlsl"
@@ -6,9 +7,9 @@
 
 #include "gaussian_common.hlsl"
 
-[[vk::binding(0)]] RWByteAddressBuffer splat_pos_buf; // feat_dim x (feat_dim + 3)
+DS_RESOURCE(0) RWByteAddressBuffer splat_pos_buf; // feat_dim x (feat_dim + 3)
 
-[[vk::binding(1)]] cbuffer _ {
+DS_CBUFFER(1) cbuffer _ {
     float4x4 model_matrix;
     uint buf_id;
     uint feat_dim;

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -17,11 +18,11 @@
 #include "wrc_settings.hlsl"
 
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
-[[vk::binding(0)]] TextureCube<float4> sky_cube_tex;
+DS_RESOURCE(0) TextureCube<float4> sky_cube_tex;
 DEFINE_IRCACHE_BINDINGS(1, 2, 3, 4, 5, 6, 7, 8, 9)
-[[vk::binding(10)]] RWTexture2D<float4> radiance_atlas_out_tex;
+DS_RESOURCE(10) RWTexture2D<float4> radiance_atlas_out_tex;
 
 #define IRCACHE_LOOKUP_DONT_KEEP_ALIVE   // TODO
 #include "../ircache/lookup.hlsl"

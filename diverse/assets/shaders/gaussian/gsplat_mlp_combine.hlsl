@@ -1,12 +1,13 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "../inc/bindless.hlsl"
 
 #include "gaussian_common.hlsl"
 
-[[vk::binding(0)]] RWByteAddressBuffer splat_scale_rot_buf;
-[[vk::binding(1)]] RWByteAddressBuffer splat_pos_buf;
-[[vk::binding(2)]] cbuffer _ {
+DS_RESOURCE(0) RWByteAddressBuffer splat_scale_rot_buf;
+DS_RESOURCE(1) RWByteAddressBuffer splat_pos_buf;
+DS_CBUFFER(2) cbuffer _ {
     float4x4 transform;
     
     uint buf_id;

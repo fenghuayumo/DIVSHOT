@@ -1,3 +1,4 @@
+#include "../../inc/binding.hlsl"
 
 #ifndef RT_SKYLIGHT_HLSL
 #define RT_SKYLIGHT_HLSL
@@ -11,9 +12,9 @@
 
 // shader parameters for skylight integration
 
-// [[vk::binding(40)]] Texture2D sky_light_tex;
-// [[vk::binding(41)]] Texture2D<float> sky_light_pdf;
-// [[vk::binding(42)]] SamplerState sky_light_texSampler;
+// DS_RESOURCE(40) Texture2D sky_light_tex;
+// DS_RESOURCE(41) Texture2D<float> sky_light_pdf;
+// DS_RESOURCE(42) SamplerState sky_light_texSampler;
 
 // float sky_light_inv_res;
 // int sky_light_mip_count;

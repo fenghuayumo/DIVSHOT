@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/color.hlsl"
 #include "../inc/uv.hlsl"
@@ -5,10 +6,10 @@
 #include "../inc/frame_constants.hlsl"
 #include "../inc/image.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-[[vk::binding(1)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(2)]] RWTexture2D<float4> output_tex;
-[[vk::binding(3)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+DS_RESOURCE(1) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(2) RWTexture2D<float4> output_tex;
+DS_CBUFFER(3) cbuffer _ {
     float4 output_tex_size;
 };
 

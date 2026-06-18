@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 
 #ifndef RTXDI_BRIDEGE_HLSL
 #define RTXDI_BRIDEGE_HLSL
@@ -23,7 +24,7 @@
 #include "RAB_Buffers.hlsli"
 #include "../inc/lights/light_common.hlsl"
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
 typedef PolymorphicLightInfo RAB_LightInfo;
 typedef LayeredBrdf RAB_Material;

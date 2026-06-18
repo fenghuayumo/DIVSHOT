@@ -1,8 +1,9 @@
+#include "../inc/binding.hlsl"
 #include "rtxdi_bridege.hlsl"
 #include "boiling_filter.hlsl"
 #include "temporal_resampling.hlsl"
 
-[[vk::binding(12)]] Texture2D<float4> reprojection_tex;
+DS_RESOURCE(12) Texture2D<float4> reprojection_tex;
 
 bool IsComplexSurface(int2 pixelPosition, RAB_Surface surface)
 {

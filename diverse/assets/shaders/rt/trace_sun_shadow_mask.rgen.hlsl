@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -11,10 +12,10 @@
 
 #define USE_SOFT_SHADOWS 1
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
-[[vk::binding(0)]] Texture2D<float> depth_tex;
-[[vk::binding(1)]] Texture2D<float3> geometric_normal_tex;
-[[vk::binding(2)]] RWTexture2D<float4> output_tex;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
+DS_RESOURCE(0) Texture2D<float> depth_tex;
+DS_RESOURCE(1) Texture2D<float3> geometric_normal_tex;
+DS_RESOURCE(2) RWTexture2D<float4> output_tex;
 
 [shader("raygeneration")]
 void main() {

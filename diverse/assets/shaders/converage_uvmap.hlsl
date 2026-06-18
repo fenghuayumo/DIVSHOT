@@ -1,3 +1,4 @@
+#include "inc/binding.hlsl"
 #include "../inc/bindless_textures.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/pack_unpack.hlsl"
@@ -5,10 +6,10 @@
 #include "../inc/blue_noise.hlsl"
 #include "../inc/math.hlsl"
 
-[[vk::binding(0)]] StructuredBuffer<uint> image_mask;
-[[vk::binding(1)]] Texture2D<float3> uv2pos_map;
-[[vk::binding(2)]] RWStructuredBuffer<int> output_buffer;
-[[vk::binding(3)]] cbuffer _ {
+DS_RESOURCE(0) StructuredBuffer<uint> image_mask;
+DS_RESOURCE(1) Texture2D<float3> uv2pos_map;
+DS_RESOURCE(2) RWStructuredBuffer<int> output_buffer;
+DS_CBUFFER(3) cbuffer _ {
     int surface_width;
     int surface_height;
     int paint_tex_width;

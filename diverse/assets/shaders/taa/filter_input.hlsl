@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/color.hlsl"
@@ -6,10 +7,10 @@
 #include "../inc/math.hlsl"
 #include "taa_common.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] RWTexture2D<float3> output_tex;
-[[vk::binding(3)]] RWTexture2D<float3> dev_output_tex;
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) RWTexture2D<float3> output_tex;
+DS_RESOURCE(3) RWTexture2D<float3> dev_output_tex;
 
 struct InputRemap {
     static InputRemap create() {

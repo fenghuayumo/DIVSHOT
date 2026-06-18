@@ -1,8 +1,9 @@
+#include "../inc/binding.hlsl"
 #define THREAD_GROUP_SIZE 512
 #define SEGMENT_SIZE (THREAD_GROUP_SIZE * 2)
 
-[[vk::binding(0)]] ByteAddressBuffer in_buf;
-[[vk::binding(1)]] RWByteAddressBuffer out_buf;
+DS_RESOURCE(0) ByteAddressBuffer in_buf;
+DS_RESOURCE(1) RWByteAddressBuffer out_buf;
 
 groupshared uint shared_data[SEGMENT_SIZE];
 

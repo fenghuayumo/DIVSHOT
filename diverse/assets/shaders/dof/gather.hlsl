@@ -1,12 +1,13 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/samplers.hlsl"
 
-[[vk::binding(0)]] Texture2D<float> depth_tex;
-[[vk::binding(1)]] Texture2D<float3> color_tex;
-[[vk::binding(2)]] Texture2D<float> coc_tex;
-[[vk::binding(3)]] Texture2D<float> coc_tiles_tex;
-[[vk::binding(4)]] RWTexture2D<float3> output_tex;
-[[vk::binding(5)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float> depth_tex;
+DS_RESOURCE(1) Texture2D<float3> color_tex;
+DS_RESOURCE(2) Texture2D<float> coc_tex;
+DS_RESOURCE(3) Texture2D<float> coc_tiles_tex;
+DS_RESOURCE(4) RWTexture2D<float3> output_tex;
+DS_CBUFFER(5) cbuffer _ {
     float4 output_tex_size;
 };
 

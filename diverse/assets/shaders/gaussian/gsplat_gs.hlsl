@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 
 struct VS_OUTPUT
 {
@@ -23,7 +24,7 @@ struct GS_OUTPUT
 #endif
 };
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     float4 gs_translation;
     float4 gs_scaling;
     float4 gs_rotation;

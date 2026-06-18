@@ -1,5 +1,6 @@
-[[vk::binding(0)]] ByteAddressBuffer num_visible_buffer;
-[[vk::binding(1)]] RWByteAddressBuffer dispatch_args;
+#include "../inc/binding.hlsl"
+DS_RESOURCE(0) ByteAddressBuffer num_visible_buffer;
+DS_RESOURCE(1) RWByteAddressBuffer dispatch_args;
 
 [numthreads(1, 1, 1)]
 void main() {

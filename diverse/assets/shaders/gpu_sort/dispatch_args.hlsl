@@ -1,7 +1,8 @@
+#include "../inc/binding.hlsl"
 #define PART_SIZE       3840U       //size of a partition tile
 
-[[vk::binding(0)]] RWByteAddressBuffer g_ArgsBuffer;
-[[vk::binding(1)]] ByteAddressBuffer g_CountBuffer;
+DS_RESOURCE(0) RWByteAddressBuffer g_ArgsBuffer;
+DS_RESOURCE(1) ByteAddressBuffer g_CountBuffer;
 
 uint GetCount()
 {

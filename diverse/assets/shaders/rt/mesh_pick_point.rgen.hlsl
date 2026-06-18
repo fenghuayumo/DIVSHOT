@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/atmosphere.hlsl"
 #include "../inc/bindless_textures.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -14,11 +15,11 @@
 #include "../inc/brdf_lut.hlsl"
 #include "../inc/layered_brdf.hlsl"
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
-[[vk::binding(0)]] StructuredBuffer<uint> image_mask;
-[[vk::binding(1)]] RWStructuredBuffer<int> output_buffer;
-[[vk::binding(2)]] cbuffer _ {
+DS_RESOURCE(0) StructuredBuffer<uint> image_mask;
+DS_RESOURCE(1) RWStructuredBuffer<int> output_buffer;
+DS_CBUFFER(2) cbuffer _ {
     int surface_width;
     int surface_height;
     int paint_tex_width;

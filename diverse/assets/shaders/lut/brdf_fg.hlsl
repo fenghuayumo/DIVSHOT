@@ -1,7 +1,8 @@
+#include "../inc/binding.hlsl"
 #include "../inc/brdf.hlsl"
 #include "../inc/quasi_random.hlsl"
 
-[[vk::binding(0)]] RWTexture2D<float4> output_tex;
+DS_RESOURCE(0) RWTexture2D<float4> output_tex;
 
 float3 integrate_brdf(float roughness, float ndotv) {
     float3 wo = float3(sqrt(1.0 - ndotv * ndotv), 0, ndotv);

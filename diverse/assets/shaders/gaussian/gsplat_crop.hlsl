@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "../inc/bindless.hlsl"
@@ -14,7 +15,7 @@
 //     uint mesh_index;
 // } push_constants;
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     int surface_width;
     int surface_height;
     uint num_gaussians;
@@ -29,7 +30,7 @@
     float4 crop_max[8];
     uint   crop_type[8];
 };
-[[vk::binding(1)]] ByteAddressBuffer splat_pos_buf;
+DS_RESOURCE(1) ByteAddressBuffer splat_pos_buf;
 
 float2 clip_to_uv(float2 cs) {
     return cs * float2(0.5, -0.5) + float2(0.5, 0.5);

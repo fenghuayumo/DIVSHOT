@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #define NUM_BITS_PER_PASS   4
 #define NUM_BINS            (1 << NUM_BITS_PER_PASS)
 #define GROUP_SIZE          256
@@ -5,16 +6,16 @@
 #define KEYS_PER_GROUP (GROUP_SIZE * KEYS_PER_THREAD)
 #define SORT_VALUES 1
 
-[[vk::binding(0)]] RWStructuredBuffer<uint> g_InputKeys;
-[[vk::binding(1)]] RWStructuredBuffer<uint> g_OutputKeys;
-[[vk::binding(2)]] RWStructuredBuffer<uint> g_InputValues;
-[[vk::binding(3)]] RWStructuredBuffer<uint> g_OutputValues;
-[[vk::binding(4)]] RWStructuredBuffer<uint> g_GroupHistograms;
+DS_RESOURCE(0) RWStructuredBuffer<uint> g_InputKeys;
+DS_RESOURCE(1) RWStructuredBuffer<uint> g_OutputKeys;
+DS_RESOURCE(2) RWStructuredBuffer<uint> g_InputValues;
+DS_RESOURCE(3) RWStructuredBuffer<uint> g_OutputValues;
+DS_RESOURCE(4) RWStructuredBuffer<uint> g_GroupHistograms;
 #if USE_ARGS
-[[vk::binding(5)]] RWStructuredBuffer<uint4> g_CountBuffer;
+DS_RESOURCE(5) RWStructuredBuffer<uint4> g_CountBuffer;
 uint g_Bitshift;
 #else
-[[vk::binding(5)]] cbuffer _ {
+DS_CBUFFER(5) cbuffer _ {
     uint g_Count;
     uint g_Bitshift;
 };

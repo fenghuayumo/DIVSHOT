@@ -1,3 +1,4 @@
+#include "binding.hlsl"
 #ifndef BLUE_NOISE_HLSL
 #define BLUE_NOISE_HLSL
 
@@ -18,9 +19,9 @@ float4 blue_noise_for_pixel(uint2 px, uint n) {
 // https://crates.io/crates/blue-noise-sampler
 
 #define DEFINE_BLUE_NOISE_SAMPLER_BINDINGS(b0, b1, b2) \
-    [[vk::binding(b0)]] StructuredBuffer<uint> ranking_tile_buf; \
-    [[vk::binding(b1)]] StructuredBuffer<uint> scambling_tile_buf; \
-    [[vk::binding(b2)]] StructuredBuffer<uint> sobol_buf; \
+    DS_RESOURCE(b0) StructuredBuffer<uint> ranking_tile_buf; \
+    DS_RESOURCE(b1) StructuredBuffer<uint> scambling_tile_buf; \
+    DS_RESOURCE(b2) StructuredBuffer<uint> sobol_buf; \
     float blue_noise_sampler(int pixel_i,int pixel_j,int sampleIndex,int sampleDimension) { \
         return blue_noise_sampler(pixel_i, pixel_j, sampleIndex, sampleDimension, ranking_tile_buf, scambling_tile_buf, sobol_buf); \
     }

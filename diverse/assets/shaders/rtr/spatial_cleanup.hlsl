@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/working_color_space.hlsl"
@@ -6,11 +7,11 @@
 //#define linear_to_working linear_rgb_to_linear_rgb
 //#define working_to_linear linear_rgb_to_linear_rgb
 
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float3> geometric_normal_tex;
-[[vk::binding(3)]] RWTexture2D<float4> output_tex;
-[[vk::binding(4)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float3> geometric_normal_tex;
+DS_RESOURCE(3) RWTexture2D<float4> output_tex;
+DS_CBUFFER(4) cbuffer _ {
     int4 spatial_resolve_offsets[16 * 4 * 8];
 };
 

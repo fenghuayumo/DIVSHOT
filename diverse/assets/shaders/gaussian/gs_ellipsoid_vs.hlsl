@@ -1,8 +1,9 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/bindless.hlsl"
 #include "gaussian_common.hlsl"
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     float4 gs_translation;
     float4 gs_scaling;
     float4 gs_rotation;
@@ -10,8 +11,8 @@
     float stage;
     float3 rayOrigin;
 };
-[[vk::binding(1)]] StructuredBuffer<Gaussian> gaussians_buffer;
-[[vk::binding(2)]] StructuredBuffer<GaussianColor> gaussians_color;
+DS_RESOURCE(1) StructuredBuffer<Gaussian> gaussians_buffer;
+DS_RESOURCE(2) StructuredBuffer<GaussianColor> gaussians_color;
 
 struct VS_OUTPUT
 {

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "rtxdi_bridege.hlsl"
 #include "reservoir.hlsl"
 
@@ -5,8 +6,8 @@
 #include "regir/regir_sampling.hlsl"
 #endif
 
-[[vk::binding(12)]] RWTexture2D<float4> u_DiffuseLighting;
-[[vk::binding(13)]] RWTexture2D<float4> u_SpecularLighting;
+DS_RESOURCE(12) RWTexture2D<float4> u_DiffuseLighting;
+DS_RESOURCE(13) RWTexture2D<float4> u_SpecularLighting;
 #include "shading_helper.hlsl"
 
 #if USE_RAY_QUERY

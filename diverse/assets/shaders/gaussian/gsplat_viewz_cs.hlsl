@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "../inc/bindless.hlsl"
@@ -11,11 +12,11 @@
 //     uint buf_id;
 // } push_constants;
 
-// [[vk::binding(0)]] RWStructuredBuffer<Gaussian> gaussians_buffer;
-[[vk::binding(0)]] RWStructuredBuffer<uint> point_list_key_buffer;
-[[vk::binding(1)]] RWStructuredBuffer<uint> point_list_value_buffer;
-[[vk::binding(2)]] RWByteAddressBuffer num_visible_buffer;
-[[vk::binding(3)]] cbuffer _ {
+// DS_RESOURCE(0) RWStructuredBuffer<Gaussian> gaussians_buffer;
+DS_RESOURCE(0) RWStructuredBuffer<uint> point_list_key_buffer;
+DS_RESOURCE(1) RWStructuredBuffer<uint> point_list_value_buffer;
+DS_RESOURCE(2) RWByteAddressBuffer num_visible_buffer;
+DS_CBUFFER(3) cbuffer _ {
     float4x4 model_matrix;
     uint buf_id;
     uint surface_width;

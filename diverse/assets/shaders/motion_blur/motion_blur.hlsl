@@ -1,13 +1,14 @@
+#include "../inc/binding.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/frame_constants.hlsl"
 
-[[vk::binding(0)]] Texture2D<float3> input_tex;
-[[vk::binding(1)]] Texture2D<float2> velocity_tex;
-[[vk::binding(2)]] Texture2D<float2> tile_velocity_tex;
-[[vk::binding(3)]] Texture2D<float> depth_tex;
-[[vk::binding(4)]] RWTexture2D<float3> output_tex;
-[[vk::binding(5)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float3> input_tex;
+DS_RESOURCE(1) Texture2D<float2> velocity_tex;
+DS_RESOURCE(2) Texture2D<float2> tile_velocity_tex;
+DS_RESOURCE(3) Texture2D<float> depth_tex;
+DS_RESOURCE(4) RWTexture2D<float3> output_tex;
+DS_CBUFFER(5) cbuffer _ {
     float4 depth_tex_size;
     float4 output_tex_size;
     float motion_blur_scale;

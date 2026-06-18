@@ -1,3 +1,4 @@
+#include "inc/binding.hlsl"
 #include "inc/math.hlsl"
 #include "inc/quasi_random.hlsl"
 #include "inc/monte_carlo.hlsl"
@@ -5,10 +6,10 @@
 #include "inc/cube_map.hlsl"
 #include "inc/color/srgb.hlsl"
 
-[[vk::binding(0)]] TextureCube<float4> sky_cube_tex;
-[[vk::binding(1)]] RWTexture2D<float> sky_pdf_tex;
-[[vk::binding(2)]] RWTexture2D<float4> sky_env_tex;
-[[vk::binding(3)]] cbuffer _ {
+DS_RESOURCE(0) TextureCube<float4> sky_cube_tex;
+DS_RESOURCE(1) RWTexture2D<float> sky_pdf_tex;
+DS_RESOURCE(2) RWTexture2D<float4> sky_env_tex;
+DS_CBUFFER(3) cbuffer _ {
     float4 sky_light_tex_size; // Used to calculate the inverse resolution
 };
 

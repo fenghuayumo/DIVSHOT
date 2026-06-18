@@ -1,9 +1,10 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/samplers.hlsl"
 
-[[vk::binding(0)]] Texture2D<float> depth_tex;
-[[vk::binding(1)]] RWTexture2D<float> output_tex;
-[[vk::binding(2)]] RWTexture2D<float> tile_output_tex;
+DS_RESOURCE(0) Texture2D<float> depth_tex;
+DS_RESOURCE(1) RWTexture2D<float> output_tex;
+DS_RESOURCE(2) RWTexture2D<float> tile_output_tex;
 
 groupshared uint max_abs_coc_asuint;
 

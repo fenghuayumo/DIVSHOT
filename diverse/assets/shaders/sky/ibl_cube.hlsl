@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/atmosphere.hlsl"
 #include "../inc/sun.hlsl"
 #include "../inc/cube_map.hlsl"

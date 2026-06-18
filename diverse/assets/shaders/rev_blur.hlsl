@@ -1,3 +1,4 @@
+#include "inc/binding.hlsl"
 #include "inc/samplers.hlsl"
 
 DS_RESOURCE(0) Texture2D<float4> input_tail_tex;

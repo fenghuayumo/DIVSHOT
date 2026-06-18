@@ -1,10 +1,11 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "../inc/bindless.hlsl"
 
 #include "gaussian_common.hlsl"
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     uint num_gaussians;
     uint max_gaussians;
     uint buf_id;

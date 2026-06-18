@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/atmosphere.hlsl"
 #include "../inc/bindless_textures.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -14,16 +15,16 @@
 #include "../inc/brdf_lut.hlsl"
 #include "../inc/layered_brdf.hlsl"
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
-[[vk::binding(0)]] Texture2D<float4> gbuffer_tex;
-[[vk::binding(1)]] Texture2D<float> depth_tex;
-[[vk::binding(2)]] Texture2D<float3> geometric_normal_tex;
-[[vk::binding(3)]] Texture2D<float4> sky_light_tex;
-[[vk::binding(4)]] Texture2D<float> sky_light_pdf;
-[[vk::binding(5)]] RWTexture2D<float4> output_diff_tex;
-// [[vk::binding(5)]] RWTexture2D<float4> output_spec_tex;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
+DS_RESOURCE(0) Texture2D<float4> gbuffer_tex;
+DS_RESOURCE(1) Texture2D<float> depth_tex;
+DS_RESOURCE(2) Texture2D<float3> geometric_normal_tex;
+DS_RESOURCE(3) Texture2D<float4> sky_light_tex;
+DS_RESOURCE(4) Texture2D<float> sky_light_pdf;
+DS_RESOURCE(5) RWTexture2D<float4> output_diff_tex;
+// DS_RESOURCE(5) RWTexture2D<float4> output_spec_tex;
 
-[[vk::binding(6)]] cbuffer _ {
+DS_CBUFFER(6) cbuffer _ {
     int samples_per_pixel;
     int sky_light_mip_count;
     float2 sky_light_inv_res;

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -5,13 +6,13 @@
 #include "../inc/rt.hlsl"
 #include "../inc/lights/triangle.hlsl"
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
-[[vk::binding(0)]] Texture2D<float> depth_tex;
-[[vk::binding(1)]] RWTexture2D<float4> out0_tex;
-[[vk::binding(2)]] RWTexture2D<float4> out1_tex;
-[[vk::binding(3)]] RWTexture2D<float4> out2_tex;
-[[vk::binding(4)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float> depth_tex;
+DS_RESOURCE(1) RWTexture2D<float4> out0_tex;
+DS_RESOURCE(2) RWTexture2D<float4> out1_tex;
+DS_RESOURCE(3) RWTexture2D<float4> out2_tex;
+DS_CBUFFER(4) cbuffer _ {
     float4 gbuffer_tex_size;
 };
 

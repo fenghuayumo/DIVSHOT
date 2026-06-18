@@ -1,6 +1,7 @@
-[[vk::binding(0)]] Texture2D<float> input_tex;
-[[vk::binding(1)]] RWTexture2D<uint> output_tex;
-[[vk::binding(2)]] cbuffer _ {
+#include "../inc/binding.hlsl"
+DS_RESOURCE(0) Texture2D<float> input_tex;
+DS_RESOURCE(1) RWTexture2D<uint> output_tex;
+DS_CBUFFER(2) cbuffer _ {
     float4 input_tex_size;
     uint2 bitpacked_shadow_mask_extent;
 };

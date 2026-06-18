@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/uv.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"
@@ -16,20 +17,20 @@
 #include "../wrc/bindings.hlsl"
 #include "../inc/color.hlsl"
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
-[[vk::binding(0)]] StructuredBuffer<VertexPacked> ircache_spatial_buf;
-[[vk::binding(1)]] TextureCube<float4> sky_cube_tex;
-[[vk::binding(2)]] RWByteAddressBuffer ircache_grid_meta_buf;
-[[vk::binding(3)]] RWByteAddressBuffer ircache_life_buf;
-[[vk::binding(4)]] RWStructuredBuffer<VertexPacked> ircache_reposition_proposal_buf;
-[[vk::binding(5)]] RWStructuredBuffer<uint> ircache_reposition_proposal_count_buf;
+DS_RESOURCE(0) StructuredBuffer<VertexPacked> ircache_spatial_buf;
+DS_RESOURCE(1) TextureCube<float4> sky_cube_tex;
+DS_RESOURCE(2) RWByteAddressBuffer ircache_grid_meta_buf;
+DS_RESOURCE(3) RWByteAddressBuffer ircache_life_buf;
+DS_RESOURCE(4) RWStructuredBuffer<VertexPacked> ircache_reposition_proposal_buf;
+DS_RESOURCE(5) RWStructuredBuffer<uint> ircache_reposition_proposal_count_buf;
 DEFINE_WRC_BINDINGS(6)
-[[vk::binding(7)]] RWByteAddressBuffer ircache_meta_buf;
-[[vk::binding(8)]] RWStructuredBuffer<float4> ircache_aux_buf;
-[[vk::binding(9)]] RWStructuredBuffer<uint> ircache_pool_buf;
-[[vk::binding(10)]] StructuredBuffer<uint> ircache_entry_indirection_buf;
-[[vk::binding(11)]] RWStructuredBuffer<uint> ircache_entry_cell_buf;
+DS_RESOURCE(7) RWByteAddressBuffer ircache_meta_buf;
+DS_RESOURCE(8) RWStructuredBuffer<float4> ircache_aux_buf;
+DS_RESOURCE(9) RWStructuredBuffer<uint> ircache_pool_buf;
+DS_RESOURCE(10) StructuredBuffer<uint> ircache_entry_indirection_buf;
+DS_RESOURCE(11) RWStructuredBuffer<uint> ircache_entry_cell_buf;
 
 #include "../inc/sun.hlsl"
 #include "../wrc/lookup.hlsl"

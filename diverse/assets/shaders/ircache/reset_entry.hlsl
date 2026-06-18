@@ -1,13 +1,14 @@
+#include "../inc/binding.hlsl"
 #include "../inc/pack_unpack.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/sh.hlsl"
 #include "ircache_constants.hlsl"
 
-[[vk::binding(0)]] StructuredBuffer<uint> ircache_life_buf;
-[[vk::binding(1)]] ByteAddressBuffer ircache_meta_buf;
-[[vk::binding(2)]] StructuredBuffer<float4> ircache_irradiance_buf;
-[[vk::binding(3)]] RWStructuredBuffer<float4> ircache_aux_buf;
-[[vk::binding(4)]] StructuredBuffer<uint> ircache_entry_indirection_buf;
+DS_RESOURCE(0) StructuredBuffer<uint> ircache_life_buf;
+DS_RESOURCE(1) ByteAddressBuffer ircache_meta_buf;
+DS_RESOURCE(2) StructuredBuffer<float4> ircache_irradiance_buf;
+DS_RESOURCE(3) RWStructuredBuffer<float4> ircache_aux_buf;
+DS_RESOURCE(4) StructuredBuffer<uint> ircache_entry_indirection_buf;
 
 [numthreads(64, 1, 1)]
 void main(uint dispatch_idx: SV_DispatchThreadID) {

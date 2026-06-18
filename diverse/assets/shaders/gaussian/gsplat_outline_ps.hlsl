@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "../inc/bindless.hlsl"
@@ -13,14 +14,14 @@ struct PsOut {
     float4 color : SV_TARGET0;
 };
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     float4 color;
     uint width;
     uint height;
     float alphaCutoff;
     uint pad;
 };
-[[vk::binding(1)]] Texture2D<float4> outlineTexture;
+DS_RESOURCE(1) Texture2D<float4> outlineTexture;
 
 PsOut outline_ps(PsIn ps)
 {

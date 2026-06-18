@@ -1,17 +1,18 @@
+#include "../inc/binding.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/image.hlsl"
 #include "../inc/soft_color_clamp.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> shadow_mask_tex;
-[[vk::binding(1)]] Texture2D<uint> bitpacked_shadow_mask_tex;
-[[vk::binding(2)]] Texture2D<float4> prev_moments_tex;
-[[vk::binding(3)]] Texture2D<float4> prev_accum_tex;
-[[vk::binding(4)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(5)]] RWTexture2D<float4> output_moments_tex;
-[[vk::binding(6)]] RWTexture2D<float2> temporal_output_tex;
-[[vk::binding(7)]] RWTexture2D<uint> meta_output_tex;
-[[vk::binding(8)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> shadow_mask_tex;
+DS_RESOURCE(1) Texture2D<uint> bitpacked_shadow_mask_tex;
+DS_RESOURCE(2) Texture2D<float4> prev_moments_tex;
+DS_RESOURCE(3) Texture2D<float4> prev_accum_tex;
+DS_RESOURCE(4) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(5) RWTexture2D<float4> output_moments_tex;
+DS_RESOURCE(6) RWTexture2D<float2> temporal_output_tex;
+DS_RESOURCE(7) RWTexture2D<uint> meta_output_tex;
+DS_CBUFFER(8) cbuffer _ {
     float4 input_tex_size;
     uint2 bitpacked_shadow_mask_extent;
 };

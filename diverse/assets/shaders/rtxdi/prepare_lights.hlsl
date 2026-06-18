@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/math.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/mesh.hlsl"
@@ -20,11 +21,11 @@ struct PrepareLightsConstants {
     uint pad;
 };
 
-[[vk::binding(0)]] StructuredBuffer<PrepareLightsTask> t_TaskBuffer;
-[[vk::binding(1)]] RWStructuredBuffer<PolymorphicLightInfo> u_LightDataBuffer;
-[[vk::binding(2)]] RWBuffer<uint> u_LightIndexMappingBuffer;
-[[vk::binding(3)]] RWTexture2D<float> u_LocalLightPdfTexture;
-[[vk::binding(4)]] ConstantBuffer<PrepareLightsConstants> g_Const;
+DS_RESOURCE(0) StructuredBuffer<PrepareLightsTask> t_TaskBuffer;
+DS_RESOURCE(1) RWStructuredBuffer<PolymorphicLightInfo> u_LightDataBuffer;
+DS_RESOURCE(2) RWBuffer<uint> u_LightIndexMappingBuffer;
+DS_RESOURCE(3) RWTexture2D<float> u_LocalLightPdfTexture;
+DS_CBUFFER(4) ConstantBuffer<PrepareLightsConstants> g_Const;
 
 #define ENVIRONMENT_SAMPLER sampler_llc // doesn't matter in this pass
 #define IES_SAMPLER sampler_llc

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 // #include "../inc/bindless.hlsl"
@@ -13,7 +14,7 @@ struct PsOut {
     float4 color : SV_TARGET0;
 };
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     float4x4 model_matrix;
     uint buf_id;
     uint surface_width;

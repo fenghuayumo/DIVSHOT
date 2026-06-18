@@ -1,3 +1,4 @@
+#include "inc/binding.hlsl"
 #include "inc/math.hlsl"
 #include "inc/samplers.hlsl"
 #include "inc/frame_constants.hlsl"
@@ -19,7 +20,7 @@ struct PsIn {
     [[vk::location(8)]] nointerpolation uint mesh_index: TEXCOORD9;
 };
 
-[[vk::binding(0)]] StructuredBuffer<InstanceTransform> instance_transforms_dyn;
+DS_RESOURCE(0) StructuredBuffer<InstanceTransform> instance_transforms_dyn;
 
 struct PsOut {
     float3 geometric_normal: SV_TARGET0;

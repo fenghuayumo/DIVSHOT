@@ -1,19 +1,20 @@
+#include "../inc/binding.hlsl"
 
 
 //Present code requires 16x16 group dimensions
 #define PDF_SAMPLING_GROUP_SIZE 16
 
 
-[[vk::binding(0)]]  RWTexture2D<float> LightPdfUAV0;
-[[vk::binding(1)]]  RWTexture2D<float> LightPdfUAV1;
-[[vk::binding(2)]]  RWTexture2D<float> LightPdfUAV2;
-[[vk::binding(3)]]  RWTexture2D<float> LightPdfUAV3;
-[[vk::binding(4)]]  RWTexture2D<float> LightPdfUAV4;
+DS_RESOURCE(0)  RWTexture2D<float> LightPdfUAV0;
+DS_RESOURCE(1)  RWTexture2D<float> LightPdfUAV1;
+DS_RESOURCE(2)  RWTexture2D<float> LightPdfUAV2;
+DS_RESOURCE(3)  RWTexture2D<float> LightPdfUAV3;
+DS_RESOURCE(4)  RWTexture2D<float> LightPdfUAV4;
 
-[[vk::binding(5)]]  Texture2D<float> LightPdfTexture;
+DS_RESOURCE(5)  Texture2D<float> LightPdfTexture;
 
 
-[[vk::binding(6)]] cbuffer _ {
+DS_CBUFFER(6) cbuffer _ {
    int  BaseLevel;
    uint PdfTexDimensions;
    uint2 padding; // Padding to align to 16 bytes

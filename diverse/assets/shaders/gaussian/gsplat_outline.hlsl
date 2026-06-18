@@ -1,18 +1,19 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 // #include "../inc/bindless.hlsl"
 #include "../inc/pack_unpack.hlsl"
 
 
-[[vk::binding(0)]] cbuffer _ {
+DS_CBUFFER(0) cbuffer _ {
     float4 color;
     uint width;
     uint height;
     float alphaCutoff;
     uint pad;
 };
-[[vk::binding(1)]] Texture2D<float4> outlineTexture;
-[[vk::binding(2)]] RWTexture2D<float4> color_image;
+DS_RESOURCE(1) Texture2D<float4> outlineTexture;
+DS_RESOURCE(2) RWTexture2D<float4> color_image;
 
 [numthreads(8, 8, 1)]
 void main(in uint2 px: SV_DispatchThreadID) {

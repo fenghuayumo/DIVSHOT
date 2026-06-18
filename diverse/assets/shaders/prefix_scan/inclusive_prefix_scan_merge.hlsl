@@ -1,8 +1,9 @@
+#include "../inc/binding.hlsl"
 #define THREAD_GROUP_SIZE 512
 #define SEGMENT_SIZE (THREAD_GROUP_SIZE * 2)
 
-[[vk::binding(0)]] RWByteAddressBuffer inout_buf;
-[[vk::binding(1)]] ByteAddressBuffer segment_sum_buf;
+DS_RESOURCE(0) RWByteAddressBuffer inout_buf;
+DS_RESOURCE(1) ByteAddressBuffer segment_sum_buf;
 
 uint2 load_input2(uint idx, uint segment) {
     const uint2 internal_sum = inout_buf.Load2(sizeof(uint) * (idx + segment * SEGMENT_SIZE));

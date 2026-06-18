@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/color/srgb.hlsl"
 #include "../inc/bindless.hlsl"
@@ -5,11 +6,11 @@
 #include "gaussian_common.hlsl"
 
 #if MLP_LAYER0
-[[vk::binding(0)]] StructuredBuffer<float> color_mlp_weights0;//feat_dim x (feat_dim + 3)
-[[vk::binding(1)]] StructuredBuffer<float> color_mlp_bias0;
-[[vk::binding(2)]] ByteAddressBuffer       splat_pos_buf;
-[[vk::binding(3)]] RWStructuredBuffer<float> splat_feature_layer_buf;
-[[vk::binding(4)]] cbuffer _ {
+DS_RESOURCE(0) StructuredBuffer<float> color_mlp_weights0;//feat_dim x (feat_dim + 3)
+DS_RESOURCE(1) StructuredBuffer<float> color_mlp_bias0;
+DS_RESOURCE(2) ByteAddressBuffer       splat_pos_buf;
+DS_RESOURCE(3) RWStructuredBuffer<float> splat_feature_layer_buf;
+DS_CBUFFER(4) cbuffer _ {
     float4x4 transform;
 
     uint buf_id;
@@ -52,11 +53,11 @@ void main(uint2 px: SV_DispatchThreadID)
 }
 #else
 
-[[vk::binding(0)]] StructuredBuffer<float> color_mlp_weights1; // 3* n_feat_offsets x feat_dim
-[[vk::binding(1)]] StructuredBuffer<float> color_mlp_bias1;
-[[vk::binding(2)]] StructuredBuffer<float> splat_feat_layer_buf;
-[[vk::binding(3)]] RWStructuredBuffer<float> splat_colors_buf;
-[[vk::binding(4)]] cbuffer _ {
+DS_RESOURCE(0) StructuredBuffer<float> color_mlp_weights1; // 3* n_feat_offsets x feat_dim
+DS_RESOURCE(1) StructuredBuffer<float> color_mlp_bias1;
+DS_RESOURCE(2) StructuredBuffer<float> splat_feat_layer_buf;
+DS_RESOURCE(3) RWStructuredBuffer<float> splat_colors_buf;
+DS_CBUFFER(4) cbuffer _ {
     float4 gs_translation;
     float4 gs_scaling;
     float4 gs_rotation;

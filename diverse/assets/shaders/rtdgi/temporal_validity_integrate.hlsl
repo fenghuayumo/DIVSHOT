@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/frame_constants.hlsl"
 #include "../inc/hash.hlsl"
 #include "../inc/quasi_random.hlsl"
@@ -7,13 +8,13 @@
 #define USE_SSAO_STEERING 1
 #define USE_DYNAMIC_KERNEL_RADIUS 0
 
-[[vk::binding(0)]] Texture2D<float> input_tex;
-[[vk::binding(1)]] Texture2D<float> history_tex;
-[[vk::binding(2)]] Texture2D<float4> reprojection_tex;
-[[vk::binding(3)]] Texture2D<float4> half_view_normal_tex;
-[[vk::binding(4)]] Texture2D<float> half_depth_tex;
-[[vk::binding(5)]] RWTexture2D<float2> output_tex;
-[[vk::binding(6)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float> input_tex;
+DS_RESOURCE(1) Texture2D<float> history_tex;
+DS_RESOURCE(2) Texture2D<float4> reprojection_tex;
+DS_RESOURCE(3) Texture2D<float4> half_view_normal_tex;
+DS_RESOURCE(4) Texture2D<float> half_depth_tex;
+DS_RESOURCE(5) RWTexture2D<float2> output_tex;
+DS_CBUFFER(6) cbuffer _ {
     float4 gbuffer_tex_size;
     float4 output_tex_size;
 };

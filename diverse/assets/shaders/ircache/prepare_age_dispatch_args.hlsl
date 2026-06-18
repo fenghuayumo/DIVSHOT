@@ -1,7 +1,8 @@
+#include "../inc/binding.hlsl"
 #include "ircache_constants.hlsl"
 
-[[vk::binding(0)]] ByteAddressBuffer ircache_meta_buf;
-[[vk::binding(1)]] RWByteAddressBuffer dispatch_args;
+DS_RESOURCE(0) ByteAddressBuffer ircache_meta_buf;
+DS_RESOURCE(1) RWByteAddressBuffer dispatch_args;
 
 [numthreads(1, 1, 1)]
 void main() {

@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #include "../inc/math.hlsl"
 #include "../inc/samplers.hlsl"
 #include "../inc/mesh.hlsl"

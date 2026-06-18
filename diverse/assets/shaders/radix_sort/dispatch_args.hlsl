@@ -1,3 +1,4 @@
+#include "../inc/binding.hlsl"
 #define NUM_BITS_PER_PASS   4
 #define NUM_BINS            (1 << NUM_BITS_PER_PASS)
 #define GROUP_SIZE          256
@@ -6,11 +7,11 @@
 
 #define USE_ARGS 1
 
-[[vk::binding(0)]] RWStructuredBuffer<uint4> g_ArgsBuffer;
-[[vk::binding(1)]] RWStructuredBuffer<uint> g_ScanCountBuffer;
-[[vk::binding(2)]] RWStructuredBuffer<uint4> g_CountBuffer;
+DS_RESOURCE(0) RWStructuredBuffer<uint4> g_ArgsBuffer;
+DS_RESOURCE(1) RWStructuredBuffer<uint> g_ScanCountBuffer;
+DS_RESOURCE(2) RWStructuredBuffer<uint4> g_CountBuffer;
 
-[[vk::binding(3)]] cbuffer _ {
+DS_CBUFFER(3) cbuffer _ {
     uint g_pass;
 };
 
