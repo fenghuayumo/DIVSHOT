@@ -18,6 +18,8 @@ namespace diverse
         constexpr float kMaxOrthoScale = 10000.0f;
         constexpr float kArcballPanMouseScale = 0.01f;
         constexpr float kOrthoPanMouseScale = 0.03f;
+        constexpr float kArcballRotateMouseScale = 0.008f;
+        constexpr float kFlycamRotateMouseScale = 0.002f;
 
         glm::vec3 smooth_velocity(const glm::vec3& current, const glm::vec3& target, float dt)
         {
@@ -139,8 +141,7 @@ namespace diverse
 
                 if(Input::get().get_mouse_held(InputCode::MouseKey::ButtonRight))
                 {
-                    mouse_sensitivity = 0.0002f;
-                    rotate_velocity   = glm::vec2((xpos - previous_curser_pos.x), (ypos - previous_curser_pos.y)) * mouse_sensitivity * 10.0f;
+                    rotate_velocity = glm::vec2((xpos - previous_curser_pos.x), (ypos - previous_curser_pos.y)) * kFlycamRotateMouseScale;
                 }
                 else
                 {
@@ -176,8 +177,13 @@ namespace diverse
                 else if (Input::get().get_mouse_held(InputCode::MouseKey::ButtonRight))
                 {
                     // RMB only = Orbit camera
-                    mouse_sensitivity = 0.0002f;
-                    rotate_velocity = glm::vec2((xpos - previous_curser_pos.x), (ypos - previous_curser_pos.y)) * mouse_sensitivity * 10.0f;
+                    float rotate_scale = kArcballRotateMouseScale;
+                    if(Input::get().get_key_held(InputCode::Key::LeftShift))
+                        rotate_scale *= 1.8f;
+                    else if(Input::get().get_key_held(InputCode::Key::LeftAlt))
+                        rotate_scale *= 0.35f;
+
+                    rotate_velocity = glm::vec2((xpos - previous_curser_pos.x), (ypos - previous_curser_pos.y)) * rotate_scale;
                 }
                 else if (Input::get().get_mouse_held(InputCode::MouseKey::ButtonMiddle))
                 {
