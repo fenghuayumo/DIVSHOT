@@ -43,6 +43,29 @@ namespace diverse
             bool parallel_recording_hint = false;
         };
 
+        struct PassDependencyEdge
+        {
+            uint32 from = 0;
+            uint32 to = 0;
+            uint32 resource_id = 0;
+        };
+
+        struct ScheduledPass
+        {
+            uint32 pass_index = 0;
+            uint32 dependency_level = 0;
+        };
+
+        struct PassSchedule
+        {
+            std::vector<ScheduledPass> ordered_passes;
+            std::vector<uint32> main_passes;
+            std::vector<uint32> presentation_passes;
+            std::vector<PassDependencyEdge> dependencies;
+            std::vector<PassQueueRange> queue_ranges;
+            uint32 first_presentation_pass = 0;
+        };
+
         struct RenderGraph
         {
           
@@ -59,6 +82,7 @@ namespace diverse
             ResourceInfo resource_info;
             RenderGraphPipelines pipelines;
             std::vector<PassQueueRange> pass_queue_ranges;
+            PassSchedule pass_schedule;
             ResourceRegistry    resource_registry;
             TransientResourceCache* transient_resource_cache;
             //std::vector<Handle<rhi::GpuTexture>>    record_images;
@@ -80,7 +104,9 @@ namespace diverse
 
             auto create_raw_resource(GraphResourceCreateInfo&& info) -> GraphRawResourceHandle;
             auto calculate_resource_info() -> ResourceInfo;
-            auto build_pass_queue_ranges(uint32 pass_count) const -> std::vector<PassQueueRange>;
+            auto build_pass_schedule() const -> PassSchedule;
+            auto build_pass_queue_ranges(const std::vector<ScheduledPass>& scheduled_passes) const -> std::vector<PassQueueRange>;
+            auto find_first_presentation_pass() const -> uint32;
 
             template<typename Res>
                 requires std::derived_from<Res, rhi::GpuResource>

@@ -152,9 +152,19 @@ namespace diverse
 				return std::any_cast<GraphResourceCreateInfo&>(value);
 			}
 
+			auto graph_resource_create_info() const -> const GraphResourceCreateInfo&
+			{
+				return std::any_cast<const GraphResourceCreateInfo&>(value);
+			}
+
 			auto graph_resource_import_info() -> GraphResourceImportInfo&
 			{
 				return std::any_cast<GraphResourceImportInfo&>(value);
+			}
+
+			auto graph_resource_import_info() const -> const GraphResourceImportInfo&
+			{
+				return std::any_cast<const GraphResourceImportInfo&>(value);
 			}
 
 			static auto Imported(GraphResourceImportInfo&& v)->GraphResourceInfo

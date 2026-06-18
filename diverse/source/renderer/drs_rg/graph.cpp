@@ -2,6 +2,8 @@
 #include "graph.h"
 #include "pass_builder.h"
 #include "core/ds_log.h"
+#include <algorithm>
+#include <optional>
 namespace diverse
 {
     namespace rg
@@ -256,23 +258,170 @@ namespace diverse
             };
         }
 
-        auto RenderGraph::build_pass_queue_ranges(uint32 pass_count) const -> std::vector<PassQueueRange>
+        auto RenderGraph::find_first_presentation_pass() const -> uint32
+        {
+            for (auto pass_idx = 0u; pass_idx < passes.size(); pass_idx++)
+            {
+                const auto& pass = passes[pass_idx];
+                if (pass.scheduling.kind == PassKind::Present)
+                    return pass_idx;
+
+                for (const auto& res : pass.write)
+                {
+                    const auto& resource = resources[res.handle.id];
+                    if (resource.ty == GraphResourceInfo::Type::Imported &&
+                        resource.graph_resource_import_info().ty == GraphResourceImportInfo::Type::SwapchainImage)
+                    {
+                        return pass_idx;
+                    }
+                }
+            }
+
+            return static_cast<uint32>(passes.size());
+        }
+
+        auto RenderGraph::build_pass_schedule() const -> PassSchedule
+        {
+            struct ResourceDependencyState
+            {
+                std::optional<uint32> last_writer;
+                std::vector<uint32> last_readers;
+            };
+
+            PassSchedule schedule;
+            const auto pass_count = static_cast<uint32>(passes.size());
+            schedule.first_presentation_pass = find_first_presentation_pass();
+
+            if (pass_count == 0)
+                return schedule;
+
+            std::vector<ResourceDependencyState> resource_states(resources.size());
+            auto add_dependency = [&](uint32 from, uint32 to, uint32 resource_id)
+            {
+                if (from == to)
+                    return;
+
+                auto existing = std::find_if(
+                    schedule.dependencies.begin(),
+                    schedule.dependencies.end(),
+                    [from, to, resource_id](const PassDependencyEdge& edge)
+                    {
+                        return edge.from == from && edge.to == to && edge.resource_id == resource_id;
+                    });
+
+                if (existing == schedule.dependencies.end())
+                    schedule.dependencies.push_back(PassDependencyEdge{ from, to, resource_id });
+            };
+
+            for (auto pass_idx = 0u; pass_idx < pass_count; pass_idx++)
+            {
+                const auto& pass = passes[pass_idx];
+
+                for (const auto& resource_ref : pass.read)
+                {
+                    const auto resource_id = resource_ref.handle.id;
+                    auto& resource_state = resource_states[resource_id];
+
+                    if (resource_state.last_writer)
+                        add_dependency(resource_state.last_writer.value(), pass_idx, resource_id);
+
+                    if (std::find(resource_state.last_readers.begin(), resource_state.last_readers.end(), pass_idx) == resource_state.last_readers.end())
+                        resource_state.last_readers.push_back(pass_idx);
+                }
+
+                for (const auto& resource_ref : pass.write)
+                {
+                    const auto resource_id = resource_ref.handle.id;
+                    auto& resource_state = resource_states[resource_id];
+
+                    if (resource_state.last_writer)
+                        add_dependency(resource_state.last_writer.value(), pass_idx, resource_id);
+
+                    for (const auto reader_pass_idx : resource_state.last_readers)
+                        add_dependency(reader_pass_idx, pass_idx, resource_id);
+
+                    resource_state.last_writer = pass_idx;
+                    resource_state.last_readers.clear();
+                }
+            }
+
+            std::vector<std::vector<uint32>> outgoing_edges(pass_count);
+            std::vector<uint32> indegree(pass_count, 0);
+            for (const auto& edge : schedule.dependencies)
+            {
+                outgoing_edges[edge.from].push_back(edge.to);
+                indegree[edge.to]++;
+            }
+
+            std::vector<uint32> dependency_levels(pass_count, 0);
+            std::vector<uint8> scheduled(pass_count, 0);
+            schedule.ordered_passes.reserve(pass_count);
+
+            for (auto scheduled_count = 0u; scheduled_count < pass_count; scheduled_count++)
+            {
+                auto next_pass = pass_count;
+                for (auto pass_idx = 0u; pass_idx < pass_count; pass_idx++)
+                {
+                    if (!scheduled[pass_idx] && indegree[pass_idx] == 0)
+                    {
+                        next_pass = pass_idx;
+                        break;
+                    }
+                }
+
+                if (next_pass == pass_count)
+                {
+                    DS_LOG_ERROR("RenderGraph dependency cycle detected, falling back to insertion order for remaining passes");
+                    for (auto pass_idx = 0u; pass_idx < pass_count; pass_idx++)
+                    {
+                        if (!scheduled[pass_idx])
+                        {
+                            scheduled[pass_idx] = 1;
+                            schedule.ordered_passes.push_back(ScheduledPass{ pass_idx, dependency_levels[pass_idx] });
+                        }
+                    }
+                    break;
+                }
+
+                scheduled[next_pass] = 1;
+                schedule.ordered_passes.push_back(ScheduledPass{ next_pass, dependency_levels[next_pass] });
+
+                for (const auto dependent_pass : outgoing_edges[next_pass])
+                {
+                    dependency_levels[dependent_pass] = std::max(dependency_levels[dependent_pass], dependency_levels[next_pass] + 1);
+                    indegree[dependent_pass]--;
+                }
+            }
+
+            for (const auto& scheduled_pass : schedule.ordered_passes)
+            {
+                if (scheduled_pass.pass_index < schedule.first_presentation_pass)
+                    schedule.main_passes.push_back(scheduled_pass.pass_index);
+                else
+                    schedule.presentation_passes.push_back(scheduled_pass.pass_index);
+            }
+
+            schedule.queue_ranges = build_pass_queue_ranges(schedule.ordered_passes);
+            return schedule;
+        }
+
+        auto RenderGraph::build_pass_queue_ranges(const std::vector<ScheduledPass>& scheduled_passes) const -> std::vector<PassQueueRange>
         {
             std::vector<PassQueueRange> ranges;
-            if (pass_count == 0)
+            if (scheduled_passes.empty())
                 return ranges;
 
             auto begin_range = 0u;
-            auto current_queue = passes[0].scheduling.queue;
-            auto parallel_hint = passes[0].scheduling.parallel_recording_hint;
+            auto current_queue = passes[scheduled_passes[0].pass_index].scheduling.queue;
+            auto parallel_hint = passes[scheduled_passes[0].pass_index].scheduling.parallel_recording_hint;
 
-            for (auto pass_idx = 1u; pass_idx < pass_count; ++pass_idx)
+            for (auto scheduled_idx = 1u; scheduled_idx < scheduled_passes.size(); ++scheduled_idx)
             {
-                const auto& scheduling = passes[pass_idx].scheduling;
+                const auto& scheduling = passes[scheduled_passes[scheduled_idx].pass_index].scheduling;
                 if (scheduling.queue != current_queue)
                 {
-                    ranges.push_back(PassQueueRange{ current_queue, begin_range, pass_idx, parallel_hint });
-                    begin_range = pass_idx;
+                    ranges.push_back(PassQueueRange{ current_queue, begin_range, static_cast<uint32>(scheduled_idx), parallel_hint });
+                    begin_range = static_cast<uint32>(scheduled_idx);
                     current_queue = scheduling.queue;
                     parallel_hint = scheduling.parallel_recording_hint;
                 }
@@ -282,14 +431,15 @@ namespace diverse
                 }
             }
 
-            ranges.push_back(PassQueueRange{ current_queue, begin_range, pass_count, parallel_hint });
+            ranges.push_back(PassQueueRange{ current_queue, begin_range, static_cast<uint32>(scheduled_passes.size()), parallel_hint });
             return ranges;
         }
 
         auto RenderGraph::compile(rhi::PipelineCache& pipeline_cache) -> void
         {
             auto resource_info = calculate_resource_info();
-            pass_queue_ranges = build_pass_queue_ranges(static_cast<uint32>(passes.size()));
+            pass_schedule = build_pass_schedule();
+            pass_queue_ranges = pass_schedule.queue_ranges;
             
             std::vector<rhi::ComputePipelineHandle>  compute_pipeline_handles;
             std::vector<rhi::RasterPipelineHandle>  raster_pipeline_handles;
@@ -470,27 +620,18 @@ namespace diverse
         
         auto RenderGraph::record_main_cb(rhi::CommandBuffer* cb)->void
         {
-            auto first_presentation_pass = passes.size();
-
-            for (auto pass_idx = 0; pass_idx < passes.size(); pass_idx++)
+            if (pass_schedule.ordered_passes.empty() && !passes.empty())
             {
-                const auto& pass = passes[pass_idx];
-                for (auto& res : pass.write)
-                {
-                    auto resource = resources[res.handle.id];
-                    if (resource.ty == GraphResourceInfo::Type::Imported)
-                    {
-                         if( resource.graph_resource_import_info().ty == GraphResourceImportInfo::Type::SwapchainImage )
-                            first_presentation_pass = pass_idx;
-                    }
-                }
+                pass_schedule = build_pass_schedule();
+                pass_queue_ranges = pass_schedule.queue_ranges;
             }
+
             // At the start, transition all resources to the access type they're first used with
             // While we don't have split barriers yet, this will remove some bubbles
             // which would otherwise occur with temporal resources.
 
             std::unordered_map<uint32, PassResourceAccessType*>  resource_first_access_states;
-            for (auto pass_id = 0; pass_id < first_presentation_pass; pass_id++)
+            for (const auto pass_id : pass_schedule.main_passes)
             {
                 auto& pass = passes[pass_id];
                 for (auto& res_ref : pass.read)
@@ -515,13 +656,11 @@ namespace diverse
                 access->sync_type = PassResourceAccessSyncType::SkipSyncIfSameAccessType;
             }
 
-            for (auto pass_idx = 0; pass_idx < first_presentation_pass; pass_idx++)
+            for (const auto pass_idx : pass_schedule.main_passes)
             {
                 auto& pass = passes[pass_idx];
                 record_pass_cb(pass, resource_registry, cb);
             }
-
-            passes.erase(passes.begin(), passes.begin() + first_presentation_pass);
         }
 
         auto RenderGraph::record_presentation_cb(
@@ -529,6 +668,12 @@ namespace diverse
                             const std::shared_ptr<rhi::GpuTexture>& swapchain)
                             -> void
         {
+            if (pass_schedule.ordered_passes.empty() && !passes.empty())
+            {
+                pass_schedule = build_pass_schedule();
+                pass_queue_ranges = pass_schedule.queue_ranges;
+            }
+
             auto& params = resource_registry.execution_params;
             for (auto& [res_idx, access_type] : exported_resources)
             {
@@ -559,8 +704,9 @@ namespace diverse
                 }
             }
 
-            for (auto& pass : passes)
+            for (const auto pass_idx : pass_schedule.presentation_passes)
             {
+                auto& pass = passes[pass_idx];
                 record_pass_cb(pass, resource_registry, cb);
             }
         }
