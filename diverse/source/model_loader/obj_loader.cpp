@@ -69,7 +69,11 @@ namespace diverse
                 Vertex vertex;
 
                 if(index.vertex_index < 0 || (3 * index.vertex_index + 2) >= static_cast<int>(attrib.vertices.size()))
+                {
+                    // Skip the rest of this triangle (3 consecutive face-vertices form a triangle)
+                    i += 2 - (i % 3);
                     continue;
+                }
 
                 if(index.texcoord_index >= 0 && (2 * index.texcoord_index + 1) < static_cast<int>(attrib.texcoords.size()))
                 {

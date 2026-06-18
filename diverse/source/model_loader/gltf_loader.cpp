@@ -366,7 +366,7 @@ namespace diverse
                 auto offset = glm::vec2(offset_json.Get(0).Get<double>(), offset_json.Get(1).Get<double>());
                 auto scale = glm::vec2(scale_json.Get(0).Get<double>(), scale_json.Get(1).Get<double>());
                 auto rotation = mat.emissiveTexture.extensions["KHR_texture_transform"].Get("rotation").Get<double>();
-                properties.map_transforms[3] = texture_transform_to_matrix(rotation, scale, offset);
+                properties.map_transforms[2] = texture_transform_to_matrix(rotation, scale, offset);
             }
             if (mat.occlusionTexture.extensions.count("KHR_texture_transform"))
             {
@@ -639,7 +639,7 @@ namespace diverse
 
             // -------- Indices ----------
             std::vector<uint32_t> indices;
-            if(primitive.indices >= 0)
+            if(primitive.indices >= 0 && primitive.indices < static_cast<int>(model.accessors.size()))
             {
                 const tinygltf::Accessor& indicesAccessor = model.accessors[primitive.indices];
                 indices.resize(indicesAccessor.count);

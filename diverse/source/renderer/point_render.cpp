@@ -67,7 +67,7 @@ namespace diverse
 			gs_constants.point_size = glm::clamp(render_settings.gs_point_size,0.0f,100.0f) / 2.0f;
             gs_constants.surface_width = color_img.desc.extent[0];
             gs_constants.surface_height = color_img.desc.extent[1];
-			gs_constants.buf_id = renderer->get_buf_id(cmd.model);
+			gs_constants.buf_id = renderer->get_buf_id(cmd.model.get());
             pass.render([this, color_img = std::move(color_ref),
 				depth = std::move(depth_ref),
 				num_points, gs_constants,

@@ -2,8 +2,10 @@
 #include "defered_renderer.h"
 #include "drs_rg/simple_pass.h"
 #include "backend/drs_rhi/buffer_builder.h"
+#include "engine/engine.h"
 #include "engine/window.h"
 #include "engine/input.h"
+#include "engine/thread_affinity.h"
 #include "drs_rg/image_op.h"
 #include "ui_renderer.h"
 #include "debug_renderer.h"
@@ -156,6 +158,7 @@ namespace diverse
 
 	DeferedRenderer::DeferedRenderer(rhi::GpuDevice* device,rhi::Swapchain* swapchain)
 	{
+		threading::assert_render_thread();
 		rg_renderer.reset(new rg::Renderer(device, swapchain));
 		ui_renderer.reset(new UiRenderer());
 
@@ -190,6 +193,7 @@ namespace diverse
 	}
 	void DeferedRenderer::init(std::array<u32, 2> swapchain_extent)
 	{
+		threading::assert_render_thread();
 		auto desc = rhi::GpuTextureDesc::new_2d(PixelFormat::R8G8B8A8_UNorm, swapchain_extent).with_usage(
 			rhi::TextureUsageFlags::SAMPLED |
 			rhi::TextureUsageFlags::STORAGE |
@@ -244,7 +248,8 @@ namespace diverse
 
 	void DeferedRenderer::render(std::array<u32, 2> swapchain_extent)
 	{
-		float delta_dt = 1.0f / 60.0f; //TODO
+		threading::assert_game_thread();
+		const auto delta_dt = static_cast<f32>(Engine::get_time_step().get_seconds());
 		auto packet = build_render_frame_packet(delta_dt, swapchain_extent);
 		if (!packet)
 			return;
@@ -254,6 +259,7 @@ namespace diverse
 
 	auto DeferedRenderer::build_render_frame_packet(f32 delta_dt, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>
 	{
+		threading::assert_game_thread();
 		if (!current_scene)
 			return std::nullopt;
 
@@ -340,7 +346,7 @@ namespace diverse
 			auto offset = -gs_com.black_point + gs_com.brightness;
 			auto scale = 1.0f / (gs_com.white_point - gs_com.black_point);
 			packet.gs_commands.push_back(RenderGSCommand{ trans,
-										gs_com.ModelRef.get(), 
+										gs_com.ModelRef,
 										(u32)gs_com.sh_degree,
 										packet.render_settings.select_color,
 										packet.render_settings.locked_color,
@@ -353,7 +359,7 @@ namespace diverse
 			{
 				for (auto& crop_data : crop->get_crop_data())
 				{
-					packet.gs_commands.back().crop_data.push_back(&crop_data);
+					packet.gs_commands.back().crop_data.push_back(crop_data);
 				}
 			}
 		}
@@ -386,16 +392,20 @@ namespace diverse
 
 	auto DeferedRenderer::submit_render_frame_packet(RenderFramePacket&& packet)->void
 	{
+		threading::assert_render_thread();
+		flush_render_commands();
 		prepare_environment_resources(packet);
 		upload_gpu_buffers(packet);
 
 		auto mesh_frame_states = std::move(packet.mesh_frame_states);
 		render_frame_packet(std::move(packet));
 		retire_frame(mesh_frame_states);
+		retire_deferred_releases();
 	}
 
 	auto DeferedRenderer::render_frame_packet(RenderFramePacket&& packet)->void
 	{
+		threading::assert_render_thread();
 		gs_command_queue = std::move(packet.gs_commands);
 		mesh_command_queue = std::move(packet.mesh_commands);
 		point_command_queue = std::move(packet.point_commands);
@@ -411,7 +421,7 @@ namespace diverse
 		const auto delta_dt = packet.delta_t;
 		const auto swapchain_extent = packet.swapchain_extent;
 		apply_environment_frame(environment);
-		post->update_pre_exposure(frame_render_settings);
+		post->update_pre_exposure(frame_render_settings, delta_dt);
 
 		rg_renderer->prepare_frame_constants(rg,
 			[this, frame_desc, camera_params, delta_dt](rhi::DynamicConstants& dynamic_constants)->rg::FrameConstantsLayout {
@@ -444,6 +454,35 @@ namespace diverse
 			rg_renderer->swap_chain);
 	}
 
+	auto DeferedRenderer::enqueue_render_command(std::function<void()>&& command) -> void
+	{
+		std::lock_guard lock(render_command_mutex);
+		pending_render_commands.push_back(std::move(command));
+	}
+
+	auto DeferedRenderer::flush_render_commands() -> void
+	{
+		threading::assert_render_thread();
+		std::vector<std::function<void()>> commands;
+		{
+			std::lock_guard lock(render_command_mutex);
+			commands.swap(pending_render_commands);
+		}
+
+		for (auto& command : commands)
+		{
+			if (command)
+				command();
+		}
+	}
+
+	auto DeferedRenderer::wait_for_render_idle() -> void
+	{
+		threading::assert_render_thread();
+		flush_render_commands();
+		retire_deferred_releases(true);
+	}
+
 	auto DeferedRenderer::apply_environment_frame(const EnvironmentFrameParams& environment)->void
 	{
 		if (!environment.has_environment)
@@ -460,6 +499,7 @@ namespace diverse
 
 	auto DeferedRenderer::prepare_environment_resources(RenderFramePacket& packet)->void
 	{
+		threading::assert_render_thread();
 		auto& environment = packet.environment;
 		if (!environment.has_environment || environment.mode != (f32)Environment::Mode::HDR || environment.hdr_path.empty())
 			return;
@@ -490,17 +530,61 @@ namespace diverse
 
 	auto DeferedRenderer::upload_gpu_buffers(RenderFramePacket& packet)->void
 	{
+		threading::assert_render_thread();
 		upload_gaussian_gpu_buffers(packet.gs_commands);
 		upload_point_cloud_gpu_buffers(packet.point_commands);
 		upload_mesh_gpu_buffers(packet);
 	}
 
+	auto DeferedRenderer::defer_release(std::function<void()>&& release) -> void
+	{
+		threading::assert_render_thread();
+		if (!release)
+			return;
+
+		deferred_releases.push_back(DeferredRelease{
+			render_frame_serial + 3,
+			std::move(release)
+		});
+	}
+
+	auto DeferedRenderer::retire_deferred_releases(bool release_all) -> void
+	{
+		threading::assert_render_thread();
+		if (release_all)
+		{
+			for (auto& deferred : deferred_releases)
+			{
+				if (deferred.release)
+					deferred.release();
+			}
+			deferred_releases.clear();
+			return;
+		}
+
+		for (auto iter = deferred_releases.begin(); iter != deferred_releases.end();)
+		{
+			if (iter->retire_frame <= render_frame_serial)
+			{
+				if (iter->release)
+					iter->release();
+				iter = deferred_releases.erase(iter);
+			}
+			else
+			{
+				++iter;
+			}
+		}
+		++render_frame_serial;
+	}
+
 	auto DeferedRenderer::upload_gaussian_gpu_buffers(const std::vector<RenderGSCommand>& gs_commands)->void
 	{
+		threading::assert_render_thread();
 		auto device = rg_renderer->device;
 		for (const auto& command : gs_commands)
 		{
-			auto* model = command.model;
+			auto* model = command.model.get();
 			if (!model || !model->is_flag_set(AssetFlag::Loaded)) continue;
 			if (!model->is_flag_set(AssetFlag::UploadedGpu))
 				model->create_gpu_buffer(device, true);
@@ -523,10 +607,11 @@ namespace diverse
 
 	auto DeferedRenderer::upload_point_cloud_gpu_buffers(const std::vector<RenderPointCommand>& point_commands)->void
 	{
+		threading::assert_render_thread();
 		auto device = rg_renderer->device;
 		for (const auto& command : point_commands)
 		{
-			auto* model = command.model;
+			auto* model = command.model.get();
 			if (!model || !model->is_flag_set(AssetFlag::Loaded)) continue;
 			if (!model->is_flag_set(AssetFlag::UploadedGpu))
 				model->create_gpu_buffer(device);
@@ -638,13 +723,14 @@ namespace diverse
 
 	auto DeferedRenderer::upload_mesh_gpu_buffers(RenderFramePacket& packet)->void
 	{
+		threading::assert_render_thread();
 		packet.mesh_commands.clear();
 		packet.triangle_lights.clear();
 		packet.rt_instance_masks.clear();
 		gpu_scene.ent_2_model_id.clear(); gpu_scene.instance_transforms.clear();gpu_scene.instance_dynamic_constants.clear();
 		for (const auto& request : packet.mesh_requests)
 		{
-			auto* model = request.model;
+			auto* model = request.model.get();
 			if (!model) continue;
 			if (!model->is_flag_set(AssetFlag::Loaded)) continue;
 			auto upload_material_num = upload_mesh_materials(model);
@@ -1033,6 +1119,8 @@ namespace diverse
 
 	auto DeferedRenderer::release()->void
 	{
+		threading::assert_render_thread();
+		wait_for_render_idle();
 		DebugRenderer::Release();
         rg_renderer.reset();
 		debug_render_pass.reset();
@@ -1051,8 +1139,14 @@ namespace diverse
 
 	auto DeferedRenderer::handle_resize(uint32_t width, uint32_t height)->void
 	{		
-		auto main_tex = main_render_tex.get();
-		auto depth_tex = depth_render_tex.get();
+		threading::assert_render_thread();
+		auto old_main_render_tex = std::move(main_render_tex);
+		auto old_depth_render_tex = std::move(depth_render_tex);
+		defer_release([old_main_render_tex = std::move(old_main_render_tex),
+					   old_depth_render_tex = std::move(old_depth_render_tex)]() mutable {
+			old_main_render_tex.reset();
+			old_depth_render_tex.reset();
+		});
 		auto desc = rhi::GpuTextureDesc::new_2d(PixelFormat::R8G8B8A8_UNorm, {width,height}).with_usage(
 			rhi::TextureUsageFlags::SAMPLED |
 			rhi::TextureUsageFlags::STORAGE |
@@ -1077,6 +1171,7 @@ namespace diverse
 
 	auto DeferedRenderer::handle_window_resize(uint32_t width, uint32_t height)->void
 	{
+		threading::assert_render_thread();
 		rg_renderer->swap_chain->resize(width,height);
 		handle_resize(width, height);
 	}
@@ -1090,6 +1185,7 @@ namespace diverse
 
 	auto DeferedRenderer::handle_new_scene(Scene* scene)->void
 	{
+		threading::assert_render_thread();
 		set_current_scene(scene);
 	}
 

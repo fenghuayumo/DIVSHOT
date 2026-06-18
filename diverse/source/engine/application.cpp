@@ -9,6 +9,7 @@
 #include "engine/os.h"
 #include "engine/file_system.h"
 #include "engine/core_system.h"
+#include "engine/thread_affinity.h"
 #include "core/profiler.h"
 #include "core/job_system.h"
 #include "events/application_event.h"
@@ -139,6 +140,9 @@ namespace diverse
         DS_PROFILE_FUNCTION();
         serialise();
 
+        if (main_renderer)
+            main_renderer->wait_for_render_idle();
+
         ArenaRelease(frame_arena);
 
         Engine::release();
@@ -175,19 +179,27 @@ namespace diverse
     void Application::handle_new_scene(Scene * scene)
     {
         DS_PROFILE_FUNCTION();
-        main_renderer->handle_new_scene(scene);
+        if (!main_renderer)
+            return;
+
+        main_renderer->enqueue_render_command([renderer = main_renderer.get(), scene]() {
+            renderer->handle_new_scene(scene);
+        });
+        main_renderer->flush_render_commands();
     }
 
     bool Application::frame()
     {
         DS_PROFILE_FUNCTION();
+        threading::assert_game_thread();
         DS_PROFILE_FRAMEMARKER();
         ArenaClear(frame_arena);
 
         if (scene_manager->get_switching_scene())
         {
             DS_PROFILE_SCOPE("Application::SceneSwitch");
-            //wait idle
+            if (main_renderer)
+                main_renderer->wait_for_render_idle();
             scene_manager->apply_scene_switch();
             return current_state != AppState::Closing;
         }
@@ -298,7 +310,9 @@ namespace diverse
     void Application::render()
     {
         DS_PROFILE_FUNCTION();
-        auto packet = main_renderer->build_render_frame_packet(1.0f / 60.0f, get_window_size()); //TODO
+        threading::assert_game_thread();
+        const auto delta_time = static_cast<f32>(Engine::get_time_step().get_seconds());
+        auto packet = main_renderer->build_render_frame_packet(delta_time, get_window_size());
         if (packet)
             main_renderer->submit_render_frame_packet(std::move(*packet));
     }
@@ -317,6 +331,7 @@ namespace diverse
     void Application::update(const TimeStep& dt)
     {
         DS_PROFILE_FUNCTION();
+        threading::assert_game_thread();
         if (!scene_manager->get_current_scene())
             return;
 
@@ -360,14 +375,25 @@ namespace diverse
         is_minimized = false;
         
         if (main_renderer)
-            main_renderer->handle_window_resize(width, height);
+        {
+            main_renderer->enqueue_render_command([renderer = main_renderer.get(), width, height]() {
+                renderer->handle_window_resize(width, height);
+            });
+            main_renderer->flush_render_commands();
+        }
 
         return false;
     }
 
     bool Application::handle_renderer_resize(u32 width, u32 height)
     {
-        main_renderer->handle_resize(width, height);
+        if (main_renderer)
+        {
+            main_renderer->enqueue_render_command([renderer = main_renderer.get(), width, height]() {
+                renderer->handle_resize(width, height);
+            });
+            main_renderer->flush_render_commands();
+        }
         return true;
     }
 

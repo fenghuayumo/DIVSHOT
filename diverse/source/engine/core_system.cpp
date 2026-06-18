@@ -6,6 +6,7 @@
 #include "core/command_line.h"
 #include "core/thread.h"
 #include "core/memory_manager.h"
+#include "engine/thread_affinity.h"
 
 namespace diverse
 {
@@ -17,7 +18,9 @@ namespace diverse
         debug::Log::init();
         ThreadContext& mainThread = *GetThreadContext();
         mainThread = ThreadContextAlloc();
+        mainThread.MainThread = true;
         SetThreadName(Str8Lit("Main"));
+        threading::mark_game_thread();
 
         s_Arena = ArenaAlloc(Megabytes(2));
 

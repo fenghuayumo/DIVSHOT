@@ -237,7 +237,7 @@ namespace diverse
 			const auto num_gaussians = cmd.model->get_num_gaussians();
 			if (num_gaussians <= 0) continue;
 			u32 max_gaussians = 20000000;//drs_align(num_gaussians, 4) * max_overdraw;
-			auto gs_model = cmd.model;
+			auto* gs_model = cmd.model.get();
 			auto gs_buf_id = renderer->get_buf_id(gs_model);
 			struct GaussianConstants {
 				glm::mat4 transform;
@@ -309,7 +309,7 @@ namespace diverse
 			crop_constants.crop_num = cmd.crop_data.size();
 			for (auto crop_id = 0; crop_id < cmd.crop_data.size(); crop_id++)
 			{
-				auto& crop_data = *static_cast<GaussianCrop::GaussianCropData*>(cmd.crop_data[crop_id]);
+				auto& crop_data = cmd.crop_data[crop_id];
 				auto transform_box = crop_data.bdbox.transformed(crop_data.transform.get_local_matrix());
 				auto transform_sphere = crop_data.bdsphere.transformed(crop_data.transform.get_local_matrix());
 				if( crop_data.get_crop_type() == GaussianCrop::CropType::Box)
@@ -346,7 +346,7 @@ namespace diverse
 				preHasCrop = hasCrop;
 			}
 			if (render_settings.gs_vis_type == (int)(GaussianRenderType::Point)) {
-				render_color_points(rg, color_img, depth_img, {gs_buf_id, cmd.model, cmd.transform, cmd.select_color, cmd.locked_color});
+				render_color_points(rg, color_img, depth_img, {gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
 				continue;
 			}
 
@@ -418,7 +418,7 @@ namespace diverse
 
 			if (splat_edit_mode == 0) // points
 			{
-				render_points(rg, color_img, depth_img, {gs_buf_id, cmd.model, cmd.transform, cmd.select_color, cmd.locked_color});
+				render_points(rg, color_img, depth_img, {gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
 			}
 			if(outline_enabled)
 			{
@@ -445,7 +445,7 @@ namespace diverse
 				.read(sorted_value)
 				.raw_descriptor_set(1, renderer->binldess_descriptorset())
 				.draw_indirect_instanced(*gsplat_render_pass, indirect_args_buf, 0);
-				render_outline(rg, color_img, depth_img, outline_tex,{gs_buf_id, cmd.model, cmd.transform, cmd.select_color, cmd.locked_color});
+				render_outline(rg, color_img, depth_img, outline_tex,{gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
 			}
 		}
 		rg::RenderPass::new_compute(
@@ -474,7 +474,7 @@ namespace diverse
 			const auto num_gaussians = cmd.model->get_num_gaussians();
 			if (num_gaussians <= 0) continue;
 			
-			auto gs_model = cmd.model;
+			auto* gs_model = cmd.model.get();
 			auto gs_buf_id = renderer->get_buf_id(gs_model);
 			
 			// GUT constants for mesh shader

@@ -265,9 +265,13 @@ namespace diverse
             if ( !is_flag_set(AssetFlag::UploadedGpu)) {
                 if (!device)
                     return;
+                std::lock_guard lock(upload_mutex);
+                // Double-check after acquiring the lock — another thread may have completed the upload
+                if (is_flag_set(AssetFlag::UploadedGpu))
+                    return;
                 auto desc = rhi::GpuTextureDesc::new_2d(format, { extent[0], extent[1] })
-                    .with_usage(rhi::TextureUsageFlags::SAMPLED | 
-                        rhi::TextureUsageFlags::TRANSFER_DST | 
+                    .with_usage(rhi::TextureUsageFlags::SAMPLED |
+                        rhi::TextureUsageFlags::TRANSFER_DST |
                         rhi::TextureUsageFlags::TRANSFER_SRC)
                     .with_mip_levels(mips.size()); //mips
 

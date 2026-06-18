@@ -49,7 +49,7 @@ namespace diverse
             void merge(const glm::vec3* points, unsigned int count);
 
             void transform(const glm::mat4& transform);
-            maths::BoundingSphere transformed(const glm::mat4& transform);
+            maths::BoundingSphere transformed(const glm::mat4& transform) const;
         private:
             glm::vec3 m_Center;
             float m_Radius;

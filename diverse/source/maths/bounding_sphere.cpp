@@ -307,7 +307,7 @@ namespace diverse
 
             m_Center = center;
         }
-        maths::BoundingSphere BoundingSphere::transformed(const glm::mat4& transform)
+        maths::BoundingSphere BoundingSphere::transformed(const glm::mat4& transform) const
         {
             glm::vec3 center = transform * glm::vec4(m_Center, 1.0f);
 

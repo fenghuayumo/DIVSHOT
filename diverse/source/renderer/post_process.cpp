@@ -212,16 +212,15 @@ namespace diverse
 			.dispatch(output.desc.extent);
 		return output;
 	}
-	auto PostProcessRenderer::update_pre_exposure(const RenderSettings& render_settings) -> void
+	auto PostProcessRenderer::update_pre_exposure(const RenderSettings& render_settings, f32 delta_time) -> void
 	{
-		auto dt = 1.0 / 60.0f; //TODO
 		dynamic_exposure.enabled = render_settings.use_dynamic_adaptation;
 		dynamic_exposure.speed_log2 = render_settings.dynamic_adaptation_speed;
 		dynamic_exposure.histogram_clipping = {
 			render_settings.dynamic_adaptation_low_clip,
 			render_settings.dynamic_adaptation_high_clip
 		};
-		dynamic_exposure.update(-image_log2_lum, dt);
+		dynamic_exposure.update(-image_log2_lum, delta_time);
 		auto ev_mult = std::exp2(render_settings.ev_shift + dynamic_exposure.ev_smoothed());
 		expos_state.pre_mult_prev = expos_state.pre_mult;
 		if (render_settings.render_mode == RenderMode::Hybrid)

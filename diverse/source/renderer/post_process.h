@@ -54,7 +54,7 @@ namespace diverse
             rhi::DescriptorSet* bindless_descriptor_set,
             const RenderSettings& render_settings)->rg::Handle<rhi::GpuTexture>;
 
-		auto update_pre_exposure(const RenderSettings& render_settings)->void;
+		auto update_pre_exposure(const RenderSettings& render_settings, f32 delta_time)->void;
 
 		ExposureState			expos_state;
     protected:

@@ -10,6 +10,9 @@
 #include "debug_render_pass.h"
 #include "sky_pass.h"
 #include "light.h"
+#include "scene/component/gaussian_crop.h"
+#include <functional>
+#include <mutex>
 #include <optional>
 
 namespace diverse
@@ -42,14 +45,14 @@ namespace diverse
 	struct RenderGSCommand
 	{
 		maths::Transform transform;
-		GaussianModel* model;
+		SharedPtr<GaussianModel> model;
 		u32 		   sh_degree;
 		glm::vec4 	   select_color;
 		glm::vec4 	   locked_color;
 		glm::vec4 	   tintColor;
 		glm::vec3	   color_offset;
 		bool		   mip_antialiased;
-		std::vector<void*>	crop_data;
+		std::vector<GaussianCrop::GaussianCropData> crop_data;
 	};
 	struct RenderMeshCommand
 	{
@@ -61,7 +64,7 @@ namespace diverse
 	struct RenderPointCommand
 	{
 		maths::Transform transform;
-		PointCloud* model;
+		SharedPtr<PointCloud> model;
 	};
 	struct InstanceTransform
 	{
@@ -100,7 +103,7 @@ namespace diverse
 	{
 		u32 entity_id = 0;
 		maths::Transform transform;
-		MeshModel* model = nullptr;
+		SharedPtr<MeshModel> model;
 		bool active = false;
 	};
 
@@ -195,6 +198,9 @@ namespace diverse
 
 		auto	handle_resize(uint32_t width, uint32_t height)->void;
 		auto 	handle_window_resize(uint32_t width, uint32_t height)->void;
+		auto	enqueue_render_command(std::function<void()>&& command)->void;
+		auto	flush_render_commands()->void;
+		auto	wait_for_render_idle()->void;
 		struct UiRenderer*	get_ui_renderer() {return ui_renderer
 		.get(); }
 
@@ -237,6 +243,8 @@ namespace diverse
 		auto	upload_mesh_model(class MeshModel* model)->void;
 		auto	upload_material(const struct MaterialProperties* material)->void;
 		auto	upload_image(const std::shared_ptr<rhi::GpuTexture>& image)-> BindlessImageHandle;
+		auto	defer_release(std::function<void()>&& release)->void;
+		auto	retire_deferred_releases(bool release_all = false)->void;
 		auto	prepare_render_graph_hybrid(
 				rg::TemporalGraph& rg, 
 				const FrameParamDesc& frame_desc,
@@ -296,6 +304,15 @@ namespace diverse
 	protected:
 		//only excute once
 		std::vector<std::function<void(rg::RenderGraph&,rg::Handle<rhi::GpuTexture>&)>> gpu_events;
+		std::mutex render_command_mutex;
+		std::vector<std::function<void()>> pending_render_commands;
+		struct DeferredRelease
+		{
+			u64 retire_frame = 0;
+			std::function<void()> release;
+		};
+		std::vector<DeferredRelease> deferred_releases;
+		u64 render_frame_serial = 0;
 	protected:
 		float       	sun_size_multiplier;
 		glm::vec3    	sun_color;

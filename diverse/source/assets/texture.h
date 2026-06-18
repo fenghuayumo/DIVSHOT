@@ -6,6 +6,7 @@
 #include <array>
 #include <any>
 #include <optional>
+#include <mutex>
 #include <glm/glm.hpp>
 #include "backend/drs_rhi/pixel_format.h"
 #include "core/base_type.h"
@@ -158,12 +159,66 @@ namespace diverse
             PixelFormat format = PixelFormat::R8G8B8A8_UNorm;
             std::shared_ptr<rhi::GpuTexture> gpu_texture;
             std::string file_path;
+            mutable std::mutex upload_mutex;
         public:
             Texture(const RawImage& img);
             Texture(const ImageSource& source);
             Texture(u32 width, u32 height,const std::vector<u8>& data, PixelFormat format = PixelFormat::B8G8R8A8_UNorm);
             Texture(const std::filesystem::path& path);
             Texture() {}
+
+            // Explicit copy/move to handle non-copyable std::mutex
+            Texture(const Texture& other)
+                : Asset(other)
+                , extent(other.extent)
+                , mips(other.mips)
+                , params(other.params)
+                , format(other.format)
+                , gpu_texture(other.gpu_texture)
+                , file_path(other.file_path)
+            {
+            }
+
+            Texture(Texture&& other) noexcept
+                : Asset(std::move(other))
+                , extent(std::move(other.extent))
+                , mips(std::move(other.mips))
+                , params(std::move(other.params))
+                , format(other.format)
+                , gpu_texture(std::move(other.gpu_texture))
+                , file_path(std::move(other.file_path))
+            {
+            }
+
+            Texture& operator=(const Texture& other)
+            {
+                if (this != &other)
+                {
+                    Asset::operator=(other);
+                    extent = other.extent;
+                    mips = other.mips;
+                    params = other.params;
+                    format = other.format;
+                    gpu_texture = other.gpu_texture;
+                    file_path = other.file_path;
+                }
+                return *this;
+            }
+
+            Texture& operator=(Texture&& other) noexcept
+            {
+                if (this != &other)
+                {
+                    Asset::operator=(std::move(other));
+                    extent = std::move(other.extent);
+                    mips = std::move(other.mips);
+                    params = std::move(other.params);
+                    format = other.format;
+                    gpu_texture = std::move(other.gpu_texture);
+                    file_path = std::move(other.file_path);
+                }
+                return *this;
+            }
             auto    get_file_path()->std::string {return file_path;}
             static auto create_white_texture() -> Texture;
             static auto create_black_texture() -> Texture;
