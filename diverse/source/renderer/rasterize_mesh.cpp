@@ -1,8 +1,55 @@
 #include "rasterize_mesh.h"
 #include "defered_renderer.h"
 #include "assets/mesh.h"
+
 namespace diverse
 {
+    namespace
+    {
+        struct MeshIndirectDrawResources
+        {
+            rg::Handle<rhi::GpuBuffer> args_buffer;
+            rg::Handle<rhi::GpuBuffer> count_buffer;
+            u32 draw_count = 0;
+        };
+
+        auto prepare_mesh_indirect_draws(
+            rg::RenderGraph& rg,
+            DeferedRenderer* renderer,
+            const char* args_name,
+            const char* count_name) -> MeshIndirectDrawResources
+        {
+            MeshIndirectDrawResources resources = {};
+            resources.draw_count = static_cast<u32>(renderer->mesh_draw_data.size());
+            if (resources.draw_count == 0)
+                return resources;
+
+            resources.args_buffer = rg.create<rhi::GpuBuffer>(
+                rhi::GpuBufferDesc::new_gpu_only(
+                    sizeof(rhi::IndirectDrawArgsInstanced) * resources.draw_count,
+                    rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::INDIRECT_BUFFER),
+                args_name);
+
+            resources.count_buffer = rg.create<rhi::GpuBuffer>(
+                rhi::GpuBufferDesc::new_gpu_only(
+                    sizeof(u32) * 4,
+                    rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::INDIRECT_BUFFER),
+                count_name);
+
+            rg::RenderPass::new_compute(
+                rg.add_pass("mesh cull indirect"),
+                "/shaders/mesh/mesh_cull_indirect.hlsl")
+                .dynamic_storage_buffer_vec(renderer->mesh_draw_data)
+                .dynamic_storage_buffer_vec(renderer->gpu_scene.instance_transforms)
+                .write(resources.args_buffer)
+                .write(resources.count_buffer)
+                .constants(glm::uvec4(resources.draw_count, 0, 0, 0))
+                .dispatch({ resources.draw_count, 1, 1 });
+
+            return resources;
+        }
+    }
+
     RasterizeMesh::RasterizeMesh(class DeferedRenderer* render)
         : renderer(render)
     {
@@ -39,8 +86,7 @@ namespace diverse
             .with_render_pass(raster_render_pass)
             .with_vetex_attribute(false)
             .with_cull_mode(rhi::CullMode::NONE)
-            .with_primitive_type(rhi::PrimitiveTopType::TriangleList)
-            .with_push_constants(2 * sizeof(u32));
+            .with_primitive_type(rhi::PrimitiveTopType::TriangleList);
         auto pipeline = pass.register_raster_pipeline(
             {
                rhi::PipelineShaderDesc().with_stage(rhi::ShaderPipelineStage::Vertex).with_shader_source({"/shaders/rasterize_gbuffer_vs.hlsl"}),
@@ -57,16 +103,33 @@ namespace diverse
 
         auto gbuffer_ref = pass.raster(gbuffer_depth.gbuffer, rhi::AccessType::ColorAttachmentWrite);
         auto velocity_ref = pass.raster(velocity_img, rhi::AccessType::ColorAttachmentWrite);
+        auto indirect_resources = prepare_mesh_indirect_draws(
+            rg,
+            renderer,
+            "mesh.indirect_args.gbuffer",
+            "mesh.indirect_count.gbuffer");
+        std::optional<rg::Ref<rhi::GpuBuffer, rg::GpuSrv>> indirect_args_ref;
+        std::optional<rg::Ref<rhi::GpuBuffer, rg::GpuSrv>> indirect_count_ref;
+        if (indirect_resources.draw_count > 0)
+        {
+            indirect_args_ref = pass.read(indirect_resources.args_buffer, rhi::AccessType::IndirectBuffer);
+            indirect_count_ref = pass.read(indirect_resources.count_buffer, rhi::AccessType::IndirectBuffer);
+        }
 
         pass.render([this, normal = std::move(geometric_normal_ref),
             velocity = std::move(velocity_ref),
             gbuffer = std::move(gbuffer_ref),
             depth = std::move(depth_ref),
-            pipeline_raster = std::move(pipeline)](rg::RenderPassApi& api) {
+            pipeline_raster = std::move(pipeline),
+            indirect_args_ref = std::move(indirect_args_ref),
+            indirect_count_ref = std::move(indirect_count_ref),
+            indirect_draw_count = indirect_resources.draw_count](rg::RenderPassApi& api) {
                 auto [width, height, _] = gbuffer.desc.extent;
 
                 auto instance_transforms_offset = api.dynamic_constants()
                     ->push_from_vec(renderer->gpu_scene.instance_transforms);
+                auto mesh_draw_data_offset = api.dynamic_constants()
+                    ->push_from_vec(renderer->mesh_draw_data);
 
                 api.begin_render_pass(
                     *raster_render_pass,
@@ -81,34 +144,23 @@ namespace diverse
 
                 api.set_default_view_and_scissor({ width,height });
 
-                std::vector<rg::RenderPassBinding> bindings = { rg::RenderPassBinding::DynamicConstantsStorageBuffer(instance_transforms_offset) };
+                std::vector<rg::RenderPassBinding> bindings = {
+                    rg::RenderPassBinding::DynamicConstantsStorageBuffer(instance_transforms_offset),
+                    rg::RenderPassBinding::DynamicConstantsStorageBuffer(mesh_draw_data_offset)
+                };
                 auto res = rg::RenderPassPipelineBinding<rg::RgRasterPipelineHandle>::from(pipeline_raster)
                     .descriptor_set(0, &bindings)
                     .raw_descriptor_set(1, renderer->binldess_descriptorset());
                 auto bound_raster = api.bind_raster_pipeline(res);
 
-                auto device = api.device();
-                const auto& mesh_cmds = renderer->mesh_command_queue;
-                for (u32 draw_idx = 0; draw_idx < mesh_cmds.size(); draw_idx++)
+                if (indirect_draw_count > 0 && indirect_args_ref && indirect_count_ref)
                 {
-                    const auto& cmd = mesh_cmds[draw_idx];
-                    auto mesh = renderer->gpu_scene.mesh_buf_id_2_mesh[cmd.mesh_id];
-                    device->bind_index_buffer(api.cb, mesh->get_index_buffer().get(), rhi::IndexBufferFormat::UINT32, 0);
-                    struct PushConstants {
-                        u32 draw_index;
-                        u32 mesh_index;
-                    } push_constants;
-                    
-        
-                    push_constants.draw_index = cmd.mesh_instance_id;
-                    push_constants.mesh_index = cmd.mesh_id;
-                    bound_raster.push_constants(
-                        api.cb,
+                    bound_raster.indirect_draw_instanced_count(
+                        *indirect_args_ref,
                         0,
-                        (u8*)&push_constants,
-                        sizeof(PushConstants)
-                    );
-                    device->draw_indexed(api.cb, mesh->get_index_count(), 0, 0);
+                        *indirect_count_ref,
+                        0,
+                        indirect_draw_count);
                 }
 
                 api.end_render_pass();
@@ -128,8 +180,7 @@ namespace diverse
             .with_vetex_attribute(false)
             .with_cull_mode(rhi::CullMode::NONE)
             .with_polygon_mode(rhi::PolygonMode::WireFrame)
-            .with_primitive_type(rhi::PrimitiveTopType::TriangleList)
-            .with_push_constants(2 * sizeof(u32));
+            .with_primitive_type(rhi::PrimitiveTopType::TriangleList);
         auto pipeline = pass.register_raster_pipeline(
             {
                rhi::PipelineShaderDesc().with_stage(rhi::ShaderPipelineStage::Vertex).with_shader_source({"/shaders/rasterize_wireframe_vs.hlsl"}),
@@ -142,15 +193,32 @@ namespace diverse
             color_img,
             rhi::AccessType::ColorAttachmentWrite
         );
+        auto indirect_resources = prepare_mesh_indirect_draws(
+            rg,
+            renderer,
+            "mesh.indirect_args.wireframe",
+            "mesh.indirect_count.wireframe");
+        std::optional<rg::Ref<rhi::GpuBuffer, rg::GpuSrv>> indirect_args_ref;
+        std::optional<rg::Ref<rhi::GpuBuffer, rg::GpuSrv>> indirect_count_ref;
+        if (indirect_resources.draw_count > 0)
+        {
+            indirect_args_ref = pass.read(indirect_resources.args_buffer, rhi::AccessType::IndirectBuffer);
+            indirect_count_ref = pass.read(indirect_resources.count_buffer, rhi::AccessType::IndirectBuffer);
+        }
 
         pass.render([this, 
             color = std::move(color_ref),
             depth = std::move(depth_ref),
-            pipeline_raster = std::move(pipeline)](rg::RenderPassApi& api) {
+            pipeline_raster = std::move(pipeline),
+            indirect_args_ref = std::move(indirect_args_ref),
+            indirect_count_ref = std::move(indirect_count_ref),
+            indirect_draw_count = indirect_resources.draw_count](rg::RenderPassApi& api) {
                 auto [width, height, _] = depth.desc.extent;
 
                 auto instance_transforms_offset = api.dynamic_constants()
                     ->push_from_vec(renderer->gpu_scene.instance_transforms);
+                auto mesh_draw_data_offset = api.dynamic_constants()
+                    ->push_from_vec(renderer->mesh_draw_data);
 
                 api.begin_render_pass(
                     *wire_render_pass,
@@ -163,34 +231,23 @@ namespace diverse
 
                 api.set_default_view_and_scissor({ width,height });
 
-                std::vector<rg::RenderPassBinding> bindings = { rg::RenderPassBinding::DynamicConstantsStorageBuffer(instance_transforms_offset) };
+                std::vector<rg::RenderPassBinding> bindings = {
+                    rg::RenderPassBinding::DynamicConstantsStorageBuffer(instance_transforms_offset),
+                    rg::RenderPassBinding::DynamicConstantsStorageBuffer(mesh_draw_data_offset)
+                };
                 auto res = rg::RenderPassPipelineBinding<rg::RgRasterPipelineHandle>::from(pipeline_raster)
                     .descriptor_set(0, &bindings)
                     .raw_descriptor_set(1, renderer->binldess_descriptorset());
                 auto bound_raster = api.bind_raster_pipeline(res);
 
-                auto device = api.device();
-                const auto& mesh_cmds = renderer->mesh_command_queue;
-                for (u32 draw_idx = 0; draw_idx < mesh_cmds.size(); draw_idx++)
+                if (indirect_draw_count > 0 && indirect_args_ref && indirect_count_ref)
                 {
-                    const auto& cmd = mesh_cmds[draw_idx];
-                    auto mesh = renderer->gpu_scene.mesh_buf_id_2_mesh[cmd.mesh_id];
-                    device->bind_index_buffer(api.cb, mesh->get_index_buffer().get(), rhi::IndexBufferFormat::UINT32, 0);
-                    struct PushConstants {
-                        u32 draw_index;
-                        u32 mesh_index;
-                    } push_constants;
-
-
-                    push_constants.draw_index = cmd.mesh_instance_id;
-                    push_constants.mesh_index = cmd.mesh_id;
-                    bound_raster.push_constants(
-                        api.cb,
+                    bound_raster.indirect_draw_instanced_count(
+                        *indirect_args_ref,
                         0,
-                        (u8*)&push_constants,
-                        sizeof(PushConstants)
-                    );
-                    device->draw_indexed(api.cb, mesh->get_index_count(), 0, 0);
+                        *indirect_count_ref,
+                        0,
+                        indirect_draw_count);
                 }
 
                 api.end_render_pass();

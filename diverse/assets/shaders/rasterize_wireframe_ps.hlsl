@@ -6,20 +6,6 @@
 #include "inc/bindless.hlsl"
 #include "inc/gbuffer.hlsl"
 
-[[vk::push_constant]]
-struct PushConstants {
-    uint draw_index;
-    uint mesh_index;
-} push_constants;
-
-
-struct InstanceTransform {
-    row_major float3x4 current;
-    row_major float3x4 previous;
-};
-
-[[vk::binding(0)]] StructuredBuffer<InstanceTransform> instance_transforms_dyn;
-
 struct PsOut {
     float4 color: SV_TARGET0;
 };

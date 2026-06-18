@@ -609,6 +609,7 @@ namespace diverse
 		threading::assert_render_thread();
 		gs_command_queue = std::move(packet.gs_commands);
 		mesh_command_queue = std::move(packet.mesh_commands);
+		mesh_draw_data = std::move(packet.mesh_draw_data);
 		point_command_queue = std::move(packet.point_commands);
 		triangle_lights = std::move(packet.triangle_lights);
 		primitive_lights = std::move(packet.primitive_lights);
@@ -974,6 +975,7 @@ namespace diverse
 	{
 		threading::assert_render_thread();
 		packet.mesh_commands.clear();
+		packet.mesh_draw_data.clear();
 		packet.triangle_lights.clear();
 		packet.rt_instance_masks.clear();
 		gpu_scene.ent_2_model_id.clear(); gpu_scene.instance_transforms.clear();gpu_scene.instance_dynamic_constants.clear();
@@ -1016,6 +1018,16 @@ namespace diverse
 					command.mesh_instance_id = mesh_instance_id;
 					command.mesh_id = gpu_scene.mesh_2_mesh_buf_id[mesh.get()];
 					packet.mesh_commands.push_back(command);
+
+					const auto& bounds = mesh->get_bounding_box();
+					MeshDrawGpuData draw_data = {};
+					draw_data.bounds_min = glm::vec4(bounds.min(), 0.0f);
+					draw_data.bounds_max = glm::vec4(bounds.max(), 0.0f);
+					draw_data.mesh_instance_id = command.mesh_instance_id;
+					draw_data.material_id = command.material_id;
+					draw_data.mesh_id = command.mesh_id;
+					draw_data.index_count = static_cast<u32>(mesh->get_index_count());
+					packet.mesh_draw_data.push_back(draw_data);
 
 					auto material = mesh->get_material().get();
 					if (material)

@@ -61,6 +61,12 @@ namespace diverse
 
             auto draw_instanced(const u32& vertex_count,const u32& instance_count) -> void;
             auto indirect_draw_instanced(const Ref<rhi::GpuBuffer, GpuSrv>& args_buffer, u64 args_buffer_offset) -> void;
+            auto indirect_draw_instanced_count(
+                const Ref<rhi::GpuBuffer, GpuSrv>& args_buffer,
+                u64 args_buffer_offset,
+                const Ref<rhi::GpuBuffer, GpuSrv>& count_buffer,
+                u64 count_buffer_offset,
+                u32 max_count) -> void;
             auto push_constants(rhi::CommandBuffer* cb, u32 offset, u8* constants, u32 size_) -> void;
         };
         struct BoundRayTracingPipeline

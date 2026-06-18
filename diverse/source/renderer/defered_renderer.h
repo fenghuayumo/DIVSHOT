@@ -68,6 +68,16 @@ namespace diverse
 		u32				mesh_id;
 	};
 
+	struct MeshDrawGpuData
+	{
+		glm::vec4 bounds_min;
+		glm::vec4 bounds_max;
+		u32 mesh_instance_id = 0;
+		u32 material_id = 0;
+		u32 mesh_id = 0;
+		u32 index_count = 0;
+	};
+
 	struct RenderPointCommand
 	{
 		maths::Transform transform;
@@ -164,6 +174,7 @@ namespace diverse
 	struct RenderFramePacket : FrameSnapshot
 	{
 		std::vector<RenderMeshCommand> mesh_commands;
+		std::vector<MeshDrawGpuData> mesh_draw_data;
 		std::vector<TriangleLight> triangle_lights;
 		std::vector<u8> rt_instance_masks;
 		GpuSceneDirtyState gpu_scene_dirty;
@@ -282,6 +293,7 @@ namespace diverse
 	public:
 		std::vector<RenderGSCommand> gs_command_queue;
 		std::vector<RenderMeshCommand> mesh_command_queue;
+		std::vector<MeshDrawGpuData> mesh_draw_data;
 		std::vector<RenderPointCommand>	 point_command_queue;
 		GpuSceneUploadState gpu_scene;
 		GpuSceneDirtyState gpu_scene_dirty;

@@ -240,6 +240,22 @@ namespace diverse
                 args_buffer_offset);
         }
 
+        auto BoundRasterPipeline::indirect_draw_instanced_count(
+            const Ref<rhi::GpuBuffer, GpuSrv>& args_buffer,
+            u64 args_buffer_offset,
+            const Ref<rhi::GpuBuffer, GpuSrv>& count_buffer,
+            u64 count_buffer_offset,
+            u32 max_count) -> void
+        {
+            api.device()->draw_instanced_indirect_count(
+                api.cb,
+                api.resources.buffer(args_buffer),
+                args_buffer_offset,
+                api.resources.buffer(count_buffer),
+                count_buffer_offset,
+                max_count);
+        }
+
         auto BoundRasterPipeline::push_constants(rhi::CommandBuffer* cb, u32 offset, u8* constants, u32 size_) -> void
         {
             api.resources.execution_params.device->push_constants(

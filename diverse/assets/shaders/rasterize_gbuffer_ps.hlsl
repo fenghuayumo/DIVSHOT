@@ -5,6 +5,7 @@
 #include "inc/pack_unpack.hlsl"
 #include "inc/bindless.hlsl"
 #include "inc/gbuffer.hlsl"
+#include "inc/mesh_draw.hlsl"
 
 struct PsIn {
     [[vk::location(0)]] float4 color: TEXCOORD0;
@@ -14,17 +15,8 @@ struct PsIn {
     [[vk::location(4)]] float3 bitangent: TEXCOORD5;
     [[vk::location(5)]] float3 vs_pos: TEXCOORD6;
     [[vk::location(6)]] float3 prev_vs_pos: TEXCOORD7;
-};
-[[vk::push_constant]]
-struct PushConstants {
-    uint draw_index;
-    uint mesh_index;
-} push_constants;
-
-
-struct InstanceTransform {
-    row_major float3x4 current;
-    row_major float3x4 previous;
+    [[vk::location(7)]] nointerpolation uint draw_index: TEXCOORD8;
+    [[vk::location(8)]] nointerpolation uint mesh_index: TEXCOORD9;
 };
 
 [[vk::binding(0)]] StructuredBuffer<InstanceTransform> instance_transforms_dyn;
@@ -36,7 +28,7 @@ struct PsOut {
 };
 
 PsOut main(PsIn ps) {
-    Mesh mesh = meshes_buffer[push_constants.mesh_index];
+    Mesh mesh = meshes_buffer[ps.mesh_index];
     MeshMaterial material = materials_buffer[mesh.material_id];
 
     const float lod_bias = -0.5;
@@ -104,7 +96,7 @@ PsOut main(PsIn ps) {
         }
 
         // Transform to world space
-        normal_ws = normalize(mul(instance_transforms_dyn[push_constants.draw_index].current,float4(normal_os, 0.0)).xyz);
+        normal_ws = normalize(mul(instance_transforms_dyn[ps.draw_index].current,float4(normal_os, 0.0)).xyz);
     }
 
     // Derive normal from depth

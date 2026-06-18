@@ -35,17 +35,17 @@ namespace diverse
         template<typename T>
         struct ConstantVecData : public ConstBlob
         {
-            T value;
+            std::vector<T> value;
 
-            ConstantVecData(T const& t)
+            ConstantVecData(const std::vector<T>& t)
                 : value(t)
             {}
             auto push(rhi::DynamicConstants* dynamic_constants) -> uint32 override
             {
-                return dynamic_constants->push_from_vec(value);
+               return dynamic_constants->push_from_vec(value);
             }
 
-            static auto from(T const& t) -> ConstantVecData<T>*
+            static auto from(const std::vector<T>& t) -> ConstantVecData<T>*
             {
                 //TODO: vec switch case
                 ConstantVecData<T> data(t);
