@@ -3,9 +3,9 @@
 #include "../inc/cube_map.hlsl"
 #include "../inc/samplers.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-[[vk::binding(1)]] RWTexture2DArray<float4> output_tex;
-[[vk::binding(2)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+DS_RESOURCE(1) RWTexture2DArray<float4> output_tex;
+DS_CBUFFER(2) cbuffer _ {
     uint cube_width;
     float theta;
     float phi;

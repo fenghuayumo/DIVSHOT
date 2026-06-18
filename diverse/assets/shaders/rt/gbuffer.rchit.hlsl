@@ -6,7 +6,7 @@
 #include "../inc/bindless.hlsl"
 #include "../inc/rt.hlsl"
 
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
 struct RayHitAttrib {
     float2 bary;

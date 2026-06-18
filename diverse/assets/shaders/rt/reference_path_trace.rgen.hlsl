@@ -14,11 +14,11 @@
 #include "../inc/utils.hlsl"
 #include "../inc/lights/light_common.hlsl"
 #include "../inc/light_sampler/light_uniform_sampler.hlsl"
-[[vk::binding(0, 3)]] RaytracingAccelerationStructure acceleration_structure;
+DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
-[[vk::binding(0)]] RWTexture2D<float4> output_tex;
-[[vk::binding(1)]] RWTexture2D<float> depth_tex;
-[[vk::binding(2)]] TextureCube<float4> sky_cube_tex;
+DS_RESOURCE(0) RWTexture2D<float4> output_tex;
+DS_RESOURCE(1) RWTexture2D<float> depth_tex;
+DS_RESOURCE(2) TextureCube<float4> sky_cube_tex;
 
 bool sample_light_nee_direction(
     LightSampler light_sampler,

@@ -438,3 +438,18 @@ if(MSVC)
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
     endif()
 endif()
+
+if(DEFINED DIVERSE_SHADER_PAK_PATH)
+    set(DIVERSE_RUNTIME_SHADER_PAK "$<TARGET_FILE_DIR:divshot>/../shaders.pak")
+    if(APPLE)
+        set(DIVERSE_RUNTIME_SHADER_PAK "$<TARGET_FILE_DIR:divshot>/../Resources/shaders.pak")
+    endif()
+
+    add_custom_command(TARGET divshot POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -Dsrc="${DIVERSE_SHADER_PAK_PATH}"
+            -Ddst="${DIVERSE_RUNTIME_SHADER_PAK}"
+            -P "${CMAKE_SOURCE_DIR}/scripts/copy-if-exists.cmake"
+        COMMENT "Copying shaders.pak when it has been generated"
+    )
+endif()

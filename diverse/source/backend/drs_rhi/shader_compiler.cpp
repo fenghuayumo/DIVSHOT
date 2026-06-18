@@ -2,6 +2,7 @@
 #include "shader_compiler.h"
 #include "utility/string_utils.h"
 #include "utility/file_utils.h"
+#include "utility/shader_pak.h"
 #include <mutex>
 #include <any>
 #if defined(DS_PLATFORM_WINDOWS)
@@ -20,7 +21,7 @@
 #include "utility/timer.h"
 #include "utility/hash_utils.h"
 
-#ifdef DS_PRODUCTION
+#if defined(DS_PRODUCTION) && defined(DS_USE_EMBEDDED_SHADERS)
 std::unordered_map<std::string, std::vector<uint8_t>> embeded_shaders;
 struct RegisterShader
 {
@@ -65,6 +66,54 @@ namespace diverse
 { 
 	std::mutex shader_dump_mutex;
 	std::unordered_map<std::string,bool> has_dumped;
+	namespace
+	{
+		std::mutex shader_pak_mutex;
+		ShaderPak shader_pak;
+		bool shader_pak_load_attempted = false;
+
+		auto shader_pak_candidates() -> std::vector<std::filesystem::path>
+		{
+			std::vector<std::filesystem::path> candidates;
+			const auto exe_path = std::filesystem::path(getExecutablePath());
+			if (!exe_path.empty())
+			{
+				candidates.emplace_back(exe_path.parent_path() / "shaders.pak");
+				candidates.emplace_back(exe_path.parent_path().parent_path() / "shaders.pak");
+#ifdef DS_PLATFORM_MACOS
+				candidates.emplace_back(exe_path.parent_path().parent_path() / "Resources" / "shaders.pak");
+#endif
+			}
+			candidates.emplace_back(std::filesystem::path(getInstallDirectory()) / "shaders.pak");
+			return candidates;
+		}
+
+		auto load_shader_from_pak(const std::string& shader_key) -> std::vector<uint8_t>
+		{
+			std::lock_guard lock(shader_pak_mutex);
+			if (!shader_pak_load_attempted)
+			{
+				shader_pak_load_attempted = true;
+				for (const auto& pak_path : shader_pak_candidates())
+				{
+					if (std::filesystem::exists(pak_path) && shader_pak.load(pak_path))
+					{
+						DS_LOG_INFO("loaded shader pak {}", pak_path.string());
+						break;
+					}
+				}
+			}
+
+			std::vector<uint8_t> spirv;
+			if (shader_pak.is_loaded() && shader_pak.read(shader_key, spirv))
+			{
+				DS_LOG_INFO("loading packed shader {}", shader_key);
+				return spirv;
+			}
+			return {};
+		}
+	}
+
 	void dump_shader_with_append(const std::string& shaderPath, const std::string& outPath, const std::vector<uint8_t>& data)
     {
 		std::lock_guard lock(shader_dump_mutex);
@@ -101,6 +150,9 @@ namespace diverse
 	
 	bool shader_compiler_init()
 	{
+#if defined(DS_PRODUCTION) && !defined(DS_USE_EMBEDDED_SHADERS)
+		return true;
+#else
 		std::string content;
 		if(!loadText("../../diverse/source/assets/embeded/embeded_shaders.hpp", content))
 			return false;
@@ -114,6 +166,7 @@ namespace diverse
 			}
 		}
 		return true;
+#endif
 	}
 // #ifdef DS_PLATFORM_WINDOWS
 	struct DxcBlobEncoding {
@@ -449,20 +502,40 @@ namespace diverse
         auto install_path = getInstallDirectory();
 		for (auto define : defines)
 			fname += define.first + define.second;
+		auto shader_cache_key = normalize_shader_pak_key(fname.string() + ".cached");
 #ifdef DS_PLATFORM_MACOS
         auto shader_cache_name = getExecutablePath() + "/cache/" + fname.string() + ".cached";
 #else
 		auto shader_cache_name = install_path + "/cache/" + fname.string() + ".cached";
 #endif
 #ifdef DS_PRODUCTION
+#if defined(DS_USE_EMBEDDED_SHADERS)
 		//extern auto load_embed_shader(const std::string & shaderPath) -> std::vector<uint8_t>;
 
-		auto spv = load_embed_shader(fname.string() + ".cached");
+		auto spv = load_embed_shader(shader_cache_key);
 		if( !spv.empty() ) return spv;
 		else
 		{
 			DS_LOG_ERROR("loading shader {} error", shader_cache_name);
 		}
+#else
+		auto spv = load_shader_from_pak(shader_cache_key);
+		if (!spv.empty()) return spv;
+
+		std::vector<u8> spirv;
+		size_t data_size = 0;
+		if (readByteData(shader_cache_name, spirv, data_size) && data_size > 0)
+		{
+			DS_LOG_INFO("loading cooked shader {} ", shader_cache_name);
+			return spirv;
+		}
+
+		DS_LOG_ERROR("missing cooked shader {}. Run pack_shaders after baking the required shader cache.", shader_cache_key);
+#ifndef DS_PRODUCTION_ALLOW_RUNTIME_SHADER_COMPILE
+		return {};
+#endif
+		DS_LOG_WARN("DS_PRODUCTION_ALLOW_RUNTIME_SHADER_COMPILE is enabled; compiling {} at runtime", name);
+#endif
 #else
 		if (std::filesystem::exists(shader_cache_name) && !need_compile)
 		{
@@ -479,13 +552,26 @@ namespace diverse
 			}
 		}
 #endif
+		auto compiler_defines = defines;
+		bool has_backend_define = false;
+		for (const auto& define : compiler_defines)
+		{
+			if (define.first == "DS_SHADER_BACKEND_VULKAN" || define.first == "DS_SHADER_BACKEND_DXR" || define.first == "DS_SHADER_BACKEND_METAL")
+			{
+				has_backend_define = true;
+				break;
+			}
+		}
+		if (!has_backend_define)
+			compiler_defines.emplace_back("DS_SHADER_BACKEND_VULKAN", "1");
+
 		auto res = compile_hlsl(name, source, entry_point.c_str(), target_profile, { 
 			"-spirv",
 			//"-enable-16bit-types",
 			"-fspv-target-env=vulkan1.3",
 			"-Wfor-redefinition",
 			"-Ges"}, // strict mode}, 
-			defines);
+			compiler_defines);
 
 		DS_LOG_INFO("dxc took {} for {}", timer.GetElapsedS(), name);
 		if (res.second.empty())

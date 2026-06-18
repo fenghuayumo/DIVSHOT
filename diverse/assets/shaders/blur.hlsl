@@ -1,5 +1,7 @@
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-[[vk::binding(1)]] RWTexture2D<float4> output_tex;
+#include "inc/binding.hlsl"
+
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+DS_RESOURCE(1) RWTexture2D<float4> output_tex;
 
 static const uint kernel_radius = 5;
 static const uint group_width = 64;

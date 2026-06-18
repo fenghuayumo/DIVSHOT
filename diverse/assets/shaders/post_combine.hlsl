@@ -10,13 +10,13 @@ static float2 SAMPLE_BEZOLD_BRUCKE_LUT(float coord) {
 }
 #include "inc/color/display_transform.hlsl"
 
-[[vk::binding(0)]] Texture2D<float4> input_tex;
-//[[vk::binding(1)]] Texture2D<float4> debug_input_tex;
-[[vk::binding(1)]] Texture2D<float4> blur_pyramid_tex;
-[[vk::binding(2)]] Texture2D<float4> rev_blur_pyramid_tex;
-[[vk::binding(3)]] StructuredBuffer<uint> histogram_buffer;
-[[vk::binding(4)]] RWTexture2D<float4> output_tex;
-[[vk::binding(5)]] cbuffer _ {
+DS_RESOURCE(0) Texture2D<float4> input_tex;
+// DS_RESOURCE(1) Texture2D<float4> debug_input_tex;
+DS_RESOURCE(1) Texture2D<float4> blur_pyramid_tex;
+DS_RESOURCE(2) Texture2D<float4> rev_blur_pyramid_tex;
+DS_RESOURCE(3) StructuredBuffer<uint> histogram_buffer;
+DS_RESOURCE(4) RWTexture2D<float4> output_tex;
+DS_CBUFFER(5) cbuffer _ {
     float4 output_tex_size;
     float input_multiplier;
     float contrast;

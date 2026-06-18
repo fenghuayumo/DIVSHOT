@@ -1,5 +1,7 @@
-[[vk::binding(0)]] StructuredBuffer<uint> src_buffer;
-[[vk::binding(1)]] RWStructuredBuffer<uint> dst_buffer;
+#include "../inc/binding.hlsl"
+
+DS_RESOURCE(0) StructuredBuffer<uint> src_buffer;
+DS_RESOURCE(1) RWStructuredBuffer<uint> dst_buffer;
 
 [numthreads(64, 1, 1)]
 void main(uint bin: SV_DispatchThreadID) {

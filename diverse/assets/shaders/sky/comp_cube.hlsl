@@ -1,9 +1,10 @@
+#include "../inc/binding.hlsl"
 #include "../inc/atmosphere.hlsl"
 #include "../inc/sun.hlsl"
 #include "../inc/cube_map.hlsl"
 
-[[vk::binding(0)]] RWTexture2DArray<float4> output_tex;
-[[vk::binding(1)]] cbuffer _ {
+DS_RESOURCE(0) RWTexture2DArray<float4> output_tex;
+DS_CBUFFER(1) cbuffer _ {
     float3 color;
     float mode;
     uint face_width;

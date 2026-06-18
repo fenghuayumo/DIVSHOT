@@ -5,6 +5,7 @@
 #include "lights/packed.hlsl"
 #include "lights/light_shaping.hlsl"
 #include "ray_cone.hlsl"
+#include "binding.hlsl"
 
 struct ViewConstants {
     float4x4 view_to_clip;
@@ -92,7 +93,7 @@ struct FrameConstants {
     IrcacheCascadeConstants ircache_cascades[12];
 };
 
-[[vk::binding(0, 2)]] ConstantBuffer<FrameConstants> frame_constants;
+DS_FRAME_RESOURCE(0) ConstantBuffer<FrameConstants> frame_constants;
 
 struct InstanceDynamicConstants {
     // uint4 data;
@@ -100,9 +101,9 @@ struct InstanceDynamicConstants {
     float emissive_multiplier;
 };
 
-[[vk::binding(1, 2)]] StructuredBuffer<InstanceDynamicConstants> instance_dynamic_parameters_dyn;
-[[vk::binding(2, 2)]] StructuredBuffer<TriangleLightPacked> triangle_lights_dyn;
-[[vk::binding(3, 2)]] StructuredBuffer<PolymorphicLightInfo> scene_lights_dyn;
+DS_FRAME_RESOURCE(1) StructuredBuffer<InstanceDynamicConstants> instance_dynamic_parameters_dyn;
+DS_FRAME_RESOURCE(2) StructuredBuffer<TriangleLightPacked> triangle_lights_dyn;
+DS_FRAME_RESOURCE(3) StructuredBuffer<PolymorphicLightInfo> scene_lights_dyn;
 
 #define REVERSED 1
 #if REVERSED
