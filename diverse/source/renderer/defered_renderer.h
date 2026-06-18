@@ -216,6 +216,7 @@ namespace diverse
 		void	render(std::array<u32, 2> swapchain_extent);
 		auto	build_render_frame_packet(f32 delta_t, std::array<u32, 2> swapchain_extent)->std::optional<RenderFramePacket>;
 		auto	submit_render_frame_packet(RenderFramePacket&& packet)->void;
+		auto	consume_render_frame_packet(RenderFramePacket&& packet)->void;
 		auto	start_render_thread()->void;
 		auto	stop_render_thread()->void;
 		auto	enqueue_render_frame_packet(RenderFramePacket&& packet)->void;

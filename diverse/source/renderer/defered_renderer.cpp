@@ -283,7 +283,7 @@ namespace diverse
 		if (is_render_thread_running())
 			enqueue_render_frame_packet(std::move(*packet));
 		else
-			submit_render_frame_packet(std::move(*packet));
+			consume_render_frame_packet(std::move(*packet));
 	}
 
 	auto DeferedRenderer::start_render_thread() -> void
@@ -330,7 +330,7 @@ namespace diverse
 	{
 		if (!render_thread_running.load(std::memory_order_acquire))
 		{
-			submit_render_frame_packet(std::move(packet));
+			consume_render_frame_packet(std::move(packet));
 			return;
 		}
 
@@ -379,7 +379,7 @@ namespace diverse
 			flush_render_commands();
 			if (packet)
 			{
-				submit_render_frame_packet(std::move(*packet));
+				consume_render_frame_packet(std::move(*packet));
 				{
 					std::lock_guard lock(render_thread_mutex);
 					completed_render_frame_serial++;
@@ -590,6 +590,11 @@ namespace diverse
 	}
 
 	auto DeferedRenderer::submit_render_frame_packet(RenderFramePacket&& packet)->void
+	{
+		consume_render_frame_packet(std::move(packet));
+	}
+
+	auto DeferedRenderer::consume_render_frame_packet(RenderFramePacket&& packet)->void
 	{
 		threading::assert_render_thread();
 		flush_render_commands();

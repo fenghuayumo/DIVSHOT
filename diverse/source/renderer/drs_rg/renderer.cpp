@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "engine/thread_affinity.h"
 namespace diverse
 {
     namespace rg
@@ -12,7 +13,7 @@ namespace diverse
         };
 
         Renderer::Renderer(rhi::GpuDevice* dev,rhi::Swapchain* swapchain)
-        : device(dev), swap_chain(swapchain)
+        : device(dev), swap_chain(swapchain), rhi_submitter(dev, swapchain)
         {
             auto buffer_flag =  rhi::BufferUsageFlags::UNIFORM_BUFFER |
                 rhi::BufferUsageFlags::STORAGE_BUFFER;
@@ -36,56 +37,87 @@ namespace diverse
         {
         }
 
+        auto RhiSubmitter::submit_and_present(const RecordedRhiFrame& frame) -> void
+        {
+            threading::assert_rhi_thread();
+            if (!device || !swap_chain || !frame.main_cmd_buf || !frame.presentation_cmd_buf)
+                return;
+
+            device->submit_cmd(frame.main_cmd_buf.get());
+            swap_chain->present_image(frame.swapchain_image, frame.presentation_cmd_buf.get());
+        }
+
+        auto RhiSubmitter::retire_frame(rhi::DeviceFrame* frame) -> void
+        {
+            threading::assert_rhi_thread();
+            if (device && frame)
+                device->end_frame(frame);
+        }
+
         auto Renderer::draw_frame(TemporalGraph& rg,
                         rhi::Swapchain* swapchain) -> void
         {
+            rhi_submitter.swap_chain = swapchain;
+            auto recorded_frame = record_frame(rg, swapchain);
+            submit_recorded_frame(recorded_frame);
+
+            temporal_rg_state.retire_temporal(rg);
+
+            rg.release_resources(transient_resource_cache);
+
+            dynamic_constants.advance_frame();
+            rhi_submitter.retire_frame(recorded_frame.device_frame);
+            current_frame = nullptr;
+            frame_alloctor().free();
+        }
+
+        auto Renderer::record_frame(TemporalGraph& rg,
+                        rhi::Swapchain* swapchain) -> RecordedRhiFrame
+        {
+            threading::assert_render_thread();
             if (!current_frame)
                 current_frame = device->begin_frame();
             for (auto cb : {current_frame->main_cmd_buf, current_frame->presentation_cmd_buf }) {
                 cb->begin();
             }
-            // Record and submit the main command buffer
 
             auto& main_cb = current_frame->main_cmd_buf;
             rg.begin_execute();
 
-            // Record and submit the main command buffer
             rg.record_main_cb(main_cb.get());
 
             main_cb->end();
-            device->submit_cmd(main_cb.get());
-    
-            // Now that we've done the main submission and the GPU is busy, acquire the presentation image.
-           auto swapchain_image = swapchain->acquire_next_image();
+            auto swapchain_image = swapchain->acquire_next_image();
 
-           auto& presentation_cb = current_frame->presentation_cmd_buf;
+            auto& presentation_cb = current_frame->presentation_cmd_buf;
 //            presentation_cb->wait();
-           device->record_image_barrier(presentation_cb.get(), rhi::ImageBarrier{
+            device->record_image_barrier(presentation_cb.get(), rhi::ImageBarrier{
                 swapchain_image.image.get(),
                 rhi::AccessType::Present,
                 rhi::AccessType::ComputeShaderWrite,
                 rhi::ImageAspectFlags::COLOR}
                 .with_discard(true));
-           rg.record_presentation_cb(presentation_cb.get(), swapchain_image.image);
-           // Transition the swapchain to present
-           device->record_image_barrier(presentation_cb.get(), rhi::ImageBarrier{
+            rg.record_presentation_cb(presentation_cb.get(), swapchain_image.image);
+            device->record_image_barrier(presentation_cb.get(), rhi::ImageBarrier{
                 swapchain_image.image.get(),
                 rhi::AccessType::ComputeShaderWrite,
                 rhi::AccessType::Present,
                 rhi::ImageAspectFlags::COLOR}
                 );
 
-           presentation_cb->end();
-           // Record and submit the presentation command buffer
-           swapchain->present_image(swapchain_image, presentation_cb.get());
-           temporal_rg_state.retire_temporal(rg);
+            presentation_cb->end();
 
-           rg.release_resources(transient_resource_cache);
+            return RecordedRhiFrame{
+                current_frame,
+                main_cb,
+                presentation_cb,
+                swapchain_image
+            };
+        }
 
-           dynamic_constants.advance_frame();
-           device->end_frame(current_frame);
-           current_frame = nullptr;
-           frame_alloctor().free();
+        auto Renderer::submit_recorded_frame(const RecordedRhiFrame& frame) -> void
+        {
+            rhi_submitter.submit_and_present(frame);
         }
 
         auto Renderer::prepare_frame_constants(TemporalGraph& rg,std::function<FrameConstantsLayout(rhi::DynamicConstants&)> prepare_frame_constants) -> void
