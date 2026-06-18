@@ -1,6 +1,9 @@
 #ifdef DS_RENDER_API_VULKAN
 #include "../drs_vulkan_rhi/gpu_device_vulkan.h"
 #endif
+#ifdef DS_RENDER_API_DXR
+#include "../drs_dxr_rhi/gpu_device_dxr.h"
+#endif
 #include <mutex>
 #include <utility>
 
@@ -18,6 +21,9 @@ namespace diverse
     { 
 #ifdef DS_RENDER_API_METAL
    extern auto create_metal_device(u32 device_index)->rhi::GpuDevice*;
+#endif
+#ifdef DS_RENDER_API_DXR
+   extern auto create_dxr_device(u32 device_index)->rhi::GpuDevice*;
 #endif
         auto create_device(u32 device_index, RenderAPI api) ->GpuDevice*
         {
@@ -41,6 +47,12 @@ namespace diverse
             case RenderAPI::VULKAN:
             {
                 created_device = new GpuDeviceVulkan(device_index);
+            }break;
+#endif
+#ifdef DS_RENDER_API_DXR
+            case RenderAPI::DIRECT3D:
+            {
+                created_device = create_dxr_device(device_index);
             }break;
 #endif
 #ifdef DS_RENDER_API_METAL

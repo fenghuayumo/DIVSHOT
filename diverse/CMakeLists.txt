@@ -122,6 +122,7 @@ if(WIN32)
         DS_PLATFORM_WINDOWS
         DS_RENDER_API_OPENGL
         DS_RENDER_API_VULKAN
+        DS_RENDER_API_DXR
         VK_USE_PLATFORM_WIN32_KHR
         WIN32_LEAN_AND_MEAN
         _CRT_SECURE_NO_WARNINGS
@@ -173,6 +174,9 @@ if(WIN32)
         Dbghelp
         glfw
         Dwmapi
+        d3d12
+        dxgi
+        dxguid
     )
 
     target_compile_options(diverse PRIVATE /bigobj)

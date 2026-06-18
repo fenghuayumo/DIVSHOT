@@ -7,7 +7,7 @@ namespace diverse
     {
         OPENGL = 0,
         VULKAN,
-        DIRECT3D, // Unsupported
+        DIRECT3D,
         METAL,    // Unsupported
         NONE,     // Unsupported
     };
