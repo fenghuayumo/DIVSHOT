@@ -29,12 +29,26 @@ namespace diverse
 		//};
 
 
+		struct FrameSyncPoint
+		{
+			auto reset() -> void;
+			auto signal() -> void;
+			auto wait() -> void;
+			auto is_signaled() const -> bool;
+
+			mutable std::mutex mutex;
+			std::condition_variable cv;
+			bool signaled = true;
+		};
+
 		struct RecordedRhiFrame
 		{
 			rhi::DeviceFrame* device_frame = nullptr;
 			std::shared_ptr<rhi::CommandBuffer> main_cmd_buf;
 			std::shared_ptr<rhi::CommandBuffer> presentation_cmd_buf;
 			rhi::SwapchainImage swapchain_image = {};
+			std::shared_ptr<FrameSyncPoint> accepted_sync;
+			std::shared_ptr<FrameSyncPoint> submitted_sync;
 		};
 
 		struct RhiSubmitter
@@ -88,6 +102,7 @@ namespace diverse
 			auto clear_resources()->void;
 			auto refresh_shaders()->void;
 		private:
+			auto begin_record_frame() -> void;
 			auto rhi_thread_main() -> void;
 			auto submit_recorded_frame_immediate(const RecordedRhiFrame& frame) -> void;
 
@@ -98,6 +113,11 @@ namespace diverse
 			std::atomic_bool rhi_thread_running = false;
 			bool rhi_thread_stop_requested = false;
 			bool rhi_thread_busy = false;
+			std::vector<std::shared_ptr<FrameSyncPoint>> frame_slot_submit_syncs;
+			std::shared_ptr<FrameSyncPoint> last_frame_accepted_sync;
+			std::shared_ptr<FrameSyncPoint> current_frame_accepted_sync;
+			std::shared_ptr<FrameSyncPoint> current_frame_submitted_sync;
+			uint32 current_frame_slot = 0;
 		};
 	}
 }

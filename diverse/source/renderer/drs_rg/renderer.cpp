@@ -12,6 +12,35 @@ namespace diverse
             {3, rhi::DescriptorInfo{rhi::DescriptorType::STORAGE_BUFFER_DYNAMIC, rhi::DescriptorDimensionality::Single}},
         };
 
+        auto FrameSyncPoint::reset() -> void
+        {
+            std::lock_guard lock(mutex);
+            signaled = false;
+        }
+
+        auto FrameSyncPoint::signal() -> void
+        {
+            {
+                std::lock_guard lock(mutex);
+                signaled = true;
+            }
+            cv.notify_all();
+        }
+
+        auto FrameSyncPoint::wait() -> void
+        {
+            std::unique_lock lock(mutex);
+            cv.wait(lock, [this]() {
+                return signaled;
+            });
+        }
+
+        auto FrameSyncPoint::is_signaled() const -> bool
+        {
+            std::lock_guard lock(mutex);
+            return signaled;
+        }
+
         Renderer::Renderer(rhi::GpuDevice* dev,rhi::Swapchain* swapchain)
         : device(dev), swap_chain(swapchain), rhi_submitter(dev, swapchain)
         {
@@ -31,6 +60,10 @@ namespace diverse
 
 
             frame_descriptor_set = device->create_descriptor_set(dynamic_constants.buffer.get(), FRAME_CONSTANTS_LAYOUT,"frame_render_set");
+            last_frame_accepted_sync = std::make_shared<FrameSyncPoint>();
+            frame_slot_submit_syncs.reserve(DYNAMIC_CONSTANTS_BUFFER_COUNT);
+            for (auto frame_idx = 0u; frame_idx < DYNAMIC_CONSTANTS_BUFFER_COUNT; frame_idx++)
+                frame_slot_submit_syncs.push_back(std::make_shared<FrameSyncPoint>());
             start_rhi_thread();
         }
 
@@ -56,6 +89,27 @@ namespace diverse
                 device->end_frame(frame);
         }
 
+        auto Renderer::begin_record_frame() -> void
+        {
+            if (last_frame_accepted_sync)
+                last_frame_accepted_sync->wait();
+
+            if (!frame_slot_submit_syncs.empty())
+                frame_slot_submit_syncs[current_frame_slot]->wait();
+
+            current_frame = device->begin_frame();
+            current_frame_accepted_sync = std::make_shared<FrameSyncPoint>();
+            current_frame_submitted_sync = std::make_shared<FrameSyncPoint>();
+            current_frame_accepted_sync->reset();
+            current_frame_submitted_sync->reset();
+
+            if (!frame_slot_submit_syncs.empty())
+                frame_slot_submit_syncs[current_frame_slot] = current_frame_submitted_sync;
+
+            last_frame_accepted_sync = current_frame_accepted_sync;
+            current_frame_slot = (current_frame_slot + 1) % DYNAMIC_CONSTANTS_BUFFER_COUNT;
+        }
+
         auto Renderer::draw_frame(TemporalGraph& rg,
                         rhi::Swapchain* swapchain) -> void
         {
@@ -78,14 +132,14 @@ namespace diverse
             threading::assert_render_thread();
             if (!current_frame)
             {
-                wait_for_rhi_idle();
-                current_frame = device->begin_frame();
+                begin_record_frame();
             }
             for (auto cb : {current_frame->main_cmd_buf, current_frame->presentation_cmd_buf }) {
                 cb->begin();
             }
 
             auto& main_cb = current_frame->main_cmd_buf;
+            wait_for_rhi_idle();
             rg.begin_execute();
 
             rg.record_main_cb(main_cb.get());
@@ -115,7 +169,9 @@ namespace diverse
                 current_frame,
                 main_cb,
                 presentation_cb,
-                swapchain_image
+                swapchain_image,
+                current_frame_accepted_sync,
+                current_frame_submitted_sync
             };
         }
 
@@ -139,8 +195,13 @@ namespace diverse
 
         auto Renderer::submit_recorded_frame_immediate(const RecordedRhiFrame& frame) -> void
         {
-            rhi_submitter.submit_and_present(frame);
             rhi_submitter.retire_frame(frame.device_frame);
+            if (frame.accepted_sync)
+                frame.accepted_sync->signal();
+
+            rhi_submitter.submit_and_present(frame);
+            if (frame.submitted_sync)
+                frame.submitted_sync->signal();
         }
 
         auto Renderer::start_rhi_thread() -> void
@@ -232,8 +293,7 @@ namespace diverse
         {
             if (!current_frame)
             {
-                wait_for_rhi_idle();
-                current_frame = device->begin_frame();
+                begin_record_frame();
             }
             frame_constants_layout = prepare_frame_constants(dynamic_constants);
             register_render_graph(rg);
