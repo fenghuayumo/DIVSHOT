@@ -624,7 +624,8 @@ namespace diverse
     
     auto LightingPass::gather_lights(
         std::vector<LightShaderData>& lights,
-        const std::vector<TriangleLight>& triangle_lights)->void
+        const std::vector<TriangleLight>& triangle_lights,
+        const std::vector<FrameLight>& primitive_lights)->void
     {
         lights.clear();
         std::vector<PrepareLightsTask> tasks;
@@ -633,15 +634,6 @@ namespace diverse
         num_importance_sampled_environment_lights = 0;
         num_emissive_triangles = 0;
         num_mesh_lights = 0;
-        auto current_scene = renderer->current_scene;
-        auto& registry = current_scene->get_registry();
-        auto env_light_group = registry.group<Environment>(entt::get<maths::Transform>);
-        auto dir_light_group = registry.group<DirectionalLightComponent>(entt::get<maths::Transform>);
-        auto point_light_group = registry.group<PointLightComponent>(entt::get<maths::Transform>);
-        auto spot_light_group = registry.group<SpotLightComponent>(entt::get<maths::Transform>);
-        auto rect_light_group = registry.group<RectLightComponent>(entt::get<maths::Transform>);
-        auto disk_light_group = registry.group<DiskLightComponent>(entt::get<maths::Transform>);
-        auto cylinder_light_group = registry.group<CylinderLightComponent>(entt::get<maths::Transform>);
         light_buffer_offset = 0;
 
         for (auto light : triangle_lights)
@@ -664,139 +656,34 @@ namespace diverse
             num_mesh_lights++;
             tasks.push_back(task);
         }
-        for(auto entity : env_light_group)
-		{
-			const auto& [env,transform] = env_light_group.get<Environment, maths::Transform>(entity);
-            if (!Entity(entity, current_scene).active()) continue;
-			//env.get_light
-            //num_importance_sampled_environment_lights++;
-		}
 
-        for (auto entity : dir_light_group)
+        for (const auto& primitive_light : primitive_lights)
         {
-            const auto& [dir_light, transform] = dir_light_group.get<DirectionalLightComponent, maths::Transform>(entity);
-            if(!Entity(entity,current_scene).active()) continue;
-
-            auto pOffset = primitive_light_buffer_offsets.find(&dir_light);
+            auto pOffset = primitive_light_buffer_offsets.find(primitive_light.stable_id);
 
             PrepareLightsTask task;
             task.instanceAndGeometryIndex = TASK_PRIMITIVE_LIGHT_BIT | uint32_t(lights.size());
             task.lightBufferOffset = light_buffer_offset;
             task.triangleCount = 1; // technically zero, but we need to allocate 1 thread in the grid to process this light
             task.previousLightBufferOffset = (pOffset != primitive_light_buffer_offsets.end()) ? pOffset->second : -1;
-            primitive_light_buffer_offsets[&dir_light] = light_buffer_offset;
+            primitive_light_buffer_offsets[primitive_light.stable_id] = light_buffer_offset;
             light_buffer_offset += task.triangleCount;
             tasks.push_back(task);
-            LightShaderData light = {};
-            dir_light.get_render_light_data(transform,&light);
-            lights.push_back(light);
-            num_infinite_prim_lights++;
+
+            lights.push_back(primitive_light.shader_data);
+            auto light_type = getLightType(primitive_light.shader_data);
+            if (light_type == LightType::kDirectional)
+                num_infinite_prim_lights++;
+            else if (light_type == LightType::kEnvironment)
+            {
+                num_infinite_prim_lights++;
+                num_importance_sampled_environment_lights++;
+            }
+            else
+                num_finite_primLights++;
         }
 
-        for (auto entity : point_light_group)
-		{
-			const auto& [point_light, transform] = point_light_group.get<PointLightComponent, maths::Transform>(entity);
-            if (!Entity(entity, current_scene).active()) continue;
-
-            auto pOffset = primitive_light_buffer_offsets.find(&point_light);
-
-            PrepareLightsTask task;
-            task.instanceAndGeometryIndex = TASK_PRIMITIVE_LIGHT_BIT | uint32_t(lights.size());
-            task.lightBufferOffset = light_buffer_offset;
-            task.triangleCount = 1; // technically zero, but we need to allocate 1 thread in the grid to process this light
-            task.previousLightBufferOffset = (pOffset != primitive_light_buffer_offsets.end()) ? pOffset->second : -1;
-            primitive_light_buffer_offsets[&point_light] = light_buffer_offset;
-            light_buffer_offset += task.triangleCount;
-            tasks.push_back(task);
-
-            LightShaderData light = {};
-			point_light.get_render_light_data(transform,&light);
-			lights.push_back(light);
-            num_finite_primLights++;
-		}
-
-        for (auto entity : spot_light_group)
-        {
-            const auto& [spot_light, transform] = spot_light_group.get<SpotLightComponent, maths::Transform>(entity);
-            auto pOffset = primitive_light_buffer_offsets.find(&spot_light);
-
-            PrepareLightsTask task;
-            task.instanceAndGeometryIndex = TASK_PRIMITIVE_LIGHT_BIT | uint32_t(lights.size());
-            task.lightBufferOffset = light_buffer_offset;
-            task.triangleCount = 1; // technically zero, but we need to allocate 1 thread in the grid to process this light
-            task.previousLightBufferOffset = (pOffset != primitive_light_buffer_offsets.end()) ? pOffset->second : -1;
-            primitive_light_buffer_offsets[&spot_light] = light_buffer_offset;
-            light_buffer_offset += task.triangleCount;
-            tasks.push_back(task);
-            LightShaderData light = {};
-			spot_light.get_render_light_data(transform,&light);
-			lights.push_back(light);
-            num_finite_primLights++;
-		}
-
-		for (auto entity : rect_light_group)
-		{
-			const auto& [rect_light, transform] = rect_light_group.get<RectLightComponent, maths::Transform>(entity);
-            if (!Entity(entity, current_scene).active()) continue;
-            auto pOffset = primitive_light_buffer_offsets.find(&rect_light);
-
-            PrepareLightsTask task;
-            task.instanceAndGeometryIndex = TASK_PRIMITIVE_LIGHT_BIT | uint32_t(lights.size());
-            task.lightBufferOffset = light_buffer_offset;
-            task.triangleCount = 1; // technically zero, but we need to allocate 1 thread in the grid to process this light
-            task.previousLightBufferOffset = (pOffset != primitive_light_buffer_offsets.end()) ? pOffset->second : -1;
-            primitive_light_buffer_offsets[&rect_light] = light_buffer_offset;
-            light_buffer_offset += task.triangleCount;
-            tasks.push_back(task);
-
-            LightShaderData light = {};
-			rect_light.get_render_light_data(transform,&light);
-			lights.push_back(light);
-            num_finite_primLights++;
-		}
-
-        for (auto entity : cylinder_light_group)
-        {
-            const auto& [rect_light, transform] = cylinder_light_group.get<CylinderLightComponent, maths::Transform>(entity);
-            if (!Entity(entity, current_scene).active()) continue;
-            auto pOffset = primitive_light_buffer_offsets.find(&rect_light);
-
-            PrepareLightsTask task;
-            task.instanceAndGeometryIndex = TASK_PRIMITIVE_LIGHT_BIT | uint32_t(lights.size());
-            task.lightBufferOffset = light_buffer_offset;
-            task.triangleCount = 1; // technically zero, but we need to allocate 1 thread in the grid to process this light
-            task.previousLightBufferOffset = (pOffset != primitive_light_buffer_offsets.end()) ? pOffset->second : -1;
-            primitive_light_buffer_offsets[&rect_light] = light_buffer_offset;
-            light_buffer_offset += task.triangleCount;
-            tasks.push_back(task);
-
-            LightShaderData light = {};
-            rect_light.get_render_light_data(transform, &light);
-            lights.push_back(light);
-            num_finite_primLights++;
-        }
-
-        for (auto entity : disk_light_group)
-        {
-            const auto& [rect_light, transform] = disk_light_group.get<DiskLightComponent, maths::Transform>(entity);
-            if (!Entity(entity, current_scene).active()) continue;
-            auto pOffset = primitive_light_buffer_offsets.find(&rect_light);
-
-            PrepareLightsTask task;
-            task.instanceAndGeometryIndex = TASK_PRIMITIVE_LIGHT_BIT | uint32_t(lights.size());
-            task.lightBufferOffset = light_buffer_offset;
-            task.triangleCount = 1; // technically zero, but we need to allocate 1 thread in the grid to process this light
-            task.previousLightBufferOffset = (pOffset != primitive_light_buffer_offsets.end()) ? pOffset->second : -1;
-            primitive_light_buffer_offsets[&rect_light] = light_buffer_offset;
-            light_buffer_offset += task.triangleCount;
-            tasks.push_back(task);
-
-            LightShaderData light = {};
-            rect_light.get_render_light_data(transform, &light);
-            lights.push_back(light);
-            num_finite_primLights++;
-        }
-
-        rhi_task_buffer->copy_from(renderer->get_device(),(u8*)tasks.data(), tasks.size() * sizeof(PrepareLightsTask),0);
+        if (!tasks.empty())
+            rhi_task_buffer->copy_from(renderer->get_device(),(u8*)tasks.data(), tasks.size() * sizeof(PrepareLightsTask),0);
     }    
 }

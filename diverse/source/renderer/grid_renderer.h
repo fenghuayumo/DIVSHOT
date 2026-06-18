@@ -2,12 +2,12 @@
 #include "core/base_type.h"
 #include "assets/mesh.h"
 #include "drs_rg/temporal.h"
+#include "frame_snapshot.h"
 #include "maths/transform.h"
 
 namespace diverse
 {
 
-    class Camera;
     class GridRenderer
     {
     public:
@@ -18,7 +18,7 @@ namespace diverse
         auto handle_resize(u32 width,u32 height)->void;
         auto render(rg::RenderGraph& rg,rg::Handle<rhi::GpuTexture>& color_img,rg::Handle<rhi::GpuTexture>& depth_img)->void;
         
-        auto set_override_camera(Camera* overrideCamera, maths::Transform* overrideCameraTransform)->void;
+        auto set_frame_params(const GridFrameParams& params)->void;
     private:
         u32     current_buffer_id = 0;
         Mesh*   quad;
@@ -29,8 +29,7 @@ namespace diverse
 
         std::shared_ptr<rhi::RenderPass>   grid_render_pass;
 
-        Camera* camera = nullptr;
-        maths::Transform* camera_transform = nullptr;
+        GridFrameParams frame_params;
 
         rhi::GpuDevice* device = nullptr;
     };

@@ -10,6 +10,7 @@
 #include "debug_render_pass.h"
 #include "sky_pass.h"
 #include "light.h"
+#include "frame_snapshot.h"
 #include "ui_renderer.h"
 #include "scene/component/gaussian_crop.h"
 #include <atomic>
@@ -140,7 +141,7 @@ namespace diverse
 		}
 	};
 
-	struct RenderFramePacket
+	struct FrameSnapshot
 	{
 		FrameParamDesc frame_desc;
 		CameraFrameParams camera_params;
@@ -152,13 +153,20 @@ namespace diverse
 
 		std::vector<RenderGSCommand> gs_commands;
 		std::vector<MeshDrawRequest> mesh_requests;
-		std::vector<RenderMeshCommand> mesh_commands;
 		std::vector<RenderPointCommand> point_commands;
-		std::vector<TriangleLight> triangle_lights;
+		std::vector<FrameLight> primitive_lights;
 		std::vector<MeshFrameState> mesh_frame_states;
-		std::vector<u8> rt_instance_masks;
 		std::optional<UiFrame> ui_frame;
 		DebugDrawFrame debug_draw_frame;
+		GridFrameParams grid_params;
+	};
+
+	struct RenderFramePacket : FrameSnapshot
+	{
+		std::vector<RenderMeshCommand> mesh_commands;
+		std::vector<TriangleLight> triangle_lights;
+		std::vector<u8> rt_instance_masks;
+		GpuSceneDirtyState gpu_scene_dirty;
 	};
 
 	struct BindlessImageHandle
@@ -245,10 +253,10 @@ namespace diverse
 		auto	apply_environment_frame(const EnvironmentFrameParams& environment)->void;
 		auto	prepare_environment_resources(RenderFramePacket& packet)->void;
 		auto	upload_gpu_buffers(RenderFramePacket& packet)->void;
-		auto	upload_gaussian_gpu_buffers(const std::vector<RenderGSCommand>& gs_commands)->void;
-		auto	upload_point_cloud_gpu_buffers(const std::vector<RenderPointCommand>& point_commands)->void;
+		auto	upload_gaussian_gpu_buffers(const std::vector<RenderGSCommand>& gs_commands, GpuSceneDirtyState& dirty_state)->void;
+		auto	upload_point_cloud_gpu_buffers(const std::vector<RenderPointCommand>& point_commands, GpuSceneDirtyState& dirty_state)->void;
 		auto	upload_mesh_gpu_buffers(RenderFramePacket& packet)->void;
-		auto	upload_mesh_materials(MeshModel* model)->int;
+		auto	upload_mesh_materials(MeshModel* model, GpuSceneDirtyState& dirty_state)->int;
 		auto	is_material_texture_bound(const SharedPtr<asset::Texture>& texture)->bool;
 		auto	are_material_textures_bound(const PBRMataterialTextures& textures)->bool;
 		auto	update_material_texture_bindings(MaterialProperties& material, const PBRMataterialTextures& textures)->void;
@@ -276,6 +284,7 @@ namespace diverse
 		std::vector<RenderMeshCommand> mesh_command_queue;
 		std::vector<RenderPointCommand>	 point_command_queue;
 		GpuSceneUploadState gpu_scene;
+		GpuSceneDirtyState gpu_scene_dirty;
 		u32 frame_idx = 0;
 		std::optional<CameraMatrices> prev_camera_matrix;
 		Scene* current_scene = nullptr;
@@ -344,6 +353,7 @@ namespace diverse
 		glm::vec4    	sky_ambient;
 		glm::vec3    	sun_direction;
 		std::vector<TriangleLight> triangle_lights;
+		std::vector<FrameLight> primitive_lights;
 		RenderSettings frame_render_settings;
 	private:
 		std::shared_ptr<rhi::DescriptorSet> bindless_descriptor_set;

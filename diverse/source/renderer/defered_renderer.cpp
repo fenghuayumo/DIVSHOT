@@ -29,6 +29,12 @@
 #include "scene/component/point_cloud_component.h"
 #include "scene/component/gaussian_crop.h"
 #include "scene/component/environment.h"
+#include "scene/component/light/directional_light.h"
+#include "scene/component/light/point_light.h"
+#include "scene/component/light/spot_light.h"
+#include "scene/component/light/rect_light.h"
+#include "scene/component/light/cylinder_light.h"
+#include "scene/component/light/disk_light.h"
 #include "assets/asset_manager.h"
 #include "scene/entity_manager.h"
 #include "scene/sun_controller.h"
@@ -124,6 +130,25 @@ namespace diverse
 		std::pair{POINT_BUF_BINDING_ID, rhi::DescriptorInfo{rhi::DescriptorType::STORAGE_BUFFER, rhi::DescriptorDimensionality::RuntimeArray}},
     
 	};
+
+	template<typename LightComponentT>
+	auto append_frame_light(
+		RenderFramePacket& packet,
+		entt::entity entity,
+		LightComponentT& light_component,
+		const maths::Transform& transform,
+		u64 type_salt) -> void
+	{
+		LightShaderData light = {};
+		light_component.get_render_light_data(transform, &light);
+
+		size_t stable_id = type_salt;
+		diverse::hash_combine(stable_id, static_cast<u32>(entity));
+		packet.primitive_lights.push_back(FrameLight{
+			static_cast<u64>(stable_id),
+			light
+		});
+	}
 
 	auto radical_inverse(u32 n, u32 base) -> f32
 	{
@@ -422,6 +447,13 @@ namespace diverse
 		packet.camera_params.focus_distance = camera->get_focus_distance();
 		packet.camera_params.aperture = camera->get_aperture() * 0.001f;
 		packet.camera_params.camera_type = camera->get_camera_type() == Camera::CameraType::Fisheye ? 1u : 0u;
+		packet.grid_params = GridFrameParams{
+			true,
+			camera->get_near(),
+			camera->get_far(),
+			camera_transform->get_world_position(),
+			camera_transform->get_forward_direction()
+		};
 
 		auto enviroment_view = current_scene->get_entity_manager()->get_entities_with_type<diverse::Environment>();
 		if (!enviroment_view.empty())
@@ -447,6 +479,54 @@ namespace diverse
 					packet.environment.sun_direction = sun_controller->towards_sun();
 				}
 			}
+		}
+
+		auto dir_light_group = registry.group<DirectionalLightComponent>(entt::get<maths::Transform>);
+		for (auto entity : dir_light_group)
+		{
+			if (!Entity(entity, current_scene).active()) continue;
+			auto [dir_light, transform] = dir_light_group.get<DirectionalLightComponent, maths::Transform>(entity);
+			append_frame_light(packet, entity, dir_light, transform, 0xD1AEC710u);
+		}
+
+		auto point_light_group = registry.group<PointLightComponent>(entt::get<maths::Transform>);
+		for (auto entity : point_light_group)
+		{
+			if (!Entity(entity, current_scene).active()) continue;
+			auto [point_light, transform] = point_light_group.get<PointLightComponent, maths::Transform>(entity);
+			append_frame_light(packet, entity, point_light, transform, 0x901A7100u);
+		}
+
+		auto spot_light_group = registry.group<SpotLightComponent>(entt::get<maths::Transform>);
+		for (auto entity : spot_light_group)
+		{
+			if (!Entity(entity, current_scene).active()) continue;
+			auto [spot_light, transform] = spot_light_group.get<SpotLightComponent, maths::Transform>(entity);
+			append_frame_light(packet, entity, spot_light, transform, 0x59077100u);
+		}
+
+		auto rect_light_group = registry.group<RectLightComponent>(entt::get<maths::Transform>);
+		for (auto entity : rect_light_group)
+		{
+			if (!Entity(entity, current_scene).active()) continue;
+			auto [rect_light, transform] = rect_light_group.get<RectLightComponent, maths::Transform>(entity);
+			append_frame_light(packet, entity, rect_light, transform, 0x8EC71000u);
+		}
+
+		auto cylinder_light_group = registry.group<CylinderLightComponent>(entt::get<maths::Transform>);
+		for (auto entity : cylinder_light_group)
+		{
+			if (!Entity(entity, current_scene).active()) continue;
+			auto [cylinder_light, transform] = cylinder_light_group.get<CylinderLightComponent, maths::Transform>(entity);
+			append_frame_light(packet, entity, cylinder_light, transform, 0xC711D000u);
+		}
+
+		auto disk_light_group = registry.group<DiskLightComponent>(entt::get<maths::Transform>);
+		for (auto entity : disk_light_group)
+		{
+			if (!Entity(entity, current_scene).active()) continue;
+			auto [disk_light, transform] = disk_light_group.get<DiskLightComponent, maths::Transform>(entity);
+			append_frame_light(packet, entity, disk_light, transform, 0xD15C0000u);
 		}
 
 		if( prev_camera_matrix && prev_camera_matrix->world_to_view != packet.frame_desc.camera_matrices.world_to_view )
@@ -513,8 +593,10 @@ namespace diverse
 	{
 		threading::assert_render_thread();
 		flush_render_commands();
+		packet.gpu_scene_dirty = {};
 		prepare_environment_resources(packet);
 		upload_gpu_buffers(packet);
+		gpu_scene_dirty = packet.gpu_scene_dirty;
 
 		auto mesh_frame_states = std::move(packet.mesh_frame_states);
 		render_frame_packet(std::move(packet));
@@ -529,10 +611,13 @@ namespace diverse
 		mesh_command_queue = std::move(packet.mesh_commands);
 		point_command_queue = std::move(packet.point_commands);
 		triangle_lights = std::move(packet.triangle_lights);
+		primitive_lights = std::move(packet.primitive_lights);
 		gpu_scene.rt_instance_masks = std::move(packet.rt_instance_masks);
 		skip_gs_render = packet.skip_gs_render;
 		frame_render_settings = packet.render_settings;
 		debug_draw_frame = std::move(packet.debug_draw_frame);
+		if (grid_renderer)
+			grid_renderer->set_frame_params(packet.grid_params);
 
 		auto rg = rg_renderer->temporal_graph();
 		const auto frame_desc = packet.frame_desc;
@@ -687,8 +772,8 @@ namespace diverse
 	auto DeferedRenderer::upload_gpu_buffers(RenderFramePacket& packet)->void
 	{
 		threading::assert_render_thread();
-		upload_gaussian_gpu_buffers(packet.gs_commands);
-		upload_point_cloud_gpu_buffers(packet.point_commands);
+		upload_gaussian_gpu_buffers(packet.gs_commands, packet.gpu_scene_dirty);
+		upload_point_cloud_gpu_buffers(packet.point_commands, packet.gpu_scene_dirty);
 		upload_mesh_gpu_buffers(packet);
 	}
 
@@ -734,7 +819,7 @@ namespace diverse
 		++render_frame_serial;
 	}
 
-	auto DeferedRenderer::upload_gaussian_gpu_buffers(const std::vector<RenderGSCommand>& gs_commands)->void
+	auto DeferedRenderer::upload_gaussian_gpu_buffers(const std::vector<RenderGSCommand>& gs_commands, GpuSceneDirtyState& dirty_state)->void
 	{
 		threading::assert_render_thread();
 		auto device = rg_renderer->device;
@@ -757,11 +842,13 @@ namespace diverse
 				device->write_descriptor_set(bindless_descriptor_set.get(), SPLAT_STATE_BINDING_ID, model->gaussian_state_buf.get(), v_buf_id);
 				gpu_scene.model_2_gs_buf_id[model] = v_buf_id;
 				skip_gs_render = false;
+				dirty_state.gaussian_resources = true;
+				dirty_state.bindless_resources = true;
 			}
 		}
 	}
 
-	auto DeferedRenderer::upload_point_cloud_gpu_buffers(const std::vector<RenderPointCommand>& point_commands)->void
+	auto DeferedRenderer::upload_point_cloud_gpu_buffers(const std::vector<RenderPointCommand>& point_commands, GpuSceneDirtyState& dirty_state)->void
 	{
 		threading::assert_render_thread();
 		auto device = rg_renderer->device;
@@ -777,6 +864,8 @@ namespace diverse
 			{
 				device->write_descriptor_set(bindless_descriptor_set.get(), POINT_BUF_BINDING_ID, model->vertex_buffer.get(), v_buf_id);
 				gpu_scene.model_2_point_buf_id[model] = v_buf_id;
+				dirty_state.point_resources = true;
+				dirty_state.bindless_resources = true;
 			}
 		}
 	}
@@ -830,7 +919,7 @@ namespace diverse
 		matprop.ao_map = image_handle_or_default(pbr_tex.ao, WHITE_TEX_ID);
 	}
 
-	auto DeferedRenderer::upload_mesh_materials(MeshModel* model)->int
+	auto DeferedRenderer::upload_mesh_materials(MeshModel* model, GpuSceneDirtyState& dirty_state)->int
 	{
 		int upload_material_num = 0;
 		for (auto& mesh : model->get_meshes())
@@ -848,11 +937,15 @@ namespace diverse
 				update_material_texture_bindings(matprop, pbr_tex);
 				upload_material(&matprop);
 				material->set_flag(AssetFlag::UploadedGpu);
+				dirty_state.material_resources = true;
+				dirty_state.bindless_resources = true;
 			}
 			else if (material->dirty_flag())
 			{
 				update_material_texture_bindings(matprop, pbr_tex);
 				upload_material(&matprop);
+				dirty_state.material_resources = true;
+				dirty_state.bindless_resources = true;
 			}
 			upload_material_num++;
 		}
@@ -884,12 +977,13 @@ namespace diverse
 		packet.triangle_lights.clear();
 		packet.rt_instance_masks.clear();
 		gpu_scene.ent_2_model_id.clear(); gpu_scene.instance_transforms.clear();gpu_scene.instance_dynamic_constants.clear();
+		packet.gpu_scene_dirty.instance_data = !packet.mesh_requests.empty();
 		for (const auto& request : packet.mesh_requests)
 		{
 			auto* model = request.model.get();
 			if (!model) continue;
 			if (!model->is_flag_set(AssetFlag::Loaded)) continue;
-			auto upload_material_num = upload_mesh_materials(model);
+			auto upload_material_num = upload_mesh_materials(model, packet.gpu_scene_dirty);
 			if (model->is_flag_set(AssetFlag::Loaded) && 
 				!model->is_flag_set(AssetFlag::UploadedGpu)
 				&& upload_material_num == model->get_meshes().size())
@@ -897,6 +991,9 @@ namespace diverse
 				model->create_gpu_buffers(rg_renderer->device);
 				upload_mesh_model(model);
 				model->set_flag(AssetFlag::UploadedGpu);
+				packet.gpu_scene_dirty.mesh_resources = true;
+				packet.gpu_scene_dirty.bindless_resources = true;
+				packet.gpu_scene_dirty.acceleration_structures = true;
 				if (!gpu_scene.mesh_blas.empty())
 					gpu_scene.model_2_blas_id[model] = gpu_scene.mesh_blas.size() - 1;
 			}
@@ -1232,7 +1329,7 @@ namespace diverse
 		prev_camera_matrix = frame_desc.camera_matrices;
 
 		std::vector<LightShaderData> scene_lights;
-		lighting_pass->gather_lights(scene_lights, triangle_lights);
+		lighting_pass->gather_lights(scene_lights, triangle_lights, primitive_lights);
 		irache->update_eye_position(view_constants.eye_position());
 		u32 num_triangle_lights = 0;
 		u32 scene_lights_count = scene_lights.size();
@@ -1339,18 +1436,6 @@ namespace diverse
 	{
 		override_camera = camera;
 		override_camera_transform = overrideCameraTransform;
-		if (threading::is_render_thread() || !render_thread_running.load(std::memory_order_acquire))
-		{
-			if (grid_renderer)
-				grid_renderer->set_override_camera(camera, overrideCameraTransform);
-		}
-		else
-		{
-			enqueue_render_command([this, camera, overrideCameraTransform]() {
-				if (grid_renderer)
-					grid_renderer->set_override_camera(camera, overrideCameraTransform);
-			});
-		}
 	}
 
 	auto DeferedRenderer::handle_new_scene(Scene* scene)->void

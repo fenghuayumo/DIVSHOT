@@ -1,6 +1,7 @@
 #pragma once
 #include "drs_rg/simple_pass.h"
 #include "gbuffer_depth.h"
+#include "frame_snapshot.h"
 #include "scene/mesh_light.h"
 #include "light.h"
 
@@ -43,7 +44,8 @@ namespace diverse
         ~LightingPass();
         auto gather_lights(
             std::vector<LightShaderData>& lights,
-            const std::vector<TriangleLight>& triangle_lights)->void;
+            const std::vector<TriangleLight>& triangle_lights,
+            const std::vector<FrameLight>& primitive_lights)->void;
 
         auto lighting_gbuffer(
             rg::RenderGraph& rg,
@@ -89,7 +91,7 @@ namespace diverse
         std::shared_ptr<rhi::GpuBuffer>    neighbor_offsets_buf;
         class DeferedRenderer* renderer;
         std::unique_ptr<rtxdi::ImportanceSamplingContext> rtxdi_sampling_context;
-        std::unordered_map<const LightComponent*, uint32_t> primitive_light_buffer_offsets;
+        std::unordered_map<u64, uint32_t> primitive_light_buffer_offsets;
         std::unordered_map<size_t, uint32_t>    instance_light_buffer_offsets;
         u32 num_finite_primLights = 0;
         u32 num_infinite_prim_lights = 0;

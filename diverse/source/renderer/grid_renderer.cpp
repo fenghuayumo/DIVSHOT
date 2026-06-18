@@ -1,7 +1,6 @@
 #include "grid_renderer.h"
 #include "assets/mesh_factory.h"
 #include "drs_rg/simple_pass.h"
-#include "scene/camera/camera.h"
 namespace diverse
 {
 
@@ -35,7 +34,7 @@ namespace diverse
 	}
 	auto GridRenderer::render(rg::RenderGraph& rg, rg::Handle<rhi::GpuTexture>& color_img, rg::Handle<rhi::GpuTexture>& depth_img) -> void
 	{
-		if( !camera || !camera_transform)
+		if( !frame_params.valid)
 			return;
 		//current_buffer_id = 0;
 		auto pass = rg.add_pass("raster grid line");
@@ -63,10 +62,10 @@ namespace diverse
 			float maxDistance;
 			float p1;
 		}frag_constant;
-		frag_constant.Near = camera->get_near();
-		frag_constant.Far = camera->get_far();
-		frag_constant.cameraPos = glm::vec4(camera_transform->get_world_position(), 1.0f);
-		frag_constant.cameraForward = glm::vec4(camera_transform->get_forward_direction(), 1.0f);
+		frag_constant.Near = frame_params.near_plane;
+		frag_constant.Far = frame_params.far_plane;
+		frag_constant.cameraPos = glm::vec4(frame_params.camera_position, 1.0f);
+		frag_constant.cameraForward = glm::vec4(frame_params.camera_forward, 1.0f);
 
 		frag_constant.maxDistance = max_distance;
 		pass.render([this, color_img = std::move(color_ref),
@@ -115,12 +114,10 @@ namespace diverse
 
 		pass.rg->record_pass(std::move(pass.pass));
 
-		camera = nullptr;
-		camera_transform = nullptr;
+		frame_params = {};
 	}
-	auto GridRenderer::set_override_camera(Camera* overrideCamera, maths::Transform* overrideCameraTransform) -> void
+	auto GridRenderer::set_frame_params(const GridFrameParams& params) -> void
 	{
-		camera = overrideCamera;
-		camera_transform = overrideCameraTransform;
+		frame_params = params;
 	}
 }
