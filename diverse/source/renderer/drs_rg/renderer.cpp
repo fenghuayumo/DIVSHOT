@@ -2,6 +2,7 @@
 #include "core/ds_log.h"
 #include "engine/thread_affinity.h"
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -151,20 +152,24 @@ namespace diverse
             if (last_frame_accepted_sync)
                 last_frame_accepted_sync->wait();
 
+            const auto frame_slot = current_frame_slot;
             if (!frame_slot_submit_syncs.empty())
-                frame_slot_submit_syncs[current_frame_slot]->wait();
+                frame_slot_submit_syncs[frame_slot]->wait();
 
             current_frame = device->begin_frame();
+            retire_frame_slot(frame_slot);
+            set_frame_alloctor_slot(frame_slot);
+            current_recording_frame_slot = frame_slot;
             current_frame_accepted_sync = std::make_shared<FrameSyncPoint>();
             current_frame_submitted_sync = std::make_shared<FrameSyncPoint>();
             current_frame_accepted_sync->reset();
             current_frame_submitted_sync->reset();
 
             if (!frame_slot_submit_syncs.empty())
-                frame_slot_submit_syncs[current_frame_slot] = current_frame_submitted_sync;
+                frame_slot_submit_syncs[frame_slot] = current_frame_submitted_sync;
 
             last_frame_accepted_sync = current_frame_accepted_sync;
-            current_frame_slot = (current_frame_slot + 1) % DYNAMIC_CONSTANTS_BUFFER_COUNT;
+            current_frame_slot = (frame_slot + 1) % DYNAMIC_CONSTANTS_BUFFER_COUNT;
         }
 
         auto Renderer::draw_frame(TemporalGraph& rg,
@@ -175,12 +180,10 @@ namespace diverse
             submit_recorded_frame(recorded_frame);
 
             temporal_rg_state.retire_temporal(rg);
-
-            rg.release_resources(transient_resource_cache);
+            queue_frame_retire(recorded_frame, rg.collect_transient_resources());
 
             dynamic_constants.advance_frame();
             current_frame = nullptr;
-            frame_alloctor().free();
         }
 
         auto Renderer::record_frame(TemporalGraph& rg,
@@ -197,7 +200,6 @@ namespace diverse
             }
 
             auto& main_cb = current_frame->main_cmd_buf;
-            wait_for_rhi_idle();
             rg.begin_execute();
 
             rg.record_main_cb(main_cb.get());
@@ -232,6 +234,7 @@ namespace diverse
             frame.submitted_sync = current_frame_submitted_sync;
             frame.record_begin_time = record_begin_time;
             frame.record_end_time = std::chrono::steady_clock::now();
+            frame.frame_slot = current_recording_frame_slot;
             return frame;
         }
 
@@ -274,6 +277,48 @@ namespace diverse
             rhi_submitter.submit_and_present(frame);
             if (frame.submitted_sync)
                 frame.submitted_sync->signal();
+        }
+
+        auto Renderer::retire_frame_slot(uint32 frame_slot) -> void
+        {
+            for (auto iter = pending_frame_retires.begin(); iter != pending_frame_retires.end();)
+            {
+                if (iter->frame_slot == frame_slot &&
+                    (!iter->submitted_sync || iter->submitted_sync->is_signaled()))
+                {
+                    iter->transient_resources.release_into(transient_resource_cache);
+                    free_frame_alloctor_slot(frame_slot);
+                    iter = pending_frame_retires.erase(iter);
+                }
+                else
+                {
+                    ++iter;
+                }
+            }
+        }
+
+        auto Renderer::queue_frame_retire(const RecordedRhiFrame& frame, RenderGraphTransientResources&& transient_resources) -> void
+        {
+            pending_frame_retires.push_back(PendingFrameRetire{
+                frame.submitted_sync,
+                std::move(transient_resources),
+                frame.frame_slot
+            });
+        }
+
+        auto Renderer::discard_pending_frame_retires() -> void
+        {
+            std::array<bool, DYNAMIC_CONSTANTS_BUFFER_COUNT> slots_to_free{};
+            for (const auto& pending : pending_frame_retires)
+                slots_to_free[pending.frame_slot % DYNAMIC_CONSTANTS_BUFFER_COUNT] = true;
+
+            pending_frame_retires.clear();
+
+            for (uint32 slot = 0; slot < DYNAMIC_CONSTANTS_BUFFER_COUNT; ++slot)
+            {
+                if (slots_to_free[slot])
+                    free_frame_alloctor_slot(slot);
+            }
         }
 
         auto Renderer::start_rhi_thread() -> void
@@ -539,6 +584,9 @@ namespace diverse
 
 		auto Renderer::prepare_frame(TemporalGraph& rg, std::function<void(TemporalGraph&)> prepare_render_graph) -> void
         {
+            if (!current_frame)
+                begin_record_frame();
+
             prepare_render_graph(rg);
 
             auto temp_rg_state = rg.export_temporal();
@@ -598,6 +646,7 @@ namespace diverse
         auto Renderer::clear_resources() -> void
         {
             wait_for_rhi_idle();
+            discard_pending_frame_retires();
             temporal_rg_state.resources.clear();
             transient_resource_cache.clear_resource();
         }

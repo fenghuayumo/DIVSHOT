@@ -3,6 +3,7 @@
 #include "pass_builder.h"
 #include "core/ds_log.h"
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <sstream>
 namespace diverse
@@ -165,10 +166,47 @@ namespace diverse
         }
 
         
+        namespace
+        {
+            auto frame_allocators() -> std::array<FrameAllocator, DYNAMIC_CONSTANTS_BUFFER_COUNT>&
+            {
+                static std::array<FrameAllocator, DYNAMIC_CONSTANTS_BUFFER_COUNT> allocators;
+                return allocators;
+            }
+
+            thread_local uint32 current_frame_alloctor_slot = 0;
+        }
+
         auto frame_alloctor() -> FrameAllocator&
         {
-            static FrameAllocator allocator;
-            return allocator;
+            return frame_allocators()[current_frame_alloctor_slot];
+        }
+
+        auto set_frame_alloctor_slot(uint32 slot) -> void
+        {
+            current_frame_alloctor_slot = slot % DYNAMIC_CONSTANTS_BUFFER_COUNT;
+        }
+
+        auto free_frame_alloctor_slot(uint32 slot) -> void
+        {
+            frame_allocators()[slot % DYNAMIC_CONSTANTS_BUFFER_COUNT].free();
+        }
+
+        auto RenderGraphTransientResources::empty() const -> bool
+        {
+            return images.empty() && buffers.empty();
+        }
+
+        auto RenderGraphTransientResources::release_into(TransientResourceCache& transient_resource_cache) -> void
+        {
+            for (auto& image : images)
+                transient_resource_cache.insert_image(image);
+
+            for (auto& buffer : buffers)
+                transient_resource_cache.insert_buffer(buffer);
+
+            images.clear();
+            buffers.clear();
         }
 
         template<typename Res>
@@ -811,19 +849,20 @@ namespace diverse
         template struct ImportExportToRenderGraph<rhi::GpuBuffer>;
         template struct ImportExportToRenderGraph<rhi::GpuRayTracingAcceleration>;
 
-        auto RenderGraph::release_resources(TransientResourceCache& transient_resource_cache)->void
+        auto RenderGraph::collect_transient_resources() -> RenderGraphTransientResources
         {
+            RenderGraphTransientResources transient_resources;
             for (auto& resouce : resource_registry.resources)
             {
                 switch (resouce.resource.ty)
                 {
                 case AnyRenderResource::Type::OwnedImage:
                 {
-                    transient_resource_cache.insert_image(resouce.resource.image());
+                    transient_resources.images.push_back(resouce.resource.image());
                 }break;
                 case AnyRenderResource::Type::OwnedBuffer:
                 {
-                    transient_resource_cache.insert_buffer(resouce.resource.buffer());
+                    transient_resources.buffers.push_back(resouce.resource.buffer());
                 }break;
                 case AnyRenderResource::Type::ImportedRayTracingAcceleration:
                     break;
@@ -836,6 +875,13 @@ namespace diverse
                     break;
                 }
             }
+            return transient_resources;
+        }
+
+        auto RenderGraph::release_resources(TransientResourceCache& transient_resource_cache)->void
+        {
+            auto transient_resources = collect_transient_resources();
+            transient_resources.release_into(transient_resource_cache);
         }
 
         auto RenderGraph::register_execution_params(RenderGraphExecutionParams&& params, TransientResourceCache* transient_resource_cache, rhi::DynamicConstants* dynamic_constants) -> void

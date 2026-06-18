@@ -55,6 +55,14 @@ namespace diverse
 			std::chrono::steady_clock::time_point record_end_time = {};
 			std::chrono::steady_clock::time_point enqueue_time = {};
 			uint64 debug_frame_index = 0;
+			uint32 frame_slot = 0;
+		};
+
+		struct PendingFrameRetire
+		{
+			std::shared_ptr<FrameSyncPoint> submitted_sync;
+			RenderGraphTransientResources transient_resources;
+			uint32 frame_slot = 0;
 		};
 
 		struct RhiThreadProfileSnapshot
@@ -137,6 +145,9 @@ namespace diverse
 			auto begin_record_frame() -> void;
 			auto rhi_thread_main() -> void;
 			auto submit_recorded_frame_immediate(const RecordedRhiFrame& frame) -> void;
+			auto retire_frame_slot(uint32 frame_slot) -> void;
+			auto queue_frame_retire(const RecordedRhiFrame& frame, RenderGraphTransientResources&& transient_resources) -> void;
+			auto discard_pending_frame_retires() -> void;
 			auto load_debug_config_from_environment() -> void;
 			auto dump_render_graph_debug(TemporalGraph& rg) -> void;
 			auto note_rhi_frame_enqueued(uint32 pending_frames) -> void;
@@ -155,10 +166,12 @@ namespace diverse
 			bool rhi_thread_stop_requested = false;
 			bool rhi_thread_busy = false;
 			std::vector<std::shared_ptr<FrameSyncPoint>> frame_slot_submit_syncs;
+			std::deque<PendingFrameRetire> pending_frame_retires;
 			std::shared_ptr<FrameSyncPoint> last_frame_accepted_sync;
 			std::shared_ptr<FrameSyncPoint> current_frame_accepted_sync;
 			std::shared_ptr<FrameSyncPoint> current_frame_submitted_sync;
 			uint32 current_frame_slot = 0;
+			uint32 current_recording_frame_slot = 0;
 			RhiThreadDebugConfig debug_config;
 			mutable std::mutex rhi_profile_mutex;
 			RhiThreadProfileSnapshot rhi_profile;

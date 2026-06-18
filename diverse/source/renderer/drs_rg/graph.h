@@ -24,6 +24,17 @@ namespace diverse
         };
 
         auto frame_alloctor() -> FrameAllocator&;
+        auto set_frame_alloctor_slot(uint32 slot) -> void;
+        auto free_frame_alloctor_slot(uint32 slot) -> void;
+
+        struct RenderGraphTransientResources
+        {
+            std::vector<std::shared_ptr<rhi::GpuTexture>> images;
+            std::vector<std::shared_ptr<rhi::GpuBuffer>> buffers;
+
+            auto empty() const -> bool;
+            auto release_into(TransientResourceCache& transient_resource_cache) -> void;
+        };
 
         struct RenderGraphParams
         {
@@ -180,6 +191,7 @@ namespace diverse
                    return { reg_resource.resource.ray_tracing_acceleration(), reg_resource.access_type };
             }
 
+            auto collect_transient_resources() -> RenderGraphTransientResources;
             auto release_resources(TransientResourceCache& transient_resource_cache) -> void;
        };
 
