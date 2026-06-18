@@ -8,6 +8,7 @@ namespace diverse
         inline auto clear_depth(RenderGraph& rg, Handle<rhi::GpuTexture>& img,f32 depth = 1.0, u32 stencil = 0)
         {
             auto pass = rg.add_pass("clear depth");
+            pass.scheduling(PassKind::Transfer, PassQueue::Transfer);
             auto output_ref = pass.write(img, rhi::AccessType::TransferWrite);
 
             pass.render([output_ref = std::move(output_ref),depth, stencil](RenderPassApi& api) {
@@ -29,6 +30,7 @@ namespace diverse
         inline auto clear_color(RenderGraph& rg, Handle<rhi::GpuTexture>& img,const std::array<f32,4>& clear_color)
         {
             auto pass = rg.add_pass("clear color");
+            pass.scheduling(PassKind::Transfer, PassQueue::Transfer);
             auto output_ref = pass.write(img, rhi::AccessType::TransferWrite);
 
             pass.render([output_ref = std::move(output_ref), clear_color](RenderPassApi& api) {
@@ -49,6 +51,7 @@ namespace diverse
         inline auto copy_img(RenderGraph& rg, Handle<rhi::GpuTexture>& src,Handle<rhi::GpuTexture>& dst)
         {
             auto pass = rg.add_pass("copy image");
+            pass.scheduling(PassKind::Transfer, PassQueue::Transfer);
             auto output_ref = pass.write(dst, rhi::AccessType::TransferWrite);
             pass.render([output_ref = std::move(output_ref),
                     input_ref = pass.read(src,rhi::AccessType::TransferRead)](RenderPassApi& api) {

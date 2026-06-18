@@ -9,6 +9,31 @@ namespace diverse
 {
     namespace rg
     {
+        enum class PassKind
+        {
+            Custom,
+            Compute,
+            Raster,
+            RayTracing,
+            MeshShader,
+            Transfer,
+            Present
+        };
+
+        enum class PassQueue
+        {
+            Graphics,
+            AsyncCompute,
+            Transfer
+        };
+
+        struct PassSchedulingInfo
+        {
+            PassKind kind = PassKind::Custom;
+            PassQueue queue = PassQueue::Graphics;
+            bool parallel_recording_hint = false;
+        };
+
         enum PassResourceAccessSyncType
         {
             AlwaysSync,
@@ -42,6 +67,7 @@ namespace diverse
                 std::swap(read, other.read);
                 std::swap(write, other.write);
                 std::swap(name, other.name);
+                std::swap(scheduling, other.scheduling);
                 std::swap(idx, other.idx);
                 std::swap(render_fn, other.render_fn);
                 return *this;
@@ -49,6 +75,7 @@ namespace diverse
             std::vector<PassResourceRef> read;
             std::vector<PassResourceRef> write;
             std::string name;
+            PassSchedulingInfo scheduling;
 
             std::function<void(struct RenderPassApi& api)> render_fn;
             uint32 idx;

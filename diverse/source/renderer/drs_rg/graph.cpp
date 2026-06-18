@@ -256,9 +256,40 @@ namespace diverse
             };
         }
 
+        auto RenderGraph::build_pass_queue_ranges(uint32 pass_count) const -> std::vector<PassQueueRange>
+        {
+            std::vector<PassQueueRange> ranges;
+            if (pass_count == 0)
+                return ranges;
+
+            auto begin_range = 0u;
+            auto current_queue = passes[0].scheduling.queue;
+            auto parallel_hint = passes[0].scheduling.parallel_recording_hint;
+
+            for (auto pass_idx = 1u; pass_idx < pass_count; ++pass_idx)
+            {
+                const auto& scheduling = passes[pass_idx].scheduling;
+                if (scheduling.queue != current_queue)
+                {
+                    ranges.push_back(PassQueueRange{ current_queue, begin_range, pass_idx, parallel_hint });
+                    begin_range = pass_idx;
+                    current_queue = scheduling.queue;
+                    parallel_hint = scheduling.parallel_recording_hint;
+                }
+                else
+                {
+                    parallel_hint = parallel_hint && scheduling.parallel_recording_hint;
+                }
+            }
+
+            ranges.push_back(PassQueueRange{ current_queue, begin_range, pass_count, parallel_hint });
+            return ranges;
+        }
+
         auto RenderGraph::compile(rhi::PipelineCache& pipeline_cache) -> void
         {
             auto resource_info = calculate_resource_info();
+            pass_queue_ranges = build_pass_queue_ranges(static_cast<uint32>(passes.size()));
             
             std::vector<rhi::ComputePipelineHandle>  compute_pipeline_handles;
             std::vector<rhi::RasterPipelineHandle>  raster_pipeline_handles;
@@ -536,6 +567,17 @@ namespace diverse
 
         auto RenderGraph::record_pass(RecordedPass&& pass) -> void
         {
+            for (const auto& resource_ref : pass.write)
+            {
+                auto& resource = resources[resource_ref.handle.id];
+                if (resource.ty == GraphResourceInfo::Type::Imported &&
+                    resource.graph_resource_import_info().ty == GraphResourceImportInfo::Type::SwapchainImage)
+                {
+                    pass.scheduling.kind = PassKind::Present;
+                    pass.scheduling.queue = PassQueue::Graphics;
+                    break;
+                }
+            }
             this->passes.push_back(std::move(pass));
             //TODO: add hook_debug pass
         }

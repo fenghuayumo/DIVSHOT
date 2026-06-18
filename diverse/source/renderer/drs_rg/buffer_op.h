@@ -8,6 +8,7 @@ namespace diverse
         inline auto copy_buffer(RenderGraph& rg,const Handle<rhi::GpuBuffer>& src, Handle<rhi::GpuBuffer>& dst)
         {
             auto pass = rg.add_pass("copy_buffer");
+            pass.scheduling(PassKind::Transfer, PassQueue::Transfer);
             auto output_ref = pass.write(dst, rhi::AccessType::TransferWrite);
             auto input_ref = pass.read(src, rhi::AccessType::TransferRead);
 
@@ -32,6 +33,7 @@ namespace diverse
         inline auto clear_buffer(RenderGraph& rg, Handle<rhi::GpuBuffer>& buf,const uint value)
         {
             auto pass = rg.add_pass("clear buffer");
+            pass.scheduling(PassKind::Transfer, PassQueue::Transfer);
             auto output_ref = pass.write(buf, rhi::AccessType::TransferWrite);
 
             pass.render([output_ref = std::move(output_ref), value](RenderPassApi& api) {

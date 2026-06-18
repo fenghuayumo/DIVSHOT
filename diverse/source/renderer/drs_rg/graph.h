@@ -34,6 +34,15 @@ namespace diverse
             FrameConstantsLayout frame_constants_layout;
 
         };
+
+        struct PassQueueRange
+        {
+            PassQueue queue = PassQueue::Graphics;
+            uint32 begin = 0;
+            uint32 end = 0;
+            bool parallel_recording_hint = false;
+        };
+
         struct RenderGraph
         {
           
@@ -49,6 +58,7 @@ namespace diverse
 
             ResourceInfo resource_info;
             RenderGraphPipelines pipelines;
+            std::vector<PassQueueRange> pass_queue_ranges;
             ResourceRegistry    resource_registry;
             TransientResourceCache* transient_resource_cache;
             //std::vector<Handle<rhi::GpuTexture>>    record_images;
@@ -70,6 +80,7 @@ namespace diverse
 
             auto create_raw_resource(GraphResourceCreateInfo&& info) -> GraphRawResourceHandle;
             auto calculate_resource_info() -> ResourceInfo;
+            auto build_pass_queue_ranges(uint32 pass_count) const -> std::vector<PassQueueRange>;
 
             template<typename Res>
                 requires std::derived_from<Res, rhi::GpuResource>

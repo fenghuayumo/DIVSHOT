@@ -13,11 +13,13 @@ namespace diverse
 
 		auto RenderPass::new_compute(PassBuilder&& pass, const std::string& pipeline_path, const std::vector<std::pair<std::string, std::string>>& defines) -> SimpleRenderPass<RgComputePipelineHandle>
 		{
+			pass.scheduling(PassKind::Compute, PassQueue::AsyncCompute);
 			auto pipeline = pass.register_compute_pipeline(pipeline_path, defines);
 			return { std::move(pass), SimpleRenderPassState<RgComputePipelineHandle>{pipeline} };
 		}
 		auto RenderPass::new_compute(PassBuilder&& pass,rhi::ComputePipelineDesc&& desc) -> SimpleRenderPass<RgComputePipelineHandle>
 		{
+			pass.scheduling(PassKind::Compute, PassQueue::AsyncCompute);
 			auto pipeline = pass.register_compute_pipeline_with_desc(std::move(desc));
 			return { std::move(pass), SimpleRenderPassState<RgComputePipelineHandle>{pipeline} };
 		}
@@ -26,6 +28,7 @@ namespace diverse
                 const std::vector<rhi::ShaderSource>& miss,
 				const std::vector<rhi::ShaderSource>& hit) -> SimpleRenderPass<RgRtPipelineHandle>
 		{
+			pass.scheduling(PassKind::RayTracing, PassQueue::Graphics);
 			auto hit_count = hit.size();
 
 			std::vector<rhi::PipelineShaderDesc>	shaders;
@@ -83,6 +86,7 @@ namespace diverse
 			const std::vector<std::pair<std::string, std::string>>& defines,
 			const std::optional<rhi::ShaderSource>& geometry) -> SimpleRenderPass<RgRasterPipelineHandle>
 		{
+			pass.scheduling(PassKind::Raster, PassQueue::Graphics);
 			std::vector<rhi::PipelineShaderDesc>	shaders;
 			shaders.push_back(
 				rhi::PipelineShaderDesc()
@@ -114,6 +118,7 @@ namespace diverse
 			const std::vector<std::pair<std::string, std::string>>& defines,
 			const std::optional<rhi::ShaderSource>& task) -> SimpleRenderPass<RgMeshShaderPipelineHandle>
 		{
+			pass.scheduling(PassKind::MeshShader, PassQueue::Graphics);
 			std::vector<rhi::PipelineShaderDesc>	shaders;
 			if (task)
 			{

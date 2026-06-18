@@ -21,6 +21,11 @@ namespace diverse
             {
             }
 
+            auto kind(PassKind pass_kind) -> PassBuilder&;
+            auto queue(PassQueue pass_queue) -> PassBuilder&;
+            auto scheduling(PassKind pass_kind, PassQueue pass_queue) -> PassBuilder&;
+            auto parallel_recording_hint(bool enabled = true) -> PassBuilder&;
+
             template<typename Res>
             requires std::derived_from<Res, rhi::GpuResource>
             auto create(typename Res::Desc& desc) -> Handle<Res>
