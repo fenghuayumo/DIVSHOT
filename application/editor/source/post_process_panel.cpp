@@ -25,8 +25,8 @@ namespace diverse
             ImGuiHelper::Property("Dynamic exposure", g_render_settings.use_dynamic_adaptation);
             ImGuiHelper::Property("EV shift", g_render_settings.ev_shift,-8.0f,12.0f,0.1f,ImGuiHelper::PropertyFlag::SliderValue);
             ImGuiHelper::Property("Adaptation speed", g_render_settings.dynamic_adaptation_speed,-4.0f,4.0f,0.1f,ImGuiHelper::PropertyFlag::SliderValue);
-         /*   ImGuiHelper::Property("Luminance histogram low clip", g_render_settings.dynamic_adaptation_low_clip,0.0f,1.0f, 0.1f,ImGuiHelper::PropertyFlag::SliderValue);
-            ImGuiHelper::Property("Luminance histogram high clip", g_render_settings.dynamic_adaptation_high_clip,0.0f,1.0f, 0.1f,ImGuiHelper::PropertyFlag::SliderValue);*/
+            ImGuiHelper::Property("Luminance histogram low clip", g_render_settings.dynamic_adaptation_low_clip,0.0f,1.0f, 0.001f,ImGuiHelper::PropertyFlag::SliderValue);
+            ImGuiHelper::Property("Luminance histogram high clip", g_render_settings.dynamic_adaptation_high_clip,0.0f,1.0f, 0.001f,ImGuiHelper::PropertyFlag::SliderValue);
             ImGuiHelper::Property("Contrast", g_render_settings.contrast,1.0f, 1.5f,0.001f,ImGuiHelper::PropertyFlag::SliderValue);
 
             ImGui::Columns(1);

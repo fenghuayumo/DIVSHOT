@@ -411,6 +411,7 @@ namespace diverse
 		const auto delta_dt = packet.delta_t;
 		const auto swapchain_extent = packet.swapchain_extent;
 		apply_environment_frame(environment);
+		post->update_pre_exposure(frame_render_settings);
 
 		rg_renderer->prepare_frame_constants(rg,
 			[this, frame_desc, camera_params, delta_dt](rhi::DynamicConstants& dynamic_constants)->rg::FrameConstantsLayout {
@@ -692,7 +693,6 @@ namespace diverse
         {
             img_lut->compute_if_needed(rg);
         }
-		post->update_pre_exposure(frame_render_settings);
 
 		rg::Handle<rhi::GpuTexture> output;
 		auto accum_img = rg.import_res<rhi::GpuTexture>(main_render_tex, rhi::AccessType::Nothing);
