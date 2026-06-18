@@ -402,6 +402,15 @@ namespace diverse
             }
 
             schedule.queue_ranges = build_pass_queue_ranges(schedule.ordered_passes);
+            schedule.batches = build_pass_execution_batches(schedule.ordered_passes, schedule.first_presentation_pass);
+            for (const auto& batch : schedule.batches)
+            {
+                if (batch.stage == PassExecutionStage::Main)
+                    schedule.main_batches.push_back(batch);
+                else
+                    schedule.presentation_batches.push_back(batch);
+            }
+
             return schedule;
         }
 
@@ -433,6 +442,56 @@ namespace diverse
 
             ranges.push_back(PassQueueRange{ current_queue, begin_range, static_cast<uint32>(scheduled_passes.size()), parallel_hint });
             return ranges;
+        }
+
+        auto RenderGraph::build_pass_execution_batches(const std::vector<ScheduledPass>& scheduled_passes, uint32 first_presentation_pass) const -> std::vector<PassExecutionBatch>
+        {
+            std::vector<PassExecutionBatch> batches;
+            if (scheduled_passes.empty())
+                return batches;
+
+            auto pass_stage = [first_presentation_pass](uint32 pass_index)
+            {
+                return pass_index < first_presentation_pass ? PassExecutionStage::Main : PassExecutionStage::Presentation;
+            };
+
+            auto make_batch = [&](uint32 ordered_begin, const ScheduledPass& scheduled_pass)
+            {
+                const auto& scheduling = passes[scheduled_pass.pass_index].scheduling;
+                return PassExecutionBatch{
+                    pass_stage(scheduled_pass.pass_index),
+                    scheduling.queue,
+                    scheduled_pass.dependency_level,
+                    ordered_begin,
+                    ordered_begin,
+                    scheduling.parallel_recording_hint
+                };
+            };
+
+            auto current_batch = make_batch(0, scheduled_passes[0]);
+            for (auto ordered_idx = 1u; ordered_idx < scheduled_passes.size(); ordered_idx++)
+            {
+                const auto& scheduled_pass = scheduled_passes[ordered_idx];
+                const auto& scheduling = passes[scheduled_pass.pass_index].scheduling;
+                const auto stage = pass_stage(scheduled_pass.pass_index);
+
+                if (current_batch.stage != stage ||
+                    current_batch.queue != scheduling.queue ||
+                    current_batch.dependency_level != scheduled_pass.dependency_level)
+                {
+                    current_batch.ordered_end = static_cast<uint32>(ordered_idx);
+                    batches.push_back(current_batch);
+                    current_batch = make_batch(static_cast<uint32>(ordered_idx), scheduled_pass);
+                }
+                else
+                {
+                    current_batch.parallel_recording_hint = current_batch.parallel_recording_hint && scheduling.parallel_recording_hint;
+                }
+            }
+
+            current_batch.ordered_end = static_cast<uint32>(scheduled_passes.size());
+            batches.push_back(current_batch);
+            return batches;
         }
 
         auto RenderGraph::compile(rhi::PipelineCache& pipeline_cache) -> void
@@ -620,31 +679,30 @@ namespace diverse
         
         auto RenderGraph::record_main_cb(rhi::CommandBuffer* cb)->void
         {
-            if (pass_schedule.ordered_passes.empty() && !passes.empty())
-            {
-                pass_schedule = build_pass_schedule();
-                pass_queue_ranges = pass_schedule.queue_ranges;
-            }
+            ensure_pass_schedule();
 
             // At the start, transition all resources to the access type they're first used with
             // While we don't have split barriers yet, this will remove some bubbles
             // which would otherwise occur with temporal resources.
 
             std::unordered_map<uint32, PassResourceAccessType*>  resource_first_access_states;
-            for (const auto pass_id : pass_schedule.main_passes)
+            for (const auto& batch : pass_schedule.main_batches)
             {
-                auto& pass = passes[pass_id];
-                for (auto& res_ref : pass.read)
+                for (auto ordered_idx = batch.ordered_begin; ordered_idx < batch.ordered_end; ordered_idx++)
                 {
-                    auto it = resource_first_access_states.find(res_ref.handle.id);
-                    if (it == resource_first_access_states.end())
-                        resource_first_access_states.insert({ res_ref.handle.id, &res_ref.access });
-                }
-                for (auto& res_ref : pass.write)
-                {
-                    auto it = resource_first_access_states.find(res_ref.handle.id);
-                    if (it == resource_first_access_states.end())
-                        resource_first_access_states.insert({ res_ref.handle.id, &res_ref.access });
+                    auto& pass = passes[pass_schedule.ordered_passes[ordered_idx].pass_index];
+                    for (auto& res_ref : pass.read)
+                    {
+                        auto it = resource_first_access_states.find(res_ref.handle.id);
+                        if (it == resource_first_access_states.end())
+                            resource_first_access_states.insert({ res_ref.handle.id, &res_ref.access });
+                    }
+                    for (auto& res_ref : pass.write)
+                    {
+                        auto it = resource_first_access_states.find(res_ref.handle.id);
+                        if (it == resource_first_access_states.end())
+                            resource_first_access_states.insert({ res_ref.handle.id, &res_ref.access });
+                    }
                 }
             }
             auto param = resource_registry.execution_params;
@@ -656,11 +714,7 @@ namespace diverse
                 access->sync_type = PassResourceAccessSyncType::SkipSyncIfSameAccessType;
             }
 
-            for (const auto pass_idx : pass_schedule.main_passes)
-            {
-                auto& pass = passes[pass_idx];
-                record_pass_cb(pass, resource_registry, cb);
-            }
+            record_pass_batches(cb, pass_schedule.main_batches);
         }
 
         auto RenderGraph::record_presentation_cb(
@@ -668,11 +722,7 @@ namespace diverse
                             const std::shared_ptr<rhi::GpuTexture>& swapchain)
                             -> void
         {
-            if (pass_schedule.ordered_passes.empty() && !passes.empty())
-            {
-                pass_schedule = build_pass_schedule();
-                pass_queue_ranges = pass_schedule.queue_ranges;
-            }
+            ensure_pass_schedule();
 
             auto& params = resource_registry.execution_params;
             for (auto& [res_idx, access_type] : exported_resources)
@@ -704,10 +754,27 @@ namespace diverse
                 }
             }
 
-            for (const auto pass_idx : pass_schedule.presentation_passes)
+            record_pass_batches(cb, pass_schedule.presentation_batches);
+        }
+
+        auto RenderGraph::ensure_pass_schedule() -> void
+        {
+            if (pass_schedule.ordered_passes.empty() && !passes.empty())
             {
-                auto& pass = passes[pass_idx];
-                record_pass_cb(pass, resource_registry, cb);
+                pass_schedule = build_pass_schedule();
+                pass_queue_ranges = pass_schedule.queue_ranges;
+            }
+        }
+
+        auto RenderGraph::record_pass_batches(rhi::CommandBuffer* cb, const std::vector<PassExecutionBatch>& batches) -> void
+        {
+            for (const auto& batch : batches)
+            {
+                for (auto ordered_idx = batch.ordered_begin; ordered_idx < batch.ordered_end; ordered_idx++)
+                {
+                    auto& pass = passes[pass_schedule.ordered_passes[ordered_idx].pass_index];
+                    record_pass_cb(pass, resource_registry, cb);
+                }
             }
         }
 

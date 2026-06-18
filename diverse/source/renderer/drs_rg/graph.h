@@ -43,6 +43,12 @@ namespace diverse
             bool parallel_recording_hint = false;
         };
 
+        enum class PassExecutionStage
+        {
+            Main,
+            Presentation
+        };
+
         struct PassDependencyEdge
         {
             uint32 from = 0;
@@ -56,6 +62,16 @@ namespace diverse
             uint32 dependency_level = 0;
         };
 
+        struct PassExecutionBatch
+        {
+            PassExecutionStage stage = PassExecutionStage::Main;
+            PassQueue queue = PassQueue::Graphics;
+            uint32 dependency_level = 0;
+            uint32 ordered_begin = 0;
+            uint32 ordered_end = 0;
+            bool parallel_recording_hint = false;
+        };
+
         struct PassSchedule
         {
             std::vector<ScheduledPass> ordered_passes;
@@ -63,6 +79,9 @@ namespace diverse
             std::vector<uint32> presentation_passes;
             std::vector<PassDependencyEdge> dependencies;
             std::vector<PassQueueRange> queue_ranges;
+            std::vector<PassExecutionBatch> batches;
+            std::vector<PassExecutionBatch> main_batches;
+            std::vector<PassExecutionBatch> presentation_batches;
             uint32 first_presentation_pass = 0;
         };
 
@@ -106,6 +125,7 @@ namespace diverse
             auto calculate_resource_info() -> ResourceInfo;
             auto build_pass_schedule() const -> PassSchedule;
             auto build_pass_queue_ranges(const std::vector<ScheduledPass>& scheduled_passes) const -> std::vector<PassQueueRange>;
+            auto build_pass_execution_batches(const std::vector<ScheduledPass>& scheduled_passes, uint32 first_presentation_pass) const -> std::vector<PassExecutionBatch>;
             auto find_first_presentation_pass() const -> uint32;
 
             template<typename Res>
@@ -133,6 +153,8 @@ namespace diverse
        
             auto record_main_cb(rhi::CommandBuffer* CommandBuffer) -> void;
             auto record_presentation_cb(rhi::CommandBuffer* cb, const std::shared_ptr<rhi::GpuTexture>& swapchain) -> void;
+            auto ensure_pass_schedule() -> void;
+            auto record_pass_batches(rhi::CommandBuffer* cb, const std::vector<PassExecutionBatch>& batches) -> void;
             auto record_pass_cb(RecordedPass& pass, ResourceRegistry& resource_registry, rhi::CommandBuffer* cb) -> void;
             auto transition_resource(rhi::GpuDevice* device, rhi::CommandBuffer* cb, RegistryResource& resouce, const PassResourceAccessType& access_type, bool debug, const std::string& dbg_str) -> void;
 
