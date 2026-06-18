@@ -403,6 +403,8 @@ namespace diverse
 		packet.render_settings = snapshot_render_settings();
 		packet.delta_t = delta_dt;
 		packet.swapchain_extent = swapchain_extent;
+		packet.ui_frame = ui_renderer ? ui_renderer->consume_frame() : std::nullopt;
+		packet.debug_draw_frame = DebugRenderer::CaptureFrame();
 		packet.frame_desc.render_extent = main_render_tex->desc.extent_2d();//swapchain_extent;
 		auto projection = camera->get_projection_matrix();
 		auto invProj = glm::inverse(projection);
@@ -530,6 +532,7 @@ namespace diverse
 		gpu_scene.rt_instance_masks = std::move(packet.rt_instance_masks);
 		skip_gs_render = packet.skip_gs_render;
 		frame_render_settings = packet.render_settings;
+		debug_draw_frame = std::move(packet.debug_draw_frame);
 
 		auto rg = rg_renderer->temporal_graph();
 		const auto frame_desc = packet.frame_desc;
@@ -537,6 +540,7 @@ namespace diverse
 		const auto environment = packet.environment;
 		const auto delta_dt = packet.delta_t;
 		const auto swapchain_extent = packet.swapchain_extent;
+		auto ui_frame = std::move(packet.ui_frame);
 		apply_environment_frame(environment);
 		post->update_pre_exposure(frame_render_settings, delta_dt);
 
@@ -546,9 +550,9 @@ namespace diverse
 			}
 		);
 		rg_renderer->prepare_frame(rg,
-			[this, frame_desc, environment, swapchain_extent](rg::TemporalGraph& rg) {
+			[this, frame_desc, environment, swapchain_extent, ui_frame = std::move(ui_frame)](rg::TemporalGraph& rg) {
 				auto main_img = prepare_render_graph(rg, frame_desc, environment);
-				auto ui_img = ui_renderer->prepare_render_graph(rg);
+				auto ui_img = ui_renderer->prepare_render_graph(rg, ui_frame);
 				auto swap_chain = rg.get_swap_chain();
 
 				rg::RenderPass::new_compute(
@@ -1139,7 +1143,7 @@ namespace diverse
 				.dispatch({ accum_img.desc.extent[0], accum_img.desc.extent[1], 1 });
 			gaussian->render(rg, accum_img, depth_img);
 			point_pass->render(rg, accum_img, depth_img);
-			debug_render_pass->render(rg, accum_img, depth_img);
+			debug_render_pass->render(rg, accum_img, depth_img, debug_draw_frame, frame_desc.camera_matrices);
 			return post_processed;
 		}
 		return accum_img;
@@ -1202,7 +1206,7 @@ namespace diverse
 				.dispatch({ accum_img.desc.extent[0], accum_img.desc.extent[1], 1 });
 			gaussian->render(rg,accum_img, depth_img);
 			point_pass->render(rg, accum_img, depth_img);
-			debug_render_pass->render(rg, accum_img, depth_img);
+			debug_render_pass->render(rg, accum_img, depth_img, debug_draw_frame, frame_desc.camera_matrices);
 			return output;
 		}
 		return accum_img;

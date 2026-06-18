@@ -66,6 +66,12 @@ namespace diverse
     
     void MetalIMGUIRenderer::render(rhi::CommandBuffer* cmd_buf)
     {
+        ImGui::Render();
+        render_draw_data(cmd_buf, ImGui::GetDrawData());
+    }
+
+    void MetalIMGUIRenderer::render_draw_data(rhi::CommandBuffer* cmd_buf, ImDrawData* draw_data)
+    {
         auto cmd_metal = dynamic_cast<rhi::GpuCommandBufferMetal*>(cmd_buf);
         auto metal_swapchain = dynamic_cast<rhi::SwapchainMetal*>(swapchain);
         auto commandBuffer = cmd_metal->cmd_buf;
@@ -81,8 +87,8 @@ namespace diverse
         
         ImGui_ImplMetal_NewFrame(renderPassDescriptor);
 
-        ImGui::Render();
-        ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), commandBuffer, renderEncoder);
+        if (draw_data)
+            ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, renderEncoder);
 
         [renderEncoder popDebugGroup];
         [renderEncoder endEncoding];

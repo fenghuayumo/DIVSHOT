@@ -163,7 +163,26 @@ namespace diverse
         DS_PROFILE_FUNCTION();
 
         ImGui::Render();
-        frame_render(&g_WindowData, cmd_buf);
+        render_draw_data(cmd_buf, ImGui::GetDrawData());
+    }
+
+    void VKIMGUIRenderer::render_draw_data(rhi::CommandBuffer* cmd_buf, ImDrawData* draw_data)
+    {
+        DS_PROFILE_FUNCTION();
+        if (!draw_data || !draw_data->Valid)
+            return;
+
+        frame_render(&g_WindowData, cmd_buf, draw_data);
+    }
+
+    ImTextureID VKIMGUIRenderer::snapshot_texture_id(ImTextureID texture_id, ImGuiDrawDataSnapshot& snapshot)
+    {
+        auto* src_texture_id = static_cast<ImGuiTextureID*>(texture_id);
+        if (!src_texture_id)
+            return nullptr;
+
+        snapshot.texture_ids.push_back(*src_texture_id);
+        return &snapshot.texture_ids.back();
     }
 
     VkRenderPass VKIMGUIRenderer::create_render_pass()
@@ -224,7 +243,7 @@ namespace diverse
         return frame_buffer;
     }
 
-    void VKIMGUIRenderer::frame_render(ImGui_ImplVulkanH_Window* wd, rhi::CommandBuffer* cmd_buf)
+    void VKIMGUIRenderer::frame_render(ImGui_ImplVulkanH_Window* wd, rhi::CommandBuffer* cmd_buf, ImDrawData* draw_data)
     {
         DS_PROFILE_FUNCTION();
 
@@ -236,7 +255,6 @@ namespace diverse
         wd->FrameIndex = vkswapchain->next_semaphore;
         auto& descriptorImageMap = ImGui_ImplVulkan_GetDescriptorImageMap();
         {
-            auto draw_data = ImGui::GetDrawData();
             for (int n = 0; n < draw_data->CmdListsCount; n++)
             {
                 const ImDrawList* cmd_list = draw_data->CmdLists[n];
@@ -267,7 +285,7 @@ namespace diverse
             }
         }
 
-        ImGui_ImplVulkan_CreateDescriptorSets(ImGui::GetDrawData(), wd->FrameIndex);
+        ImGui_ImplVulkan_CreateDescriptorSets(draw_data, wd->FrameIndex);
 
         auto clear_values = VkClearValue{ VkClearColorValue {{0.0f,0.0f,0.0f,0.0f}}};
   
@@ -285,7 +303,7 @@ namespace diverse
         vkCmdBeginRenderPass(vkcmd, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
         {
             //Record Imgui Draw Data and draw funcs into command buffer
-            ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), vkcmd, VK_NULL_HANDLE, wd->FrameIndex);
+            ImGui_ImplVulkan_RenderDrawData(draw_data, vkcmd, VK_NULL_HANDLE, wd->FrameIndex);
         }
         vkCmdEndRenderPass(vkcmd);
     }

@@ -10,6 +10,7 @@
 #include "scene/component/light/spot_light.h"
 #include "scene/component/light/directional_light.h"
 #include "scene/component/environment.h"
+#include <array>
 #include <vector>
 #include <string>
 namespace diverse
@@ -75,6 +76,14 @@ namespace diverse
         }
     };
 
+    struct DebugDrawFrame
+    {
+        std::array<std::vector<TriangleInfo>, 2> triangles;
+        std::array<std::vector<LineInfo>, 2> lines;
+        std::array<std::vector<LineInfo>, 2> thick_lines;
+        std::array<std::vector<PointInfo>, 2> points;
+    };
+
     namespace maths
     {
         class Sphere;
@@ -91,6 +100,7 @@ namespace diverse
         static void Init();
         static void Release();
         static void Reset();
+        static DebugDrawFrame CaptureFrame();
 
         DebugRenderer();
         ~DebugRenderer();

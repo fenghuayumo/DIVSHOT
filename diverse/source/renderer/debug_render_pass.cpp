@@ -88,22 +88,25 @@ namespace diverse
 		}
     }
 
-    auto DebugRenderPass::render(rg::TemporalGraph& rg,rg::Handle<rhi::GpuTexture>& color_img,rg::Handle<rhi::GpuTexture>& depth_img)->void
+    auto DebugRenderPass::render(
+        rg::TemporalGraph& rg,
+        rg::Handle<rhi::GpuTexture>& color_img,
+        rg::Handle<rhi::GpuTexture>& depth_img,
+        const DebugDrawFrame& debug_frame,
+        const CameraMatrices& camera_matrices)->void
     {
         DS_PROFILE_FUNCTION();
-        if (!renderer->get_camera() || !renderer->get_camera_transform())
-            return;
         auto main_render_tex = renderer->get_main_render_image();
         //auto depth_img = rg.create<rhi::GpuTexture>(rhi::GpuTextureDesc::new_2d(PixelFormat::D32_Float, main_render_tex->desc.extent_2d()), "depth");
         //auto color_img = rg.create<rhi::GpuTexture>(rhi::GpuTextureDesc::new_2d(PixelFormat::R8G8B8A8_UNorm, main_render_tex->desc.extent_2d()), "debug_color");
         for(int i =0;i<2;i++)
         {
             bool depthTest = i == 1;
-            auto& lines = DebugRenderer::GetInstance()->GetLines(depthTest);
-            auto& thickLines = DebugRenderer::GetInstance()->GetThickLines(depthTest);
-            auto& triangles = DebugRenderer::GetInstance()->GetTriangles(depthTest);
-            auto& points = DebugRenderer::GetInstance()->GetPoints(depthTest);
-            auto projView = renderer->get_camera()->get_projection_matrix() * glm::inverse(renderer->get_camera_transform()->get_world_matrix());
+            auto& lines = debug_frame.lines[i];
+            auto& thickLines = debug_frame.thick_lines[i];
+            auto& triangles = debug_frame.triangles[i];
+            auto& points = debug_frame.points[i];
+            auto projView = camera_matrices.view_to_clip * camera_matrices.world_to_view;
 
             if (!lines.empty())
             {
@@ -327,9 +330,8 @@ namespace diverse
                 debug_draw_data.point_buffer = point_buffers[0]; 
                 for (auto& pointInfo : points)
                 {
-                    auto cameraTransform = renderer->camera_transform;
-                    glm::vec3 right = pointInfo.size * cameraTransform->get_right_direction();
-                    glm::vec3 up = pointInfo.size * cameraTransform->get_up_direction();
+                    glm::vec3 right = pointInfo.size * glm::normalize(glm::vec3(camera_matrices.view_to_world[0]));
+                    glm::vec3 up = pointInfo.size * glm::normalize(glm::vec3(camera_matrices.view_to_world[1]));
 
                     debug_draw_data.point_buffer->vertex = pointInfo.p1 - right - up; // + glm::vec3(-pointInfo.size, -pointInfo.size, 0.0f));
                     debug_draw_data.point_buffer->colour = pointInfo.col;

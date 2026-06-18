@@ -7,18 +7,36 @@ namespace diverse
 	{
 		return render_ui(rg);
 	}
+
+	auto UiRenderer::prepare_render_graph(rg::TemporalGraph& rg, const std::optional<UiFrame>& frame) -> rg::Handle<rhi::GpuTexture>
+	{
+		return render_ui(rg, frame);
+	}
+
+	auto UiRenderer::consume_frame() -> std::optional<UiFrame>
+	{
+		auto frame = std::move(ui_frame);
+		ui_frame.reset();
+		return frame;
+	}
+
 	auto UiRenderer::render_ui(rg::RenderGraph& rg) -> rg::Handle<rhi::GpuTexture>
 	{
-		if (ui_frame)
+		return render_ui(rg, ui_frame);
+	}
+
+	auto UiRenderer::render_ui(rg::RenderGraph& rg, const std::optional<UiFrame>& frame) -> rg::Handle<rhi::GpuTexture>
+	{
+		if (frame)
 		{
-            auto& image = ui_frame->second;
+            auto& image = frame->target;
 			auto ui_tex = rg.import_res(image, rhi::AccessType::Nothing);
 			auto pass = rg.add_pass("ui");
 
 			pass.raster(ui_tex, rhi::AccessType::ColorAttachmentWrite);
-			pass.render([&](rg::RenderPassApi& api){
+			pass.render([callback = frame->callback](rg::RenderPassApi& api){
 			
-                ui_frame->first(api.cb);
+                callback(api.cb);
 			});
 			pass.rg->record_pass(std::move(pass.pass));
 			return ui_tex;

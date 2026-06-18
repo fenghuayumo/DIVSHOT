@@ -141,9 +141,15 @@ namespace diverse
 
             callback();
 
-            ui_render->ui_frame = std::make_pair<UiRenderCallback, std::shared_ptr<rhi::GpuTexture>>([&](rhi::CommandBuffer* cmd_buf){
-                imgui_renderer->render(cmd_buf);
-            }, imgui_renderer->get_target_tex());
+            ImGui::Render();
+            auto draw_data_snapshot = imgui_renderer->capture_draw_data();
+            ui_render->ui_frame = UiFrame{
+                [renderer = imgui_renderer.get(), draw_data_snapshot](rhi::CommandBuffer* cmd_buf) {
+                    if (draw_data_snapshot)
+                        renderer->render_draw_data(cmd_buf, draw_data_snapshot->get());
+                },
+                imgui_renderer->get_target_tex()
+            };
         }
     }
 

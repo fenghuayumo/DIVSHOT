@@ -236,12 +236,6 @@ namespace diverse
         Input::get().reset_pressed();
         window->process_input();
 
-        if (main_renderer && main_renderer->is_render_thread_running())
-        {
-            DS_PROFILE_SCOPE("Application::WaitForRenderThread");
-            main_renderer->wait_for_render_idle();
-        }
-
         {
             DS_PROFILE_SCOPE("ImGui::NewFrame");
             ImGui::NewFrame();

@@ -10,6 +10,7 @@
 #include "debug_render_pass.h"
 #include "sky_pass.h"
 #include "light.h"
+#include "ui_renderer.h"
 #include "scene/component/gaussian_crop.h"
 #include <atomic>
 #include <condition_variable>
@@ -156,6 +157,8 @@ namespace diverse
 		std::vector<TriangleLight> triangle_lights;
 		std::vector<MeshFrameState> mesh_frame_states;
 		std::vector<u8> rt_instance_masks;
+		std::optional<UiFrame> ui_frame;
+		DebugDrawFrame debug_draw_frame;
 	};
 
 	struct BindlessImageHandle
@@ -212,6 +215,7 @@ namespace diverse
 		auto	wait_for_render_idle()->void;
 		struct UiRenderer*	get_ui_renderer() {return ui_renderer
 		.get(); }
+		auto	get_debug_draw_frame() const -> const DebugDrawFrame& { return debug_draw_frame; }
 
 		auto	set_override_camera(Camera* camera, maths::Transform* overrideCameraTransform)->void;
 
@@ -287,6 +291,7 @@ namespace diverse
 		std::array<u32, 2>	render_extent;
 
 		std::shared_ptr<struct UiRenderer>	ui_renderer;
+		DebugDrawFrame debug_draw_frame;
 		std::shared_ptr<GridRenderer> grid_renderer;
 		std::shared_ptr<rhi::GpuTexture>	main_render_tex;
 		std::shared_ptr<rhi::GpuTexture>	depth_render_tex;

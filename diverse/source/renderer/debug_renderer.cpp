@@ -66,6 +66,25 @@ namespace diverse
         s_Instance->m_MaxStatusEntryWidth = 0.0f;
     }
 
+    DebugDrawFrame DebugRenderer::CaptureFrame()
+    {
+        DS_PROFILE_FUNCTION();
+        DebugDrawFrame frame;
+        if (!s_Instance)
+            return frame;
+
+        frame.triangles[0] = s_Instance->m_DrawListNDT.m_DebugTriangles;
+        frame.lines[0] = s_Instance->m_DrawListNDT.m_DebugLines;
+        frame.thick_lines[0] = s_Instance->m_DrawListNDT.m_DebugThickLines;
+        frame.points[0] = s_Instance->m_DrawListNDT.m_DebugPoints;
+
+        frame.triangles[1] = s_Instance->m_DrawList.m_DebugTriangles;
+        frame.lines[1] = s_Instance->m_DrawList.m_DebugLines;
+        frame.thick_lines[1] = s_Instance->m_DrawList.m_DebugThickLines;
+        frame.points[1] = s_Instance->m_DrawList.m_DebugPoints;
+        return frame;
+    }
+
     void DebugRenderer::ClearLogEntries()
     {
         s_Instance->m_vLogEntries.clear();

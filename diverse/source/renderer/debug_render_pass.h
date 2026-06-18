@@ -2,6 +2,8 @@
 #include "backend/drs_rhi/gpu_device.h"
 #include "renderable2d.h"
 #include "drs_rg/renderer.h"
+#include "debug_renderer.h"
+#include "view_constants.h"
 
 namespace diverse
 {
@@ -51,7 +53,12 @@ namespace diverse
         DebugRenderPass(class DeferedRenderer* render);
         ~DebugRenderPass();
 
-        auto render(rg::TemporalGraph& rg,rg::Handle<rhi::GpuTexture>& color_img,rg::Handle<rhi::GpuTexture>& depth_img)->void;
+        auto render(
+			rg::TemporalGraph& rg,
+			rg::Handle<rhi::GpuTexture>& color_img,
+			rg::Handle<rhi::GpuTexture>& depth_img,
+			const DebugDrawFrame& debug_frame,
+			const CameraMatrices& camera_matrices)->void;
 
     	public:
 		struct DS_EXPORT RenderCommand2D

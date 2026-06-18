@@ -20,14 +20,23 @@ namespace diverse
 	//	struct Handle<rhi::GpuTexture>;
 	//}
 	using UiRenderCallback = std::function<void(rhi::CommandBuffer*)>;
+	struct UiFrame
+	{
+		UiRenderCallback callback;
+		std::shared_ptr<rhi::GpuTexture> target;
+	};
+
 	struct UiRenderer
 	{
-		std::optional<std::pair<UiRenderCallback, std::shared_ptr<rhi::GpuTexture>>>	ui_frame;
+		std::optional<UiFrame> ui_frame;
 	
 
 		auto prepare_render_graph(rg::TemporalGraph& rg)->rg::Handle<rhi::GpuTexture>;
+		auto prepare_render_graph(rg::TemporalGraph& rg, const std::optional<UiFrame>& frame)->rg::Handle<rhi::GpuTexture>;
+		auto consume_frame()->std::optional<UiFrame>;
 
 		auto render_ui(rg::RenderGraph& rg) -> rg::Handle<rhi::GpuTexture>;
+		auto render_ui(rg::RenderGraph& rg, const std::optional<UiFrame>& frame) -> rg::Handle<rhi::GpuTexture>;
 	};
 
 }

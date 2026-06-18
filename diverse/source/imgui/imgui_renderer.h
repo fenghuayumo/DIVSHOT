@@ -1,8 +1,10 @@
 #pragma once
 #include "core/base_type.h"
+#include <deque>
 #include <memory>
-#include <vector>
 #include <unordered_map>
+#include <vector>
+#include <imgui/imgui.h>
 namespace diverse
 {
     namespace rhi
@@ -18,6 +20,16 @@ namespace diverse
         u64*             sampler_handle = nullptr;
     };
 
+    struct ImGuiDrawDataSnapshot
+    {
+        ImDrawData draw_data;
+        std::vector<std::unique_ptr<ImDrawList>> draw_lists;
+        std::vector<ImDrawList*> draw_list_ptrs;
+        std::deque<ImGuiTextureID> texture_ids;
+
+        auto get() -> ImDrawData* { return draw_data.Valid ? &draw_data : nullptr; }
+    };
+
     class IMGUIRenderer
     {
     public:
@@ -28,10 +40,13 @@ namespace diverse
         virtual void init() = 0;
         virtual void new_frame() = 0;
         virtual void render(rhi::CommandBuffer* cmd_buf) = 0;
+        virtual void render_draw_data(rhi::CommandBuffer* cmd_buf, ImDrawData* draw_data);
         virtual void handle_resize(uint32_t width, uint32_t height) = 0;
         virtual void clear() { }
         virtual void rebuild_font_texture();
         virtual ImGuiTextureID* add_texture(const std::shared_ptr<rhi::GpuTexture>& texture);
+        virtual ImTextureID snapshot_texture_id(ImTextureID texture_id, ImGuiDrawDataSnapshot& snapshot);
+        auto capture_draw_data() -> std::shared_ptr<ImGuiDrawDataSnapshot>;
 
         auto    create_texture(u32 width, u32 height,u8* imag_data) -> std::shared_ptr<rhi::GpuTexture>;
         auto    create_texture(u32 width,u32 height)-> std::shared_ptr<rhi::GpuTexture>;

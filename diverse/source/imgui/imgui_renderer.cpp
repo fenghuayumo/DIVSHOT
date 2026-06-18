@@ -7,6 +7,7 @@
 #include <stb/image_utils.h>
 #include <imgui/imgui.h>
 #include "core/ds_log.h"
+#include <unordered_map>
 
 namespace diverse
 {
@@ -55,6 +56,58 @@ namespace diverse
         m_TextureIDs[m_CurrentTextureIDIndex].sampler_handle = nullptr;
         return &m_TextureIDs[m_CurrentTextureIDIndex++];
     }
+
+    void IMGUIRenderer::render_draw_data(rhi::CommandBuffer* cmd_buf, ImDrawData* draw_data)
+    {
+        (void)draw_data;
+        render(cmd_buf);
+    }
+
+    ImTextureID IMGUIRenderer::snapshot_texture_id(ImTextureID texture_id, ImGuiDrawDataSnapshot& snapshot)
+    {
+        (void)snapshot;
+        return texture_id;
+    }
+
+    auto IMGUIRenderer::capture_draw_data() -> std::shared_ptr<ImGuiDrawDataSnapshot>
+    {
+        auto* src_draw_data = ImGui::GetDrawData();
+        if (!src_draw_data || !src_draw_data->Valid)
+            return nullptr;
+
+        auto snapshot = std::make_shared<ImGuiDrawDataSnapshot>();
+        snapshot->draw_data = *src_draw_data;
+        snapshot->draw_lists.reserve(src_draw_data->CmdListsCount);
+        snapshot->draw_list_ptrs.reserve(src_draw_data->CmdListsCount);
+
+        std::unordered_map<ImTextureID, ImTextureID> texture_id_map;
+        for (int list_index = 0; list_index < src_draw_data->CmdListsCount; ++list_index)
+        {
+            auto cloned_list = std::unique_ptr<ImDrawList>(src_draw_data->CmdLists[list_index]->CloneOutput());
+            for (auto& draw_cmd : cloned_list->CmdBuffer)
+            {
+                if (!draw_cmd.TextureId)
+                    continue;
+
+                auto mapped_texture = texture_id_map.find(draw_cmd.TextureId);
+                if (mapped_texture == texture_id_map.end())
+                {
+                    mapped_texture = texture_id_map.emplace(
+                        draw_cmd.TextureId,
+                        snapshot_texture_id(draw_cmd.TextureId, *snapshot)).first;
+                }
+                draw_cmd.TextureId = mapped_texture->second;
+            }
+
+            snapshot->draw_list_ptrs.push_back(cloned_list.get());
+            snapshot->draw_lists.push_back(std::move(cloned_list));
+        }
+
+        snapshot->draw_data.CmdLists = snapshot->draw_list_ptrs.data();
+        snapshot->draw_data.CmdListsCount = static_cast<int>(snapshot->draw_list_ptrs.size());
+        return snapshot;
+    }
+
     auto IMGUIRenderer::create_texture(u32 width, u32 height, u8* imag_data) -> std::shared_ptr<rhi::GpuTexture>
     {
         auto desc = rhi::GpuTextureDesc::new_2d(PixelFormat::R8G8B8A8_UNorm, { width, height })

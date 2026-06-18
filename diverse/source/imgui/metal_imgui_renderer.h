@@ -14,6 +14,7 @@ namespace diverse
         void init() override;
         void new_frame() override;
         void render(rhi::CommandBuffer* cmd_buf) override;
+        void render_draw_data(rhi::CommandBuffer* cmd_buf, ImDrawData* draw_data) override;
         void handle_resize(uint32_t width, uint32_t height) override;
         void clear() override;
         void rebuild_font_texture() override;
