@@ -4,9 +4,14 @@
 
 #if defined(DS_PLATFORM_WINDOWS)
 #include <d3d12.h>
+#include <d3d12shader.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
+#include <mutex>
 #include <stdexcept>
+
+// D3D12 Raytracing is included in d3d12.h for Windows SDK 10.0.16299 and later
+// No separate d3d12raytracing.h needed
 
 namespace diverse
 {
@@ -64,6 +69,10 @@ namespace diverse
         {
             explicit GpuTextureDXR(const GpuTextureDesc& desc);
             auto view(const GpuDevice* device, const GpuTextureViewDesc& desc) -> std::shared_ptr<GpuTextureView> override;
+
+            Microsoft::WRL::ComPtr<ID3D12Resource> resource;
+            D3D12_RESOURCE_STATES current_state = D3D12_RESOURCE_STATE_COMMON;
+            u8* mapped_data = nullptr;
         };
 
         struct RenderPassDXR : public RenderPass
@@ -74,6 +83,17 @@ namespace diverse
 
         struct DescriptorSetDXR : public DescriptorSet
         {
+            std::vector<Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>> heaps;
+            std::unordered_map<u32, D3D12_CPU_DESCRIPTOR_HANDLE> cpu_handles;
+            std::unordered_map<u32, D3D12_GPU_DESCRIPTOR_HANDLE> gpu_handles;
+            Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> sampler_heap;
+        };
+
+        struct RootSignatureDXR
+        {
+            Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature;
+            u32 root_parameter_count = 0;
+            std::vector<u32> descriptor_table_sizes;
         };
 
         struct PipelineDXR : public GpuPipeline
@@ -82,6 +102,27 @@ namespace diverse
             {
                 ty = type;
             }
+
+            Microsoft::WRL::ComPtr<ID3D12PipelineState> pipeline_state;
+            Microsoft::WRL::ComPtr<ID3D12StateObject> state_object;
+            std::shared_ptr<RootSignatureDXR> root_signature;
+
+            // Ray tracing specific
+            struct ShaderTableData
+            {
+                Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
+                u8* mapped_data = nullptr;
+                u64 raygen_record_size = 0;
+                u64 raygen_section_size = 0;
+                u64 miss_record_size = 0;
+                u64 miss_section_size = 0;
+                u64 hit_record_size = 0;
+                u64 hit_section_size = 0;
+                u64 raygen_offset = 0;
+                u64 miss_offset = 0;
+                u64 hit_offset = 0;
+            };
+            ShaderTableData shader_table;
         };
 
         struct GpuRayTracingAccelerationDXR : public GpuRayTracingAcceleration
@@ -91,6 +132,10 @@ namespace diverse
             {}
 
             auto as_device_address(const GpuDevice* device) -> u64 override;
+
+            Microsoft::WRL::ComPtr<ID3D12Resource> acceleration_structure;
+            u64 acceleration_structure_size = 0;
+            bool is_top_level = false;
         };
 
         struct SwapchainDXR : public Swapchain
@@ -108,6 +153,8 @@ namespace diverse
             auto reset_frame_index() -> void override { frame_index = 0; }
 
             u64 frame_index = 0;
+            Microsoft::WRL::ComPtr<IDXGISwapChain4> swap_chain;
+            std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> back_buffers;
         };
 
         struct GpuDeviceDXR : public GpuDevice
@@ -192,6 +239,20 @@ namespace diverse
             DeviceFrameDXR frames[DYNAMIC_CONSTANTS_BUFFER_COUNT];
             u32 active_frame = 0;
             bool supports_dxr = false;
+            std::mutex release_mutex;
+            std::vector<DeferedReleaseResource> destroy_queue;
+
+            // Descriptor heaps
+            Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> cbv_srv_uav_heap;
+            Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> sampler_heap;
+            u32 cbv_srv_uav_descriptor_size = 0;
+            u32 sampler_descriptor_size = 0;
+            u32 cbv_srv_uav_heap_index = 0;
+            u32 sampler_heap_index = 0;
+            static constexpr u32 DESCRIPTOR_HEAP_SIZE = 4096;
+
+            // Root signature cache
+            std::unordered_map<size_t, std::shared_ptr<RootSignatureDXR>> root_signature_cache;
         };
 
         auto create_dxr_device(u32 device_index)->GpuDevice*;

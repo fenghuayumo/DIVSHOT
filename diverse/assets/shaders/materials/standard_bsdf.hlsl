@@ -22,6 +22,7 @@ struct StandardBSDF
     float ior;
     float3 base_color;
     float3 specular_f0;
+    float3 fuzz_color;
     float fuzz_roughness;
 
     // === Lobe configuration ===
@@ -207,7 +208,7 @@ struct StandardBSDF
         float view_factor = pow(1.0 - data.ndotv, 3.0);
         float light_factor = pow(1.0 - data.ndotl, 3.0);
 
-        result.value = sheen * view_factor * light_factor * M_FRAC_1_PI;
+        result.value = fuzz_color * sheen * view_factor * light_factor * M_FRAC_1_PI;
         result.pdf = data.ndotl * M_FRAC_1_PI;
         result.weight = fuzz_weight;
 
@@ -226,7 +227,7 @@ struct StandardBSDF
 
         result.wi = float3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
         result.pdf = cos_theta * M_FRAC_1_PI;
-        result.lobe_value = pow(cos_theta, fuzz_roughness) * M_FRAC_1_PI;
+        result.lobe_value = fuzz_color * pow(cos_theta, fuzz_roughness) * M_FRAC_1_PI;
         result.value = result.lobe_value / max(result.pdf, 1e-8);
         result.approx_roughness = fuzz_roughness;
         result.lobe_pdf = result.pdf;
@@ -336,6 +337,7 @@ struct StandardBSDF
         bsdf.ior = mat.specular_ior;
         bsdf.base_color = mat.base_color_mult.rgb;
         bsdf.specular_f0 = mat.specular_color.rgb * dielectric_f0_from_ior(mat.specular_ior);
+        bsdf.fuzz_color = mat.fuzz_color.rgb;
         bsdf.fuzz_roughness = mat.fuzz_roughness;
 
         // Configure active lobes

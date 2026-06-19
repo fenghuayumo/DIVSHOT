@@ -9,16 +9,28 @@
 #include "../materials/standard_bsdf.hlsl"
 #include "../lighting/sun_light.hlsl"
 
+#ifndef IES_SAMPLER
+#define IES_SAMPLER sampler_llc
+#endif
+
+#ifndef ENVIRONMENT_SAMPLER
+#define ENVIRONMENT_SAMPLER sampler_llc
+#endif
+
+#include "../inc/lights/light_common.hlsl"
+
 DS_RT_ACCELERATION(0, DS_DESCRIPTOR_SET_ACCELERATION) RaytracingAccelerationStructure acceleration_structure;
 
 DS_RESOURCE(0) RWTexture2D<float4> output_tex;
 DS_RESOURCE(1) RWTexture2D<float> depth_tex;
 DS_RESOURCE(2) TextureCube<float4> sky_cube_tex;
+DS_RESOURCE(3) Texture2D<float> sky_pdf_tex;
 
 #include "../lighting/env_light.hlsl"
 
 static const uint MAX_EYE_PATH_LENGTH = 8;
 static const uint RUSSIAN_ROULETTE_START_PATH_LENGTH = 3;
+static const uint REFERENCE_PT_NEE_CANDIDATE_COUNT = 8;
 static const float REFERENCE_PT_FIREFLY_FILTER_THRESHOLD = 256.0;
 
 float dielectric_f0_from_eta(float eta)
@@ -35,6 +47,7 @@ StandardBSDF make_surface_bsdf(MaterialData material, GbufferData gbuffer)
     bsdf.roughness = clamp(gbuffer.roughness, 1e-4, 1.0);
     bsdf.anisotropy = material.anisotropy;
     bsdf.ior = max(1.0, material.specular_ior);
+    bsdf.fuzz_color = max(0.0.xxx, material.fuzz_color.rgb);
     bsdf.fuzz_roughness = max(1e-4, material.fuzz_roughness);
 
     float dielectric_f0 = dielectric_f0_from_eta(bsdf.ior);
@@ -133,7 +146,114 @@ float3 evaluate_sun_nee(
     return eval.value * light_sample.Li * wi.z;
 }
 
-float3 evaluate_environment_nee(
+bool light_type_sampleable_by_bsdf(PolymorphicLightType light_type)
+{
+    return light_type == PolymorphicLightType::kTriangle;
+}
+
+bool light_type_handled_by_reference_pt_scene_nee(PolymorphicLightType light_type)
+{
+    // Directional lights are represented by the frame sun path. Environment is
+    // handled as a sky-cube NEEAT candidate because the current environment
+    // LightShaderData does not carry the resolved cube texture.
+    return light_type != PolymorphicLightType::kDirectional
+        && light_type != PolymorphicLightType::kEnvironment;
+}
+
+float combined_light_pdf(LightSample light_sample)
+{
+    return light_sample.selection_pdf * light_sample.solid_angle_pdf;
+}
+
+LightSample sample_scene_light(
+    uint light_index,
+    float3 position,
+    float2 urand,
+    float selection_pdf)
+{
+    LightSample ret = LightSample::make();
+    PolymorphicLightInfo light_info = scene_lights_dyn[light_index];
+    PolymorphicLightType light_type = getLightType(light_info);
+
+    if (!light_type_handled_by_reference_pt_scene_nee(light_type))
+        return ret;
+
+    PolymorphicLightSample polymorphic_sample = PolymorphicLight::calcSample(light_info, urand, position);
+    if (polymorphic_sample.solidAnglePdf <= 0.0 || !any(polymorphic_sample.radiance > 0.0))
+        return ret;
+
+    float3 to_light = polymorphic_sample.position - position;
+    float distance_to_light = length(to_light);
+    if (distance_to_light <= 1e-4)
+        return ret;
+
+    ret.Li = polymorphic_sample.radiance;
+    ret.direction = to_light / distance_to_light;
+    ret.distance = distance_to_light;
+    ret.light_index = light_index;
+    ret.selection_pdf = selection_pdf;
+    ret.solid_angle_pdf = polymorphic_sample.solidAnglePdf;
+    ret.light_sampleable_by_bsdf = light_type_sampleable_by_bsdf(light_type);
+    ret.from_local_distribution = false;
+    return ret;
+}
+
+LightSample sample_environment_light_candidate(
+    float3 normal,
+    float2 urand,
+    float selection_pdf)
+{
+    LightSample ret = LightSample::make();
+    EnvironmentLightSample environment_sample = sample_environment_light_nee(normal, urand);
+    if (!environment_sample.valid())
+        return ret;
+
+    ret.Li = environment_sample.Li;
+    ret.direction = environment_sample.direction;
+    ret.distance = FLT_MAX;
+    ret.light_index = 0xffffffff;
+    ret.selection_pdf = selection_pdf;
+    ret.solid_angle_pdf = environment_sample.pdf;
+    ret.light_sampleable_by_bsdf = true;
+    ret.from_local_distribution = false;
+    return ret;
+}
+
+struct NeeAtReservoir
+{
+    LightSample sample;
+    float weight_sum;
+    float selected_weight;
+
+    static NeeAtReservoir make()
+    {
+        NeeAtReservoir ret;
+        ret.sample = LightSample::make();
+        ret.weight_sum = 0.0;
+        ret.selected_weight = 0.0;
+        return ret;
+    }
+
+    void add(float random_value, LightSample candidate, float candidate_weight)
+    {
+        if (candidate_weight <= 0.0)
+            return;
+
+        weight_sum += candidate_weight;
+        if (random_value < saturate(candidate_weight / max(weight_sum, 1e-8)))
+        {
+            sample = candidate;
+            selected_weight = candidate_weight;
+        }
+    }
+
+    bool valid()
+    {
+        return weight_sum > 0.0 && selected_weight > 0.0 && sample.Valid();
+    }
+};
+
+float3 evaluate_lights_neeat(
     StandardBSDF bsdf,
     float3x3 tangent_to_world,
     float3 position,
@@ -142,18 +262,73 @@ float3 evaluate_environment_nee(
     float firefly_filter_k,
     inout Random rng)
 {
-    EnvironmentLightSample light_sample = sample_environment_light_nee(
-        normal,
-        float2(uniform_rand_float(rng), uniform_rand_float(rng)));
+    uint scene_light_count = frame_constants.scene_lights_count;
+    uint direct_light_choice_count = scene_light_count + 1;
+    if (direct_light_choice_count == 0)
+        return 0.0.xxx;
 
-    if (!light_sample.valid())
+    float light_selection_pdf = 1.0 / (float)direct_light_choice_count;
+    NeeAtReservoir reservoir = NeeAtReservoir::make();
+
+    [unroll]
+    for (uint candidate_index = 0; candidate_index < REFERENCE_PT_NEE_CANDIDATE_COUNT; ++candidate_index)
+    {
+        float light_selector = uniform_rand_float(rng);
+        uint light_choice = min((uint)(light_selector * direct_light_choice_count), direct_light_choice_count - 1);
+
+        LightSample candidate;
+        if (light_choice < scene_light_count)
+        {
+            candidate = sample_scene_light(
+                light_choice,
+                position,
+                float2(uniform_rand_float(rng), uniform_rand_float(rng)),
+                light_selection_pdf);
+        }
+        else
+        {
+            candidate = sample_environment_light_candidate(
+                normal,
+                float2(uniform_rand_float(rng), uniform_rand_float(rng)),
+                light_selection_pdf);
+        }
+
+        float light_pdf = combined_light_pdf(candidate);
+        if (light_pdf <= 0.0)
+            continue;
+
+        float3 wi = mul(candidate.direction, tangent_to_world);
+        if (wi.z <= 0.0)
+            continue;
+
+        BsdfEvalData eval_data = BsdfEvalData::create(wo, wi, float3(0, 0, 1), float3(0, 0, 1));
+        BsdfEvalResult eval = bsdf.evaluate(eval_data);
+        if (eval.pdf <= 0.0 || !any(eval.value > 0.0))
+            continue;
+
+        float candidate_weight = max3(candidate.Li.x, candidate.Li.y, candidate.Li.z)
+            * eval.pdf
+            / max(light_pdf, 1e-8);
+        reservoir.add(uniform_rand_float(rng), candidate, candidate_weight);
+    }
+
+    if (!reservoir.valid())
+        return 0.0.xxx;
+
+    LightSample light_sample = reservoir.sample;
+    float light_pdf = combined_light_pdf(light_sample);
+    if (light_pdf <= 0.0)
         return 0.0.xxx;
 
     float3 wi = mul(light_sample.direction, tangent_to_world);
     if (wi.z <= 0.0)
         return 0.0.xxx;
 
-    RayDesc shadow_ray = new_ray(offset_position(position, normal), light_sample.direction, 1e-3, FLT_MAX);
+    RayDesc shadow_ray = new_ray(
+        offset_position(position, normal),
+        light_sample.direction,
+        1e-3,
+        max(1e-3, light_sample.distance * 0.9985));
     if (!trace_visibility(shadow_ray))
         return 0.0.xxx;
 
@@ -162,8 +337,19 @@ float3 evaluate_environment_nee(
     if (eval.pdf <= 0.0 || !any(eval.value > 0.0))
         return 0.0.xxx;
 
-    float mis_weight = nee_balance_mis(light_sample.pdf, eval.pdf);
-    float3 contribution = eval.value * light_sample.Li * wi.z * mis_weight / max(light_sample.pdf, 1e-8);
+    float mis_weight = light_sample.light_sampleable_by_bsdf
+        ? nee_balance_mis(light_pdf, eval.pdf)
+        : 1.0;
+
+    float neeat_correction = reservoir.weight_sum
+        / max(reservoir.selected_weight * (float)REFERENCE_PT_NEE_CANDIDATE_COUNT, 1e-8);
+    float3 contribution = eval.value
+        * light_sample.Li
+        * wi.z
+        * mis_weight
+        * neeat_correction
+        / max(light_pdf, 1e-8);
+
     return apply_firefly_filter(contribution, REFERENCE_PT_FIREFLY_FILTER_THRESHOLD, firefly_filter_k);
 }
 
@@ -269,7 +455,7 @@ void main()
             wo,
             rng);
 
-        radiance += throughput * evaluate_environment_nee(
+        radiance += throughput * evaluate_lights_neeat(
             bsdf,
             tangent_to_world,
             hit.position,
@@ -296,7 +482,8 @@ void main()
 
         float3 next_direction = normalize(mul(tangent_to_world, bsdf_sample.wi));
         previous_bsdf_pdf = bsdf_sample.pdf;
-        previous_environment_nee_pdf = environment_nee_pdf(gbuffer.normal, next_direction);
+        previous_environment_nee_pdf = environment_nee_pdf(gbuffer.normal, next_direction)
+            / (float)(frame_constants.scene_lights_count + 1);
         firefly_filter_k = update_firefly_filter_k(firefly_filter_k, bsdf_sample.pdf);
         ray = new_ray(offset_position(hit.position, gbuffer.normal), next_direction, 1e-3, FLT_MAX);
 

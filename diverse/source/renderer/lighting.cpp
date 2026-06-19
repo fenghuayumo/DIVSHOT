@@ -154,40 +154,6 @@ namespace diverse
             .dispatch(gbuffer_depth.gbuffer.desc.extent);
     }
 
-    auto build_mip_map(rg::RenderGraph& rg,
-        rg::Handle<rhi::GpuTexture>& dst_tex,
-        int start_mip_level) ->void
-    {
-        const auto& dest_desc = dst_tex.desc;
-        constexpr uint32_t mip_levels_per_pass = 5;
-        uint32_t width = dest_desc.extent[0];
-        uint32_t height = dest_desc.extent[1];
-        for (uint32_t source_mip_level = start_mip_level; source_mip_level < dest_desc.mip_levels; source_mip_level += mip_levels_per_pass)
-        {
-            rg::RenderPass::new_compute(rg.add_pass("build mipmap"), "/shaders/sky/build_mipmap.hlsl")
-                .write_view(dst_tex,rhi::GpuTextureViewDesc()
-            	    .with_base_mip_level(source_mip_level)
-                    .with_level_count(mip_levels_per_pass))
-                .write_view(dst_tex, rhi::GpuTextureViewDesc()
-                    .with_base_mip_level(source_mip_level + 1)
-                    .with_level_count(mip_levels_per_pass))
-                .write_view(dst_tex, rhi::GpuTextureViewDesc()
-                    .with_base_mip_level(source_mip_level + 2)
-                    .with_level_count(mip_levels_per_pass))
-                .write_view(dst_tex, rhi::GpuTextureViewDesc()
-                    .with_base_mip_level(source_mip_level + 3)
-                    .with_level_count(mip_levels_per_pass))
-                .write_view(dst_tex, rhi::GpuTextureViewDesc()
-                    .with_base_mip_level(source_mip_level + 4)
-                    .with_level_count(mip_levels_per_pass))
-                .read_view(dst_tex, rhi::GpuTextureViewDesc()
-                    .with_base_mip_level(source_mip_level - 1)
-                    .with_level_count(1))
-                .constants(glm::uvec4(source_mip_level,width,0,0))
-                .dispatch({width, height, 1});
-        }
-    }
-
     auto LightingPass::prepare_lights(
             rg::RenderGraph& rg,
             const GbufferDepth& gbuffer_depth,
@@ -197,7 +163,7 @@ namespace diverse
             rhi::DescriptorSet* bindless_descriptor_set)->RtxDiResouceHandle
     {
         auto [sky_env_map,sky_pdf] = sky::build_sky_env_map(rg, sky_cube, 2048);
-        build_mip_map(rg,sky_pdf,1);
+        sky::build_mip_map(rg,sky_pdf,1);
         auto render_width = output.desc.extent[0];
         auto render_height = output.desc.extent[1];
         ///* The light indexing members of frameParameters are written by PrepareLightsPass below
@@ -275,7 +241,7 @@ namespace diverse
         odd_frame = !odd_frame;
         if (rtxdi_sampling_context->IsReGIREnabled() && light_buffer_offset > 0)
         {
-            build_mip_map(rg, local_light_pdf_texture, 1);
+            sky::build_mip_map(rg, local_light_pdf_texture, 1);
         }
         auto rtxdi_resource = RtxDiResouceHandle{
             sky_env_map,

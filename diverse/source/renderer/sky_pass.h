@@ -13,6 +13,10 @@ namespace diverse
         auto build_sky_env_map(rg::RenderGraph& rg,
             const rg::Handle<rhi::GpuTexture>& input,
             int envmap_width = 2048)->std::tuple<rg::Handle<rhi::GpuTexture>,rg::Handle<rhi::GpuTexture>>;
+
+        auto build_mip_map(rg::RenderGraph& rg,
+            rg::Handle<rhi::GpuTexture>& dst_tex,
+            int start_mip_level = 1) -> void;
             
         auto convolve_cube(rg::RenderGraph& rg,
             const rg::Handle<rhi::GpuTexture>& input)->rg::Handle<rhi::GpuTexture>;

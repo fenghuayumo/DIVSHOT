@@ -1,8 +1,10 @@
 #include "drs_rg/temporal.h"
 #include "drs_rg/simple_pass.h"
 #include <optional>
+#include <tuple>
 #include "assets/texture.h"
 #include "drs_rg/image_op.h"
+#include "sky_pass.h"
 
 namespace diverse
 {
@@ -18,6 +20,9 @@ namespace diverse
 						output_image.desc
 						.with_format(PixelFormat::R32_Float),
 						"pt.depth");
+		auto sky_env_resources = sky::build_sky_env_map(rg, sky_cube, 2048);
+		auto sky_pdf_tex = std::get<1>(sky_env_resources);
+		sky::build_mip_map(rg, sky_pdf_tex, 1);
 
 		rg::RenderPass::new_rt(
 			rg.add_pass("reference pt"),
@@ -33,6 +38,7 @@ namespace diverse
 		.write(output_image)
 		.write(pt_depth_img)
 		.read(sky_cube)
+		.read(sky_pdf_tex)
 		.raw_descriptor_set(1, bindless_descriptor_set)
 		.trace_rays(tlas.value(), output_image.desc.extent);
 
