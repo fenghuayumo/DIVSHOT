@@ -27,6 +27,10 @@
 #include <ModelLoaders/tinygltf/tiny_gltf.h>
 #include <image_utils.h>
 
+// Include stb_image for decoding embedded JPEG/PNG textures in GLB files
+// STB_IMAGE_IMPLEMENTATION already defined in stbimage project
+#include <stb_image.h>
+
 #include <ozz/animation/runtime/animation.h>
 #include <ozz/animation/offline/animation_builder.h>
 #include <ozz/animation/runtime/skeleton.h>
@@ -73,6 +77,56 @@ namespace tinygltf
         std::string* warn, int req_width, int req_height,
         const unsigned char* bytes, int size, void* userdata)
     {
+        (void)warn;
+        (void)userdata;
+
+        int w = 0, h = 0, comp = 0;
+        unsigned char* data = stbi_load_from_memory(bytes, size, &w, &h, &comp, 4);
+        if (!data)
+        {
+            if (err)
+            {
+                (*err) += "Failed to decode glTF image[";
+                (*err) += std::to_string(image_idx);
+                (*err) += "]: ";
+                (*err) += stbi_failure_reason();
+                (*err) += "\n";
+            }
+            return false;
+        }
+
+        if (w < 1 || h < 1)
+        {
+            stbi_image_free(data);
+            if (err)
+                (*err) += "Invalid image dimensions for glTF image\n";
+            return false;
+        }
+
+        if (req_width > 0 && req_width != w)
+        {
+            stbi_image_free(data);
+            if (err)
+                (*err) += "Image width mismatch for glTF image\n";
+            return false;
+        }
+
+        if (req_height > 0 && req_height != h)
+        {
+            stbi_image_free(data);
+            if (err)
+                (*err) += "Image height mismatch for glTF image\n";
+            return false;
+        }
+
+        image->width = w;
+        image->height = h;
+        image->component = 4;
+        image->bits = 8;
+        image->pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+        image->image.resize(static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
+        std::copy(data, data + w * h * 4, image->image.begin());
+        stbi_image_free(data);
         return true;
     }
 
@@ -217,12 +271,79 @@ namespace diverse
                 {
                     auto Image = &gltfModel.images.at(tex.source);
                     auto image_path = std::filesystem::path(Image->uri);
+
+                    // Handle embedded images (GLB files)
                     if(image_path.empty())
-						return SharedPtr<asset::Texture>();
-                    if (image_path.is_relative())
-                        image_path = std::filesystem::path(basePath) / image_path;
-                    auto texture = ResourceManager<asset::Texture>::get().get_resource(image_path.string());
-                    return texture;
+                    {
+                        // Prefer decoded pixel data populated by LoadImageData during GLB parsing.
+                        if (Image->width > 0 && Image->height > 0 && !Image->image.empty())
+                        {
+                            std::vector<u8> pixelData(Image->image.begin(), Image->image.end());
+                            return createSharedPtr<asset::Texture>(
+                                static_cast<uint32_t>(Image->width),
+                                static_cast<uint32_t>(Image->height),
+                                pixelData,
+                                PixelFormat::R8G8B8A8_UNorm);
+                        }
+
+                        // Fallback: read raw image bytes from bufferView and decode manually.
+                        std::vector<u8> image_data;
+                        if (!Image->image.empty())
+                            image_data = Image->image;
+                        else if (Image->bufferView >= 0 &&
+                                 Image->bufferView < static_cast<int>(gltfModel.bufferViews.size()))
+                        {
+                            const auto& bufferView = gltfModel.bufferViews[Image->bufferView];
+                            if (bufferView.buffer >= 0 &&
+                                bufferView.buffer < static_cast<int>(gltfModel.buffers.size()))
+                            {
+                                const auto& buffer = gltfModel.buffers[bufferView.buffer];
+                                const size_t offset = bufferView.byteOffset;
+                                const size_t length = bufferView.byteLength;
+                                if (offset + length <= buffer.data.size())
+                                    image_data.assign(buffer.data.begin() + offset,
+                                                      buffer.data.begin() + offset + length);
+                            }
+                        }
+
+                        if (!image_data.empty())
+                        {
+                            int img_width = 0, img_height = 0, channels = 0;
+                            stbi_uc* decoded_data = stbi_load_from_memory(
+                                image_data.data(),
+                                static_cast<int>(image_data.size()),
+                                &img_width,
+                                &img_height,
+                                &channels,
+                                4);
+
+                            if (!decoded_data)
+                            {
+                                DS_LOG_WARN("Failed to decode embedded texture: source={}, error={}",
+                                    tex.source, stbi_failure_reason());
+                                return SharedPtr<asset::Texture>();
+                            }
+
+                            std::vector<u8> textureData(decoded_data, decoded_data + img_width * img_height * 4);
+                            stbi_image_free(decoded_data);
+
+                            return createSharedPtr<asset::Texture>(
+                                static_cast<uint32_t>(img_width),
+                                static_cast<uint32_t>(img_height),
+                                textureData,
+                                PixelFormat::R8G8B8A8_UNorm);
+                        }
+
+                        DS_LOG_WARN("GLB embedded texture has no image data: source={}", tex.source);
+                    }
+                    else if (!image_path.empty())
+                    {
+                        // Handle external texture files
+                        if (image_path.is_relative())
+                            image_path = std::filesystem::path(basePath) / image_path;
+                        auto texture = ResourceManager<asset::Texture>::get().get_resource(image_path.string());
+                        return texture;
+                    }
                 }
             }
             return SharedPtr<asset::Texture>();
