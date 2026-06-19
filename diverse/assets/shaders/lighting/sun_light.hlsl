@@ -2,6 +2,7 @@
 #define LIGHTING_SUN_LIGHT_HLSL
 
 #include "../inc/math.hlsl"
+#include "../inc/monte_carlo.hlsl"
 #include "light_types.hlsl"
 
 /// Sun/directional light sampling
@@ -22,23 +23,25 @@ struct SunLight
         return s;
     }
 
-    /// Sample sun light
+    /// Sample sun light (uniform over solar disk, matching RTXPT DirectionalLight)
     LightSample sample(float2 urand)
     {
         LightSample result;
         result.light_index = 0xFFFFFFFF;  // Special index for sun
-        result.direction = direction;
         result.distance = distance;
         result.selection_pdf = 1.0;     // Sun is always selected
         result.light_sampleable_by_bsdf = false;
-
-        // Approximate solid angle of sun
-        float solid_angle = 2.0 * M_PI * (1.0 - cos(angular_radius));
-        result.solid_angle_pdf = 1.0 / solid_angle;
         result.from_local_distribution = false;
 
-        // Sun color (approximate)
-        result.Li = color * solid_angle;
+        float solid_angle = 2.0 * M_PI * (1.0 - cos(angular_radius));
+        result.solid_angle_pdf = 1.0 / max(solid_angle, 1e-8);
+
+        float3x3 basis = build_orthonormal_basis(direction);
+        float3 local_dir = uniform_sample_cone(urand, cos(angular_radius));
+        result.direction = normalize(mul(basis, local_dir));
+
+        // Radiance is constant over the solar disk.
+        result.Li = color;
 
         return result;
     }
@@ -56,29 +59,5 @@ struct SunLight
         return cos_angle > cos(angular_radius);
     }
 };
-
-/// NEE with sun light
-float3 sample_sun_light_nee(
-    SunLight sun,
-    float3 normal,
-    float2 urand,
-    out float3 sun_direction,
-    out float sun_pdf)
-{
-    // Simple directional sun for NEE
-    float ndotl = dot(normal, sun.direction);
-
-    if (ndotl <= 0.0)
-    {
-        sun_direction = float3(0, 0, 0);
-        sun_pdf = 0.0;
-        return float3(0, 0, 0);
-    }
-
-    sun_direction = sun.direction;
-    sun_pdf = 1.0;  // Deterministic direction
-
-    return sun.color * ndotl;
-}
 
 #endif // LIGHTING_SUN_LIGHT_HLSL

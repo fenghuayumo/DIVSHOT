@@ -33,6 +33,7 @@ static const uint MAX_EYE_PATH_LENGTH = 8;
 static const uint RUSSIAN_ROULETTE_START_PATH_LENGTH = 3;
 static const uint REFERENCE_PT_NEE_CANDIDATE_COUNT = 8;
 static const float REFERENCE_PT_FIREFLY_FILTER_THRESHOLD = 256.0;
+static const float SPECULAR_ROUGHNESS_DIFFUSE_THRESHOLD = 0.25;
 
 float dielectric_f0_from_eta(float eta)
 {
@@ -132,7 +133,8 @@ float3 evaluate_sun_nee(
 {
     SunLight sun = make_frame_sun();
     LightSample light_sample = sun.sample(float2(uniform_rand_float(rng), uniform_rand_float(rng)));
-    light_sample.Li = sun.evaluate();
+    if (light_sample.solid_angle_pdf <= 0.0)
+        return 0.0.xxx;
 
     float3 wi = mul(light_sample.direction, tangent_to_world);
     if (wi.z <= 0.0)
@@ -144,7 +146,10 @@ float3 evaluate_sun_nee(
 
     BsdfEvalData eval_data = BsdfEvalData::create(wo, wi, float3(0, 0, 1), float3(0, 0, 1));
     BsdfEvalResult eval = bsdf.evaluate(eval_data);
-    return eval.value * light_sample.Li * wi.z;
+
+    // Directional lights are not BSDF-sampleable (RTXPT: LightSampleableByBSDF = false),
+    // so MIS vs BSDF is 1.0 — the BSDF cannot importance-sample the solar disk.
+    return eval.value * light_sample.Li * wi.z / max(light_sample.solid_angle_pdf, 1e-8);
 }
 
 bool light_type_sampleable_by_bsdf(PolymorphicLightType light_type)
@@ -213,7 +218,10 @@ LightSample sample_environment_light_candidate(
     float selection_pdf)
 {
     LightSample ret = LightSample::make();
-    EnvironmentLightSample environment_sample = sample_environment_light_nee(normal, urand);
+    EnvironmentLightSample environment_sample = sample_environment_light_nee(
+        normal,
+        urand,
+        environment_nee_sample_mip_level());
     if (!environment_sample.valid())
         return ret;
 
@@ -405,6 +413,7 @@ void main()
     float previous_bsdf_pdf = 0.0;
     float previous_environment_nee_pdf = 0.0;
     float firefly_filter_k = 1.0;
+    uint diffuse_bounces = 0;
 
     [loop]
     for (uint path_length = 0; path_length < MAX_EYE_PATH_LENGTH; ++path_length)
@@ -417,7 +426,9 @@ void main()
             if (previous_bsdf_pdf > 0.0 && previous_environment_nee_pdf > 0.0)
                 mis_weight = nee_balance_mis(previous_bsdf_pdf, previous_environment_nee_pdf);
 
-            float3 environment_emission = sample_environment_light(ray.Direction) * mis_weight;
+            float3 environment_emission = sample_environment_light(
+                ray.Direction,
+                environment_miss_sample_mip_level(diffuse_bounces)) * mis_weight;
             environment_emission = apply_firefly_filter(
                 environment_emission,
                 REFERENCE_PT_FIREFLY_FILTER_THRESHOLD,
@@ -494,6 +505,14 @@ void main()
         previous_environment_nee_pdf = environment_nee_pdf(gbuffer.normal, next_direction)
             / (float)(frame_constants.scene_lights_count + 1);
         firefly_filter_k = update_firefly_filter_k(firefly_filter_k, bsdf_sample.pdf);
+
+        bool is_diffuse_scatter = bsdf_sample.selected_lobe == LOBE_DIFFUSE_REFLECTION
+            || bsdf_sample.selected_lobe == LOBE_FUZZ
+            || (bsdf_sample.selected_lobe == LOBE_SPECULAR_REFLECTION
+                && bsdf.roughness > SPECULAR_ROUGHNESS_DIFFUSE_THRESHOLD);
+        if (is_diffuse_scatter)
+            diffuse_bounces++;
+
         ray = new_ray(offset_position(hit.position, gbuffer.normal), next_direction, 1e-3, FLT_MAX);
 
         if (path_length >= RUSSIAN_ROULETTE_START_PATH_LENGTH)

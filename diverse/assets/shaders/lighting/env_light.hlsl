@@ -6,6 +6,22 @@
 
 static const float ENVIRONMENT_LIGHT_SELECTION_PDF = 1.0;
 
+// Match RTXPT default (SampleUI.cpp: EnvironmentMapDiffuseSampleMIPLevel = 2).
+// Only mip 0 is unbiased; higher mips trade accuracy for stability on glossy-indirect paths.
+#ifndef REFERENCE_PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL
+#define REFERENCE_PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL 2.0
+#endif
+
+float environment_miss_sample_mip_level(uint diffuse_bounces)
+{
+    return (diffuse_bounces > 1) ? REFERENCE_PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL : 0.0;
+}
+
+float environment_nee_sample_mip_level()
+{
+    return REFERENCE_PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL;
+}
+
 struct EnvironmentLightSample
 {
     float3 Li;
@@ -30,9 +46,9 @@ struct EnvironmentLightSample
 };
 
 /// Sample environment map light
-float3 sample_environment_light(float3 direction)
+float3 sample_environment_light(float3 direction, float mip_level)
 {
-    return sky_cube_tex.SampleLevel(sampler_llc, direction, 0).rgb;
+    return sky_cube_tex.SampleLevel(sampler_llc, direction, mip_level).rgb;
 }
 
 float nee_balance_mis(float this_pdf, float other_pdf)
@@ -90,7 +106,7 @@ float environment_nee_pdf(float3 normal, float3 direction)
     return environment_pdf_from_weight(weight, base_size, mip_count);
 }
 
-EnvironmentLightSample sample_environment_light_nee(float3 normal, float2 urand)
+EnvironmentLightSample sample_environment_light_nee(float3 normal, float2 urand, float mip_level)
 {
     EnvironmentLightSample ret;
 
@@ -104,7 +120,7 @@ EnvironmentLightSample sample_environment_light_nee(float3 normal, float2 urand)
         ret.direction = uniform_sample_sphere(urand);
         ret.pdf = environment_uniform_pdf() * ENVIRONMENT_LIGHT_SELECTION_PDF;
         ret.distance = FLT_MAX;
-        ret.Li = sample_environment_light(ret.direction);
+        ret.Li = sample_environment_light(ret.direction, mip_level);
         return ret;
     }
 
@@ -169,7 +185,7 @@ EnvironmentLightSample sample_environment_light_nee(float3 normal, float2 urand)
     ret.direction = normalize(equi_area_spherical_mapping(uv).zxy);
     ret.pdf = environment_nee_pdf(normal, ret.direction) * ENVIRONMENT_LIGHT_SELECTION_PDF;
     ret.distance = FLT_MAX;
-    ret.Li = sample_environment_light(ret.direction);
+    ret.Li = sample_environment_light(ret.direction, mip_level);
     return ret;
 }
 
