@@ -12,13 +12,13 @@ namespace diverse
 		rg::Handle<rhi::GpuTexture>& sky_cube,
 		rhi::DescriptorSet* bindless_descriptor_set,
 		const std::optional<rg::Handle<rhi::GpuRayTracingAcceleration>>& tlas) -> void
-	{		
+	{
 		if(!tlas) return;
 		auto pt_depth_img = rg.create<rhi::GpuTexture>(
 						output_image.desc
 						.with_format(PixelFormat::R32_Float),
 						"pt.depth");
-		
+
 		rg::RenderPass::new_rt(
 			rg.add_pass("reference pt"),
 			rhi::ShaderSource{ "/shaders/rt/reference_path_trace.rgen.hlsl" },

@@ -190,12 +190,11 @@ namespace diverse
         PBRMataterialTextures textures;
         MaterialProperties properties;
 
-        properties.albedoColour = ToLumosVector(material->getDiffuseColor());
-        properties.metalness = material->getSpecularColor().r;
+        properties.base_color_mult = ToLumosVector(material->getDiffuseColor());
+        properties.metalness_factor = material->getSpecularColor().r;
 
         float roughness = 1.0f - maths::Sqrt(float(material->getShininess()) / 100.0f);
-        properties.roughness = roughness;
-        properties.roughness = roughness;
+        properties.roughness_mult = roughness;
 
         textures.albedo = LoadTexture(material, ofbx::Texture::TextureType::DIFFUSE);
         textures.normal = LoadTexture(material, ofbx::Texture::TextureType::NORMAL);

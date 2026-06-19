@@ -927,6 +927,8 @@ namespace diverse
 		matprop.metallic_map = image_handle_or_default(pbr_tex.metallic, WHITE_TEX_ID);
 		matprop.roughness_map = image_handle_or_default(pbr_tex.roughness, WHITE_TEX_ID);
 		matprop.ao_map = image_handle_or_default(pbr_tex.ao, WHITE_TEX_ID);
+		matprop.transmission_map = WHITE_TEX_ID;
+		matprop.normal_detail_map = NORMAL_TEX_ID;
 	}
 
 	auto DeferedRenderer::upload_mesh_materials(MeshModel* model, GpuSceneDirtyState& dirty_state)->int
@@ -1077,10 +1079,8 @@ namespace diverse
 		{
 		case RenderMode::Hybrid:
 		{
-			if(!take_photon.get_value<bool>())
-				taa->current_supersample_offset = supersample_offsets[frame_idx % supersample_offsets.size()];
-
-			output =  prepare_render_graph_hybrid(rg, frame_desc, environment, accum_img,depth_img);
+			taa->current_supersample_offset = glm::vec2(0);
+			output = prepare_render_graph_pt(rg, frame_desc, environment, accum_img,depth_img);
 		}break;
 		case RenderMode::PT:
 		{

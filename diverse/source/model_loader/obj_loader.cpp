@@ -168,10 +168,10 @@ namespace diverse
                         textures.metallic = texture;
                 }
                 auto& material_props = pbrMaterial->get_properties();
-                material_props.albedoColour = glm::vec4(mp->diffuse[0], mp->diffuse[1], mp->diffuse[2],1);
+                material_props.base_color_mult = glm::vec4(mp->diffuse[0], mp->diffuse[1], mp->diffuse[2],1);
                 material_props.emissive = glm::vec3(mp->emission[0], mp->emission[1], mp->emission[2]);
-                material_props.metalness = mp->metallic;
-                material_props.roughness = mp->roughness;
+                material_props.metalness_factor = mp->metallic;
+                material_props.roughness_mult = mp->roughness;
             }
 
             pbrMaterial->set_textures(textures);

@@ -22,7 +22,7 @@ float twice_uv_area(float2 t0, float2 t1, float2 t2) {
 }
 
 struct BindlessTextureWithLod {
-    Texture2D tex;
+    uint texture_idx;
     float lod;
 };
 
@@ -39,7 +39,7 @@ BindlessTextureWithLod compute_texture_lod(uint bindless_texture_idx, float tria
     lambda -= log2(abs(dot(normalize(ray_direction), surf_normal)));
 
     BindlessTextureWithLod res;
-    res.tex = bindless_textures[NonUniformResourceIndex(bindless_texture_idx)];
+    res.texture_idx = bindless_texture_idx;
     res.lod = lambda;
     return res;
 }
@@ -94,12 +94,13 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
 
     uint material_id = mesh.material_id;
     MeshMaterial material = materials_buffer[material_id];
+    payload.material_id = material_id;
 
     float2 albedo_uv = transform_material_uv(material, uv, 0);
     const BindlessTextureWithLod albedo_tex =
         compute_texture_lod(material.albedo_map, lod_triangle_constant, WorldRayDirection(), surf_normal, cone_width);
 
-    float3 albedo = albedo_tex.tex.SampleLevel(sampler_llr, albedo_uv, albedo_tex.lod).xyz
+    float3 albedo = bindless_textures[NonUniformResourceIndex(albedo_tex.texture_idx)].SampleLevel(sampler_llr, albedo_uv, albedo_tex.lod).xyz
         * float4(material.base_color_mult).xyz
         * v_color.rgb;
 
@@ -107,17 +108,17 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
     const BindlessTextureWithLod metalness_tex = compute_texture_lod(material.metallic_map, lod_triangle_constant, WorldRayDirection(), surf_normal, cone_width);
     float roughness = 1.0, metalness = 0.0;
     if (material.work_flow == PBR_WORKFLOW_METALLIC_ROUGHNESS) {
-        float2 metalness_roughness = metalness_tex.tex.SampleLevel(sampler_llr, metallic_uv, metalness_tex.lod).xy;
+        float2 metalness_roughness = bindless_textures[NonUniformResourceIndex(metalness_tex.texture_idx)].SampleLevel(sampler_llr, metallic_uv, metalness_tex.lod).xy;
         roughness = metalness_roughness.y;
         metalness = metalness_roughness.x;
         float perceptual_roughness = (1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness;
         roughness = clamp(perceptual_roughness_to_roughness(perceptual_roughness), 1e-4, 1.0);
         metalness = (1.0f - material.metallic_map_factor) * material.metalness_factor + material.metallic_map_factor * metalness;
     } else {
-        float metalness = metalness_tex.tex.SampleLevel(sampler_llr, metallic_uv, metalness_tex.lod).x;
+        metalness = bindless_textures[NonUniformResourceIndex(metalness_tex.texture_idx)].SampleLevel(sampler_llr, metallic_uv, metalness_tex.lod).x;
         float2 roughness_uv = transform_material_uv(material, uv, 5);
         const BindlessTextureWithLod roughness_tex = compute_texture_lod(material.roughness_map, lod_triangle_constant, WorldRayDirection(), surf_normal, cone_width);
-        float roughness = roughness_tex.tex.SampleLevel(sampler_llr, roughness_uv, roughness_tex.lod).x;
+        roughness = bindless_textures[NonUniformResourceIndex(roughness_tex.texture_idx)].SampleLevel(sampler_llr, roughness_uv, roughness_tex.lod).x;
         float perceptual_roughness = (1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness;
         roughness = clamp(perceptual_roughness_to_roughness(perceptual_roughness), 1e-4, 1.0);
         metalness = (1.0f - material.metallic_map_factor) * material.metalness_factor + material.metallic_map_factor * metalness;
@@ -144,7 +145,7 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
     // since we need the direct contribution of the light's surface to the screen.
     if (0 == payload.path_length ) {
         emissive = 1.0.xxx
-            * emissive_tex.tex.SampleLevel(sampler_llr, emissive_uv, emissive_tex.lod).rgb
+            * bindless_textures[NonUniformResourceIndex(emissive_tex.texture_idx)].SampleLevel(sampler_llr, emissive_uv, emissive_tex.lod).rgb
             * float3(material.emissive)
             * instance_dynamic_parameters_dyn[InstanceIndex()].emissive_multiplier
             * frame_constants.pre_exposure;

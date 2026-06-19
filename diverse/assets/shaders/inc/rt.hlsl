@@ -15,12 +15,14 @@ struct GbufferRayPayload {
     float t;
     RayCone ray_cone;
     uint path_length;
+    uint material_id;
 
     static GbufferRayPayload new_miss() {
         GbufferRayPayload res;
         res.t = FLT_MAX;
         res.ray_cone = RayCone::from_spread_angle(0.0);
         res.path_length = 0;
+        res.material_id = 0xffffffff;
         return res;
     }
 
@@ -93,6 +95,7 @@ struct GbufferPathVertex {
     GbufferDataPacked gbuffer_packed;
     float3 position;
     float ray_t;
+    uint material_id;
 };
 
 struct CustomRayPayload {
@@ -207,6 +210,7 @@ struct GbufferRaytrace {
             res.position = ray.Origin + ray.Direction * payload.t;
             res.gbuffer_packed = payload.gbuffer_packed;
             res.ray_t = payload.t;
+            res.material_id = payload.material_id;
             return res;
         } else {
             GbufferPathVertex res;

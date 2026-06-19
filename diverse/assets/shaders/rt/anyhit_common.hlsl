@@ -15,7 +15,7 @@ float twice_uv_area(float2 t0, float2 t1, float2 t2) {
 }
 
 struct BindlessTextureWithLod {
-    Texture2D tex;
+    uint texture_idx;
     float lod;
 };
 
@@ -32,7 +32,7 @@ BindlessTextureWithLod compute_texture_lod(uint bindless_texture_idx, float tria
     lambda -= log2(abs(dot(normalize(ray_direction), surf_normal)));
 
     BindlessTextureWithLod res;
-    res.tex = bindless_textures[NonUniformResourceIndex(bindless_texture_idx)];
+    res.texture_idx = bindless_texture_idx;
     res.lod = lambda;
     return res;
 }
@@ -98,11 +98,10 @@ float eval_non_opacity_material(
     compute_texture_lod(material.albedo_map, lod_triangle_constant, WorldRayDirection(), surf_normal, cone_width);
 
     float4 albedo =
-        albedo_tex.tex.SampleLevel(sampler_llr, albedo_uv, albedo_tex.lod);
+        bindless_textures[NonUniformResourceIndex(albedo_tex.texture_idx)].SampleLevel(sampler_llr, albedo_uv, albedo_tex.lod);
 #else
-    Texture2D albedo_tex = bindless_textures[NonUniformResourceIndex(material.albedo_map)];
     float4 albedo =
-        albedo_tex.SampleLevel(sampler_llr, albedo_uv, 0);
+        bindless_textures[NonUniformResourceIndex(material.albedo_map)].SampleLevel(sampler_llr, albedo_uv, 0);
 #endif
 
     return albedo.w;

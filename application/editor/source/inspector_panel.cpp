@@ -339,7 +339,7 @@ namespace MM
             diverse::MaterialProperties* prop = &material->get_properties();
             if (propIndex == 0) //albedo
             {
-                dirty |= ImGui::ColorEdit4(diverse::ImGuiHelper::GenerateLabelID("Colour"), glm::value_ptr(prop->albedoColour));
+                dirty |= ImGui::ColorEdit4(diverse::ImGuiHelper::GenerateLabelID("Colour"), glm::value_ptr(prop->base_color_mult));
             }
             else if(propIndex == 1) //normal
             {
@@ -352,26 +352,26 @@ namespace MM
                 if (prop->work_flow == PBR_WORKFLOW_METALLIC_ROUGHNESS)
                 {
                     dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("MetallicMapFactor"), &prop->metallic_map_factor, 0.0f, 1.0f);
-                    dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Metallic"), &prop->metalness, 0.0f, 1.0f);
+                    dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Metallic"), &prop->metalness_factor, 0.0f, 1.0f);
 
                     dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("RoughnessMapFactor"), &prop->roughness_map_factor, 0.0f, 1.0f);
-                    dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Roughness"), &prop->roughness, 0.0f, 1.0f);
+                    dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Roughness"), &prop->roughness_mult, 0.0f, 1.0f);
                 }
                 else
                 {
                     dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Use Map"), &prop->metallic_map_factor, 0.0f, 1.0f);
-                    dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Value"), &prop->metalness, 0.0f, 1.0f);
+                    dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Value"), &prop->metalness_factor, 0.0f, 1.0f);
                 }
             }
             else if (propIndex == 3) //roughness
             {
                 dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Use Map"), &prop->roughness_map_factor, 0.0f, 1.0f);
-                dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Value"), &prop->roughness, 0.0f, 1.0f);
+                dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Value"), &prop->roughness_mult, 0.0f, 1.0f);
             }
             else if (propIndex == 4) //ao
             {
                 dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Use Map"), &prop->ao_map_factor, 0.0f, 1.0f);
-                dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Value"), &prop->ao, 0.0f, 1.0f);
+                dirty |= ImGui::SliderFloat(diverse::ImGuiHelper::GenerateLabelID("Value"), &prop->ao_mult, 0.0f, 1.0f);
             }
             else if (propIndex == 5) //emissive
             {

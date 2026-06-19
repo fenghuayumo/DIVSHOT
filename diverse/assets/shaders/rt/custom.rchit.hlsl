@@ -21,12 +21,6 @@ float twice_uv_area(float2 t0, float2 t1, float2 t2) {
     return abs((t1.x - t0.x) * (t2.y - t0.y) - (t2.x - t0.x) * (t1.y - t0.y));
 }
 
-struct BindlessTextureWithLod {
-    Texture2D tex;
-    float lod;
-};
-
-
 [shader("closesthit")]
 void main(inout CustomRayPayload payload: SV_RayPayload, in RayHitAttrib attrib: SV_IntersectionAttributes) {
     float3 hit_point = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
@@ -81,7 +75,6 @@ void main(inout CustomRayPayload payload: SV_RayPayload, in RayHitAttrib attrib:
     float2 albedo_uv = transform_material_uv(material, uv, 0);
 
     float4 tex_size = bindless_texture_sizes[NonUniformResourceIndex(material.albedo_map)];
-    Texture2D tex = bindless_textures[NonUniformResourceIndex(material.albedo_map)];
     float2 tex_pos = float2(albedo_uv.x * tex_size.x, albedo_uv.y * tex_size.y);
     payload.texture_pos = tex_pos;
     payload.t = RayTCurrent();

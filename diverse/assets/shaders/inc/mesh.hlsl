@@ -51,34 +51,12 @@ static const uint PBR_WORKFLOW_SEPARATE_TEXTURES = 0;
 static const uint PBR_WORKFLOW_METALLIC_ROUGHNESS = 1;
 static const uint PBR_WORKFLOW_SPECULAR_GLOSINESS = 2;
 
-struct MeshMaterial {
-    float4 base_color_mult;
+// MeshMaterial - GPU material structure
+// Uses unified MaterialData for all rendering pipelines
+#include "../materials/material_data.hlsl"
 
-    uint albedo_map;
-    uint metallic_map;
-    uint normal_map;
-    uint emissive_map;
-
-    float roughness_mult;
-    float metalness_factor;
-    float emissive_map_factor;
-    float ao_map_factor;
-
-    uint  work_flow;
-    float metallic_map_factor;
-    float roughness_map_factor;
-    float normal_map_factor;
-
-    float reflectance;
-    float ao_mult;
-    float alpha_cutoff;
-    uint ao_map;
-
-    float3 emissive;
-    uint roughness_map;
-
-    float map_transforms[6 * 6];
-};
+// Alias for backward compatibility
+using MeshMaterial = MaterialData;
 
 float2 transform_material_uv(MeshMaterial mat, float2 uv, uint map_idx) {
     uint xo = map_idx * 6;

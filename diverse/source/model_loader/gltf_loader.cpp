@@ -266,19 +266,19 @@ namespace diverse
 
             if(roughnessFactor != mat.values.end())
             {
-                properties.roughness = static_cast<float>(roughnessFactor->second.Factor());
+                properties.roughness_mult = static_cast<float>(roughnessFactor->second.Factor());
             }
 
             if(metallicFactor != mat.values.end())
             {
-                properties.metalness = static_cast<float>(metallicFactor->second.Factor());
+                properties.metalness_factor = static_cast<float>(metallicFactor->second.Factor());
             }
 
             if(baseColourFactor != mat.values.end())
             {
-                properties.albedoColour = glm::vec4((float)baseColourFactor->second.ColorFactor()[0], (float)baseColourFactor->second.ColorFactor()[1], (float)baseColourFactor->second.ColorFactor()[2], 1.0f);
+                properties.base_color_mult = glm::vec4((float)baseColourFactor->second.ColorFactor()[0], (float)baseColourFactor->second.ColorFactor()[1], (float)baseColourFactor->second.ColorFactor()[2], 1.0f);
                 if(baseColourFactor->second.ColorFactor().size() > 3)
-                    properties.albedoColour.w = (float)baseColourFactor->second.ColorFactor()[3];
+                    properties.base_color_mult.w = (float)baseColourFactor->second.ColorFactor()[3];
             }
             if(emissiveFactor != mat.values.end())
             {
@@ -334,20 +334,20 @@ namespace diverse
                 if(metallicGlossinessWorkflow->second.Has("diffuseFactor"))
                 {
                     auto& factor              = metallicGlossinessWorkflow->second.Get("diffuseFactor");
-                    properties.albedoColour.x = factor.ArrayLen() > 0 ? float(factor.Get(0).IsNumber() ? factor.Get(0).Get<double>() : factor.Get(0).Get<int>()) : 1.0f;
-                    properties.albedoColour.y = factor.ArrayLen() > 1 ? float(factor.Get(1).IsNumber() ? factor.Get(1).Get<double>() : factor.Get(1).Get<int>()) : 1.0f;
-                    properties.albedoColour.z = factor.ArrayLen() > 2 ? float(factor.Get(2).IsNumber() ? factor.Get(2).Get<double>() : factor.Get(2).Get<int>()) : 1.0f;
-                    properties.albedoColour.w = factor.ArrayLen() > 3 ? float(factor.Get(3).IsNumber() ? factor.Get(3).Get<double>() : factor.Get(3).Get<int>()) : 1.0f;
+                    properties.base_color_mult.x = factor.ArrayLen() > 0 ? float(factor.Get(0).IsNumber() ? factor.Get(0).Get<double>() : factor.Get(0).Get<int>()) : 1.0f;
+                    properties.base_color_mult.y = factor.ArrayLen() > 1 ? float(factor.Get(1).IsNumber() ? factor.Get(1).Get<double>() : factor.Get(1).Get<int>()) : 1.0f;
+                    properties.base_color_mult.z = factor.ArrayLen() > 2 ? float(factor.Get(2).IsNumber() ? factor.Get(2).Get<double>() : factor.Get(2).Get<int>()) : 1.0f;
+                    properties.base_color_mult.w = factor.ArrayLen() > 3 ? float(factor.Get(3).IsNumber() ? factor.Get(3).Get<double>() : factor.Get(3).Get<int>()) : 1.0f;
                 }
                 if(metallicGlossinessWorkflow->second.Has("metallicFactor"))
                 {
                     auto& factor        = metallicGlossinessWorkflow->second.Get("metallicFactor");
-                    properties.metalness = factor.ArrayLen() > 0 ? float(factor.Get(0).IsNumber() ? factor.Get(0).Get<double>() : factor.Get(0).Get<int>()) : 1.0f;
+                    properties.metalness_factor = factor.ArrayLen() > 0 ? float(factor.Get(0).IsNumber() ? factor.Get(0).Get<double>() : factor.Get(0).Get<int>()) : 1.0f;
                 }
                 if(metallicGlossinessWorkflow->second.Has("glossinessFactor"))
                 {
                     auto& factor         = metallicGlossinessWorkflow->second.Get("glossinessFactor");
-                    properties.roughness = 1.0f - float(factor.IsNumber() ? factor.Get<double>() : factor.Get<int>());
+                    properties.roughness_mult = 1.0f - float(factor.IsNumber() ? factor.Get<double>() : factor.Get<int>());
                 }
             }
             if (mat.normalTexture.extensions.count("KHR_texture_transform"))
@@ -380,15 +380,19 @@ namespace diverse
             auto ext_ior = mat.extensions.find("KHR_materials_ior");
             if(ext_ior != mat.extensions.end())
             {
-                // https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_ior
-
                 if(ext_ior->second.Has("ior"))
                 {
                     auto& factor = ext_ior->second.Get("ior");
-                    float ior    = float(factor.IsNumber() ? factor.Get<double>() : factor.Get<int>());
-
-                    properties.reflectance = std::sqrt(std::pow((ior - 1.0f) / (ior + 1.0f), 2.0f) / 16.0f);
+                    float ior = float(factor.IsNumber() ? factor.Get<double>() : factor.Get<int>());
+                    properties.ior = ior;
+                    properties.specular_ior = ior;
                 }
+            }
+
+            auto ext_transmission = mat.extensions.find("KHR_materials_transmission");
+            if (ext_transmission != mat.extensions.end() && ext_transmission->second.Has("transmissionFactor"))
+            {
+                properties.transmission_weight = static_cast<float>(ext_transmission->second.Get("transmissionFactor").Get<double>());
             }
 
             pbrMaterial->set_textures(textures);
