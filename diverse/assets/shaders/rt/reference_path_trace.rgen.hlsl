@@ -6,6 +6,7 @@
 #include "../inc/rt.hlsl"
 #include "../inc/random.hlsl"
 #include "../inc/bindless.hlsl"
+#include "../inc/color/srgb.hlsl"
 #include "../materials/standard_bsdf.hlsl"
 #include "../lighting/sun_light.hlsl"
 
@@ -148,7 +149,15 @@ float3 evaluate_sun_nee(
 
 bool light_type_sampleable_by_bsdf(PolymorphicLightType light_type)
 {
-    return light_type == PolymorphicLightType::kTriangle;
+    // All area lights with finite surface area can be sampled by BSDF
+    // Triangle, Sphere, Cylinder, Disk, Rect lights have actual area
+    // Point and Directional lights are delta distributions (infinite radiance / zero area)
+    // Environment light is also a delta/infinite case
+    return light_type == PolymorphicLightType::kTriangle
+        || light_type == PolymorphicLightType::kSphere
+        || light_type == PolymorphicLightType::kCylinder
+        || light_type == PolymorphicLightType::kDisk
+        || light_type == PolymorphicLightType::kRect;
 }
 
 bool light_type_handled_by_reference_pt_scene_nee(PolymorphicLightType light_type)
