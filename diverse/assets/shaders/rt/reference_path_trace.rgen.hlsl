@@ -19,6 +19,7 @@ DS_RESOURCE(2) TextureCube<float4> sky_cube_tex;
 
 static const uint MAX_EYE_PATH_LENGTH = 8;
 static const uint RUSSIAN_ROULETTE_START_PATH_LENGTH = 3;
+static const float REFERENCE_PT_FIREFLY_FILTER_THRESHOLD = 256.0;
 
 float dielectric_f0_from_eta(float eta)
 {
@@ -132,6 +133,50 @@ float3 evaluate_sun_nee(
     return eval.value * light_sample.Li * wi.z;
 }
 
+float3 evaluate_environment_nee(
+    StandardBSDF bsdf,
+    float3x3 tangent_to_world,
+    float3 position,
+    float3 normal,
+    float3 wo,
+    float firefly_filter_k,
+    inout Random rng)
+{
+    EnvironmentLightSample light_sample = sample_environment_light_nee(
+        normal,
+        float2(uniform_rand_float(rng), uniform_rand_float(rng)));
+
+    if (!light_sample.valid())
+        return 0.0.xxx;
+
+    float3 wi = mul(light_sample.direction, tangent_to_world);
+    if (wi.z <= 0.0)
+        return 0.0.xxx;
+
+    RayDesc shadow_ray = new_ray(offset_position(position, normal), light_sample.direction, 1e-3, FLT_MAX);
+    if (!trace_visibility(shadow_ray))
+        return 0.0.xxx;
+
+    BsdfEvalData eval_data = BsdfEvalData::create(wo, wi, float3(0, 0, 1), float3(0, 0, 1));
+    BsdfEvalResult eval = bsdf.evaluate(eval_data);
+    if (eval.pdf <= 0.0 || !any(eval.value > 0.0))
+        return 0.0.xxx;
+
+    float mis_weight = nee_balance_mis(light_sample.pdf, eval.pdf);
+    float3 contribution = eval.value * light_sample.Li * wi.z * mis_weight / max(light_sample.pdf, 1e-8);
+    return apply_firefly_filter(contribution, REFERENCE_PT_FIREFLY_FILTER_THRESHOLD, firefly_filter_k);
+}
+
+float update_firefly_filter_k(float current_k, float bounce_pdf)
+{
+    if (bounce_pdf <= 0.0)
+        return current_k;
+
+    float angle = 2.0 * acos(max(-1.0, 1.0 - (1.0 / bounce_pdf) / (2.0 * M_PI)));
+    float p = 32.0 / (32.0 + angle * angle);
+    return max(1e-5, current_k * p);
+}
+
 bool valid_radiance(float3 v)
 {
     return all(v >= 0.0) && all(v < 1e20);
@@ -162,6 +207,9 @@ void main()
     float depth = FARZ;
     float3 throughput = 1.0.xxx;
     float3 radiance = 0.0.xxx;
+    float previous_bsdf_pdf = 0.0;
+    float previous_environment_nee_pdf = 0.0;
+    float firefly_filter_k = 1.0;
 
     [loop]
     for (uint path_length = 0; path_length < MAX_EYE_PATH_LENGTH; ++path_length)
@@ -170,7 +218,16 @@ void main()
 
         if (!hit.is_hit)
         {
-            radiance += throughput * sample_environment_light(ray.Direction);
+            float mis_weight = 1.0;
+            if (previous_bsdf_pdf > 0.0 && previous_environment_nee_pdf > 0.0)
+                mis_weight = nee_balance_mis(previous_bsdf_pdf, previous_environment_nee_pdf);
+
+            float3 environment_emission = sample_environment_light(ray.Direction) * mis_weight;
+            environment_emission = apply_firefly_filter(
+                environment_emission,
+                REFERENCE_PT_FIREFLY_FILTER_THRESHOLD,
+                firefly_filter_k);
+            radiance += throughput * environment_emission;
             break;
         }
 
@@ -212,6 +269,15 @@ void main()
             wo,
             rng);
 
+        radiance += throughput * evaluate_environment_nee(
+            bsdf,
+            tangent_to_world,
+            hit.position,
+            gbuffer.normal,
+            wo,
+            firefly_filter_k,
+            rng);
+
         BsdfSampleResult bsdf_sample = bsdf.sample(
             wo,
             float3(
@@ -229,6 +295,9 @@ void main()
             break;
 
         float3 next_direction = normalize(mul(tangent_to_world, bsdf_sample.wi));
+        previous_bsdf_pdf = bsdf_sample.pdf;
+        previous_environment_nee_pdf = environment_nee_pdf(gbuffer.normal, next_direction);
+        firefly_filter_k = update_firefly_filter_k(firefly_filter_k, bsdf_sample.pdf);
         ray = new_ray(offset_position(hit.position, gbuffer.normal), next_direction, 1e-3, FLT_MAX);
 
         if (path_length >= RUSSIAN_ROULETTE_START_PATH_LENGTH)
