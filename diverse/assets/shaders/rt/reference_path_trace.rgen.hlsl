@@ -76,16 +76,6 @@ StandardBSDF make_surface_bsdf(MaterialData material, GbufferData gbuffer)
     return bsdf;
 }
 
-SunLight make_frame_sun()
-{
-    SunLight sun = SunLight::make();
-    sun.direction = normalize(frame_constants.sun_direction.xyz);
-    sun.color = 20.0 * frame_constants.sun_color_multiplier.rgb * frame_constants.pre_exposure;
-    sun.angular_radius = max(acos(saturate(frame_constants.sun_angular_radius_cos)), 1e-4);
-    sun.distance = FLT_MAX;
-    return sun;
-}
-
 bool trace_visibility(RayDesc ray)
 {
     ShadowRayPayload shadow_payload = ShadowRayPayload::new_hit();
@@ -131,7 +121,7 @@ float3 evaluate_sun_nee(
     float3 wo,
     inout Random rng)
 {
-    SunLight sun = make_frame_sun();
+    SunLight sun = SunLight::from_frame();
     LightSample light_sample = sun.sample(float2(uniform_rand_float(rng), uniform_rand_float(rng)));
     if (light_sample.solid_angle_pdf <= 0.0)
         return 0.0.xxx;

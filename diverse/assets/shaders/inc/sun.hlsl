@@ -4,6 +4,7 @@
 #include "frame_constants.hlsl"
 #include "math.hlsl"
 #include "monte_carlo.hlsl"
+#include "atmosphere_felix.hlsl"
 
 #define SUN_DIRECTION (frame_constants.sun_direction.xyz)
 
@@ -23,6 +24,16 @@
 #endif
 
 #define SUN_COLOR (sun_color_in_direction(SUN_DIRECTION))
+
+float sun_disk_solid_angle()
+{
+    return 2.0 * M_PI * (1.0 - saturate(frame_constants.sun_angular_radius_cos));
+}
+
+float sun_disk_solid_angle_pdf()
+{
+    return 1.0 / max(sun_disk_solid_angle(), 1e-8);
+}
 
 float3 sample_sun_direction(float2 urand, bool soft) {
     if (soft) {
