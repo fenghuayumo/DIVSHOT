@@ -2602,10 +2602,6 @@ namespace diverse
                 {
                     embed_editor_textures();
                 }
-                if (ImGui::MenuItem("EmbededShaders"))
-                {
-                    embeded_editor_shaders();
-                }
 #endif
 
                 ImGui::EndMenu();

@@ -5,5 +5,4 @@
 namespace diverse
 {
     void embed_editor_textures();
-    void embeded_editor_shaders();
 }
