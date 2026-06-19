@@ -508,6 +508,21 @@ namespace diverse
             throw_if_failed(device->CreateDescriptorHeap(&sampler_heap_desc, IID_PPV_ARGS(&sampler_heap)), "CreateDescriptorHeap(Sampler)");
             sampler_descriptor_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
+            // Create ray tracing command signature for indirect dispatch
+            if (supports_dxr)
+            {
+                D3D12_INDIRECT_ARGUMENT_DESC indirect_arg = {};
+                indirect_arg.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS;
+
+                D3D12_COMMAND_SIGNATURE_DESC cmd_sig_desc = {};
+                cmd_sig_desc.ByteStride = sizeof(D3D12_DISPATCH_RAYS_DESC);
+                cmd_sig_desc.NumArgumentDescs = 1;
+                cmd_sig_desc.pArgumentDescs = &indirect_arg;
+                cmd_sig_desc.NodeMask = 0;
+
+                throw_if_failed(device->CreateCommandSignature(&cmd_sig_desc, nullptr, IID_PPV_ARGS(&raytracing_command_signature)), "CreateCommandSignature(raytracing)");
+            }
+
             setup_cb = std::make_unique<GpuCommandBufferDXR>(this);
             for (auto& frame : frames)
             {
@@ -880,7 +895,143 @@ namespace diverse
             ID3D12DescriptorHeap* heaps[] = { cbv_srv_uav_heap.Get(), sampler_heap.Get() };
             dxr_cb->command_list->SetDescriptorHeaps(2, heaps);
 
-            // TODO: Implement descriptor table binding based on bindings
+            // Create a temporary descriptor set for this binding
+            auto temp_descriptor_set = std::make_shared<DescriptorSetDXR>();
+
+            // Allocate descriptors from heaps and write descriptor data
+            for (u32 binding_idx = 0; binding_idx < static_cast<u32>(bindings.size()); binding_idx++)
+            {
+                auto& binding = bindings[binding_idx];
+
+                // Allocate descriptor from appropriate heap
+                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle;
+                D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle;
+
+                bool is_sampler = false;
+
+                // Determine heap type based on binding type
+                switch (binding.ty)
+                {
+                case DescriptorSetBinding::Type::Image:
+                case DescriptorSetBinding::Type::ImageArray:
+                case DescriptorSetBinding::Type::Buffer:
+                case DescriptorSetBinding::Type::RayTracingAcceleration:
+                case DescriptorSetBinding::Type::DynamicBuffer:
+                case DescriptorSetBinding::Type::DynamicStorageBuffer:
+                    // Use CBV_SRV_UAV heap
+                    if (cbv_srv_uav_heap_index >= DESCRIPTOR_HEAP_SIZE)
+                    {
+                        DS_LOG_ERROR("CBV_SRV_UAV descriptor heap exhausted");
+                        continue;
+                    }
+                    cpu_handle = cbv_srv_uav_heap->GetCPUDescriptorHandleForHeapStart();
+                    cpu_handle.ptr += cbv_srv_uav_heap_index * cbv_srv_uav_descriptor_size;
+                    gpu_handle = cbv_srv_uav_heap->GetGPUDescriptorHandleForHeapStart();
+                    gpu_handle.ptr += cbv_srv_uav_heap_index * cbv_srv_uav_descriptor_size;
+                    cbv_srv_uav_heap_index++;
+                    break;
+                default:
+                    break;
+                }
+
+                // Store handles for binding
+                temp_descriptor_set->cpu_handles[binding_idx] = cpu_handle;
+                temp_descriptor_set->gpu_handles[binding_idx] = gpu_handle;
+
+                // Write descriptor data based on binding type
+                switch (binding.ty)
+                {
+                case DescriptorSetBinding::Type::Buffer:
+                {
+                    auto& buf = binding.Buffer();
+                    auto dxr_buffer = static_cast<GpuBufferDXR*>(buf.buffer);
+                    if (dxr_buffer && dxr_buffer->resource)
+                    {
+                        D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc = {};
+                        cbv_desc.BufferLocation = dxr_buffer->resource->GetGPUVirtualAddress();
+                        cbv_desc.SizeInBytes = static_cast<u32>(dxr_buffer->desc.size);
+                        device->CreateConstantBufferView(&cbv_desc, cpu_handle);
+                    }
+                    break;
+                }
+                case DescriptorSetBinding::Type::Image:
+                {
+                    // Image descriptor write - requires texture view
+                    // This is not fully implemented as GpuTextureView::owner is not available
+                    DS_LOG_WARN("DXR backend: Image descriptor binding not fully implemented");
+                    break;
+                }
+                case DescriptorSetBinding::Type::ImageArray:
+                {
+                    DS_LOG_WARN("DXR backend: Image array descriptor binding not implemented");
+                    break;
+                }
+                case DescriptorSetBinding::Type::RayTracingAcceleration:
+                {
+                    auto rt_accel = binding.RayTracingAcceleration();
+                    auto rt_accel_dxr = static_cast<GpuRayTracingAccelerationDXR*>(rt_accel);
+                    if (rt_accel_dxr && rt_accel_dxr->acceleration_structure)
+                    {
+                        // Create SRV for ray tracing acceleration structure
+                        D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+                        srv_desc.Format = DXGI_FORMAT_UNKNOWN;
+                        srv_desc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+                        srv_desc.RaytracingAccelerationStructure.Location = rt_accel_dxr->as_device_address(this);
+                        device->CreateShaderResourceView(nullptr, &srv_desc, cpu_handle);
+                    }
+                    break;
+                }
+                case DescriptorSetBinding::Type::DynamicBuffer:
+                {
+                    auto& [dy_buf, offset] = binding.DynamicBuffer();
+                    auto dxr_buffer = static_cast<GpuBufferDXR*>(dy_buf);
+                    if (dxr_buffer && dxr_buffer->resource)
+                    {
+                        D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc = {};
+                        cbv_desc.BufferLocation = dxr_buffer->resource->GetGPUVirtualAddress() + offset;
+                        cbv_desc.SizeInBytes = static_cast<u32>(dxr_buffer->desc.size);
+                        device->CreateConstantBufferView(&cbv_desc, cpu_handle);
+                    }
+                    break;
+                }
+                case DescriptorSetBinding::Type::DynamicStorageBuffer:
+                {
+                    auto& [dy_buf, offset] = binding.DynamicStorageBuffer();
+                    auto dxr_buffer = static_cast<GpuBufferDXR*>(dy_buf);
+                    if (dxr_buffer && dxr_buffer->resource)
+                    {
+                        // Create UAV for storage buffer
+                        D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+                        uav_desc.Format = DXGI_FORMAT_UNKNOWN;
+                        uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+                        uav_desc.Buffer.FirstElement = offset / sizeof(u32); // Assume 4-byte elements
+                        uav_desc.Buffer.NumElements = static_cast<u32>((dxr_buffer->desc.size - offset) / sizeof(u32));
+                        device->CreateUnorderedAccessView(dxr_buffer->resource.Get(), nullptr, &uav_desc, cpu_handle);
+                    }
+                    break;
+                }
+                }
+            }
+
+            // Bind descriptor tables for each binding
+            for (const auto& [binding_idx, gpu_handle] : temp_descriptor_set->gpu_handles)
+            {
+                // Use binding index as root parameter index
+                u32 root_param_index = binding_idx;
+
+                switch (dxr_pipeline->ty)
+                {
+                case GpuPipeline::PieplineType::Compute:
+                case GpuPipeline::PieplineType::RayTracing:
+                    dxr_cb->command_list->SetComputeRootDescriptorTable(root_param_index, gpu_handle);
+                    break;
+                case GpuPipeline::PieplineType::Raster:
+                    dxr_cb->command_list->SetGraphicsRootDescriptorTable(root_param_index, gpu_handle);
+                    break;
+                default:
+                    break;
+                }
+            }
         }
 
         auto GpuDeviceDXR::bind_descriptor_set(CommandBuffer* cb, GpuPipeline* pipeline, uint32 set_idx, DescriptorSet* set, u32 dynamic_offset_count, u32* dynamic_offset)->void
@@ -895,7 +1046,38 @@ namespace diverse
             ID3D12DescriptorHeap* heaps[] = { cbv_srv_uav_heap.Get(), sampler_heap.Get() };
             dxr_cb->command_list->SetDescriptorHeaps(2, heaps);
 
-            // TODO: Implement descriptor table binding
+            // Bind descriptor tables for each binding in the descriptor set
+            for (const auto& [binding, gpu_handle] : dxr_set->gpu_handles)
+            {
+                // Use binding index as root parameter index
+                // This assumes the root signature was created with matching parameter indices
+                u32 root_param_index = binding;
+
+                switch (dxr_pipeline->ty)
+                {
+                case GpuPipeline::PieplineType::Compute:
+                case GpuPipeline::PieplineType::RayTracing:
+                    dxr_cb->command_list->SetComputeRootDescriptorTable(root_param_index, gpu_handle);
+                    break;
+                case GpuPipeline::PieplineType::Raster:
+                    dxr_cb->command_list->SetGraphicsRootDescriptorTable(root_param_index, gpu_handle);
+                    break;
+                default:
+                    break;
+                }
+            }
+
+            // Handle dynamic offsets for buffer bindings
+            // In D3D12, dynamic offsets are typically handled through root constants or root descriptors
+            // For now, we'll skip dynamic offset handling as it requires specific root signature setup
+            if (dynamic_offset_count > 0)
+            {
+                // Dynamic offset handling would require:
+                // 1. Root signature with root constant/descriptor for dynamic offsets
+                // 2. SetComputeRoot32BitConstants or SetComputeRootConstantBufferView calls
+                // For simplicity, we skip this for now
+                DS_LOG_WARN("DXR backend: Dynamic offsets not fully implemented in bind_descriptor_set");
+            }
         }
 
         auto GpuDeviceDXR::bind_pipeline(CommandBuffer* cb, GpuPipeline* pipeline)->void
@@ -1199,6 +1381,92 @@ namespace diverse
             if (SUCCEEDED(hr))
             {
                 pipeline->state_object = state_object;
+
+                // Get shader identifiers from state object
+                Microsoft::WRL::ComPtr<ID3D12StateObjectProperties> state_object_props;
+                if (SUCCEEDED(state_object->QueryInterface(IID_PPV_ARGS(&state_object_props))))
+                {
+                    // Collect shader identifiers
+                    std::vector<std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES>> raygen_ids;
+                    std::vector<std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES>> miss_ids;
+                    std::vector<std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES>> hit_ids;
+
+                    // Re-traverse shaders to match export names
+                    u32 rg = 0, ms = 0, ht = 0;
+                    for (const auto& shader : shaders)
+                    {
+                        std::string export_name;
+                        std::wstring export_name_w;
+                        switch (shader.desc.stage)
+                        {
+                        case ShaderPipelineStage::RayGen:
+                            export_name = "RayGen" + std::to_string(rg++);
+                            export_name_w = std::wstring(export_name.begin(), export_name.end());
+                            {
+                                void* shader_id_ptr = state_object_props->GetShaderIdentifier(export_name_w.c_str());
+                                if (shader_id_ptr)
+                                {
+                                    std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES> id;
+                                    std::memcpy(id.data(), shader_id_ptr, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+                                    raygen_ids.push_back(id);
+                                }
+                                else
+                                {
+                                    DS_LOG_WARN("Shader identifier not found: {}", export_name);
+                                    raygen_ids.push_back({});
+                                }
+                            }
+                            break;
+                        case ShaderPipelineStage::RayMiss:
+                            export_name = "Miss" + std::to_string(ms++);
+                            export_name_w = std::wstring(export_name.begin(), export_name.end());
+                            {
+                                void* shader_id_ptr = state_object_props->GetShaderIdentifier(export_name_w.c_str());
+                                if (shader_id_ptr)
+                                {
+                                    std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES> id;
+                                    std::memcpy(id.data(), shader_id_ptr, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+                                    miss_ids.push_back(id);
+                                }
+                                else
+                                {
+                                    DS_LOG_WARN("Shader identifier not found: {}", export_name);
+                                    miss_ids.push_back({});
+                                }
+                            }
+                            break;
+                        case ShaderPipelineStage::RayClosestHit:
+                        case ShaderPipelineStage::RayAnyHit:
+                            export_name = "Hit" + std::to_string(ht++);
+                            export_name_w = std::wstring(export_name.begin(), export_name.end());
+                            {
+                                void* shader_id_ptr = state_object_props->GetShaderIdentifier(export_name_w.c_str());
+                                if (shader_id_ptr)
+                                {
+                                    std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES> id;
+                                    std::memcpy(id.data(), shader_id_ptr, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+                                    hit_ids.push_back(id);
+                                }
+                                else
+                                {
+                                    DS_LOG_WARN("Shader identifier not found: {}", export_name);
+                                    hit_ids.push_back({});
+                                }
+                            }
+                            break;
+                        }
+                    }
+
+                    // Store shader identifiers for later use in shader table population
+                    // We'll use them after the shader table buffer is created and mapped
+                    pipeline->shader_table.raygen_ids = raygen_ids;
+                    pipeline->shader_table.miss_ids = miss_ids;
+                    pipeline->shader_table.hit_ids = hit_ids;
+                }
+                else
+                {
+                    DS_LOG_ERROR("Failed to query state object properties for shader identifiers");
+                }
             }
             else
             {
@@ -1235,9 +1503,36 @@ namespace diverse
                     pipeline->shader_table.miss_offset = raygen_size;
                     pipeline->shader_table.hit_offset = raygen_size + miss_size;
 
-                    // Map and initialize shader table
+                    // Map and populate shader table with shader identifiers
                     D3D12_RANGE read_range = { 0, 0 };
                     shader_table_dxr->resource->Map(0, &read_range, reinterpret_cast<void**>(&pipeline->shader_table.mapped_data));
+
+                    // Populate shader table with shader identifiers
+                    if (pipeline->shader_table.mapped_data)
+                    {
+                        u8* shader_table_ptr = pipeline->shader_table.mapped_data;
+
+                        // Fill RayGen records
+                        for (const auto& id : pipeline->shader_table.raygen_ids)
+                        {
+                            std::memcpy(shader_table_ptr, id.data(), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+                            shader_table_ptr += raygen_record_size;
+                        }
+
+                        // Fill Miss records
+                        for (const auto& id : pipeline->shader_table.miss_ids)
+                        {
+                            std::memcpy(shader_table_ptr, id.data(), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+                            shader_table_ptr += miss_record_size;
+                        }
+
+                        // Fill Hit records
+                        for (const auto& id : pipeline->shader_table.hit_ids)
+                        {
+                            std::memcpy(shader_table_ptr, id.data(), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+                            shader_table_ptr += hit_record_size;
+                        }
+                    }
                 }
             }
 
@@ -2398,7 +2693,7 @@ namespace diverse
         {
             auto dxr_cb = static_cast<GpuCommandBufferDXR*>(cb);
             auto dxr_pipeline = static_cast<PipelineDXR*>(rtpipeline);
-            if (!dxr_cb || !dxr_pipeline || !supports_dxr)
+            if (!dxr_cb || !dxr_pipeline || !supports_dxr || !raytracing_command_signature)
                 return;
 
             // Get raytracing command list
@@ -2416,17 +2711,28 @@ namespace diverse
                 dxr_pipeline->shader_table.mapped_data = nullptr;
             }
 
-            // Get GPU addresses for shader table regions
-            D3D12_GPU_VIRTUAL_ADDRESS raygen_addr = dxr_pipeline->shader_table.buffer->GetGPUVirtualAddress();
-            D3D12_GPU_VIRTUAL_ADDRESS miss_addr = raygen_addr + dxr_pipeline->shader_table.miss_offset;
-            D3D12_GPU_VIRTUAL_ADDRESS hit_addr = raygen_addr + dxr_pipeline->shader_table.hit_offset;
+            // NOTE: D3D12 ExecuteIndirect requires an ID3D12Resource* for the args buffer,
+            // but the RHI interface only provides a GPU virtual address (to match Vulkan).
+            // This is a fundamental API mismatch that prevents full implementation.
+            //
+            // Future improvements would require either:
+            // 1. Modifying the RHI interface to accept GpuBuffer* instead of u64 address
+            // 2. Maintaining a GPU address -> ID3D12Resource mapping in DXR backend
+            //
+            // For now, this implementation provides the structure but cannot execute
+            // indirect ray tracing without buffer resource tracking.
 
-            // TODO: Implement proper ray tracing indirect dispatch
-            // D3D12 ExecuteIndirect for ray tracing requires:
-            // 1. Command signature creation for ray tracing
-            // 2. Buffer resource (not just address) for ExecuteIndirect
-            // For now, this is a stub implementation
-            DS_LOG_WARN("DXR backend: trace_rays_indirect not fully implemented - requires buffer resource tracking");
+            DS_LOG_WARN("DXR backend: trace_rays_indirect requires buffer resource (not just address) for ExecuteIndirect. RHI interface limitation prevents full implementation.");
+
+            // The implementation would be:
+            // dxr_cb->command_list->ExecuteIndirect(
+            //     raytracing_command_signature.Get(),
+            //     1,  // MaxCommandCount
+            //     args_buffer_resource,  // ID3D12Resource* - not available from args_buffer_address
+            //     0,  // ArgsBufferOffset
+            //     nullptr,  // CountBuffer
+            //     0   // CountBufferOffset
+            // );
         }
         auto GpuDeviceDXR::event_begin(const char*, CommandBuffer*)->void {}
         auto GpuDeviceDXR::event_end(CommandBuffer*) -> void {}

@@ -121,6 +121,11 @@ namespace diverse
                 u64 raygen_offset = 0;
                 u64 miss_offset = 0;
                 u64 hit_offset = 0;
+
+                // Shader identifiers for populating the shader table
+                std::vector<std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES>> raygen_ids;
+                std::vector<std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES>> miss_ids;
+                std::vector<std::array<u8, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES>> hit_ids;
             };
             ShaderTableData shader_table;
         };
@@ -253,6 +258,9 @@ namespace diverse
 
             // Root signature cache
             std::unordered_map<size_t, std::shared_ptr<RootSignatureDXR>> root_signature_cache;
+
+            // Ray tracing command signature for indirect dispatch
+            Microsoft::WRL::ComPtr<ID3D12CommandSignature> raytracing_command_signature;
         };
 
         auto create_dxr_device(u32 device_index)->GpuDevice*;
