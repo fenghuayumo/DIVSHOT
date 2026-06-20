@@ -118,7 +118,6 @@ namespace diverse
         mutable std::mutex loading_mutex;
         std::unordered_set<AssetId> loading_assets;
 
-        // Thread pool for IO
         std::shared_ptr<AssetThreadPool> thread_pool;
     };
 
@@ -157,7 +156,6 @@ namespace diverse
 
     template<typename AssetType>
     AssetLoader<AssetType>::AssetLoader()
-        : thread_pool(std::make_shared<AssetThreadPool>(4))  // 4 IO threads
     {
     }
 
@@ -182,8 +180,11 @@ namespace diverse
     template<typename AssetType>
     std::future<LoadResult> AssetLoader<AssetType>::load(const AssetId& id, const AssetMetadata& metadata)
     {
+        // Thread-safe lazy initialization of thread_pool
         {
             std::lock_guard lock(loading_mutex);
+            if (!thread_pool)
+                thread_pool = std::make_shared<AssetThreadPool>(4);
             loading_assets.insert(id);
         }
 

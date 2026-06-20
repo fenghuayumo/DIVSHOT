@@ -18,11 +18,13 @@ namespace diverse
 
     void BindlessTable::set_descriptor_set(rhi::DescriptorSet* set, uint32_t tex_binding, rhi::GpuBuffer* sizes, uint32_t sizes_binding)
     {
+        DS_UNUSED(sizes);
         descriptor_set = set;
         texture_binding_id = tex_binding;
         size_binding_id = sizes_binding;
-        if (sizes)
-            texture_sizes = std::shared_ptr<rhi::GpuBuffer>(sizes, [](rhi::GpuBuffer*) {});
+        // texture_sizes is owned by BindlessTable. attach_bindless_descriptor_set
+        // passes get_size_buffer() (same pointer); never replace the owning ref
+        // with a non-owning alias or the buffer is freed while still in use.
     }
 
     BindlessHandle BindlessTable::allocate_texture(rhi::GpuTexture* texture)

@@ -1,6 +1,7 @@
 #include "texture_importer.h"
 #include "asset_id.h"
-#include "core/ds_log.h"#include <algorithm>
+#include "core/ds_log.h"
+#include <algorithm>
 #include <cmath>
 
 namespace diverse
@@ -27,6 +28,24 @@ namespace diverse
             push_mip(image);
             if (!generate_mips)
                 return mips;
+
+            const auto can_resize = [](PixelFormat format) {
+                switch (format)
+                {
+                case PixelFormat::R8G8B8A8_UNorm:
+                case PixelFormat::R8G8B8A8_UNorm_sRGB:
+                case PixelFormat::R16G16B16A16_Float:
+                case PixelFormat::R32G32B32A32_Float:
+                    return true;
+                default:
+                    return false;
+                }
+            };
+            if (!can_resize(image.format))
+            {
+                DS_LOG_WARN("Skipping CPU mip generation for unsupported texture format {}", (u32)image.format);
+                return mips;
+            }
 
             auto downsample = [](const image_io::RawImage& src) {
                 return src.resize(std::max(1, (int)src.width() / 2), std::max(1, (int)src.height() / 2));

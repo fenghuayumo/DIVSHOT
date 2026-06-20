@@ -723,7 +723,14 @@ namespace diverse
     {
         bindless_descriptor_set = set;
         if (bindless)
+        {
             bindless->set_descriptor_set(set, texture_binding_id, bindless->get_size_buffer(), size_binding_id);
+            if (bindless_descriptor_set && device)
+            {
+                if (auto* size_buffer = bindless->get_size_buffer())
+                    device->write_descriptor_set(bindless_descriptor_set, size_binding_id, size_buffer);
+            }
+        }
     }
 
     void GpuResourceSystem::attach_mesh_buffer_bindings(uint32_t vertex_binding_id, uint32_t index_binding_id)

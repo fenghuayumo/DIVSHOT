@@ -87,6 +87,18 @@ namespace diverse
             return;
         ensure_cpu_caches();
         texture_cache_ptr->insert(texture->id, texture);
+
+        auto& registry = AssetRegistry::get_instance();
+        if (!registry.get_metadata(texture->id))
+        {
+            AssetMetadata metadata;
+            metadata.id = texture->id;
+            metadata.type = AssetType::Texture;
+            metadata.source_path = texture->source_path;
+            metadata.version = texture->version;
+            metadata.state = AssetState::ReadyCpu;
+            registry.register_asset(texture->id, metadata);
+        }
     }
 
     void AssetSystem::register_cpu_mesh(const std::shared_ptr<MeshAsset>& mesh)
@@ -288,6 +300,7 @@ namespace diverse
 
         texture_cache_ptr = std::make_unique<AssetCache<TextureAsset>>();
         mesh_cache_ptr = std::make_unique<AssetCache<MeshAsset>>();
+        material_cache_ptr = std::make_unique<AssetCache<MaterialAsset>>();
         model_cache_ptr = std::make_unique<AssetCache<ModelAsset>>();
         point_cloud_cache_ptr = std::make_unique<AssetCache<PointCloudAsset>>();
         gaussian_cache_ptr = std::make_unique<AssetCache<GaussianAsset>>();

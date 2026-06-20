@@ -49,6 +49,7 @@
 #include "utility/cmd_variable.h"
 
 #include <execution>
+#include <algorithm>
 #include <mutex>
 #define MATERIAL_BUFFER_CAPACITY 1024 * 512
 #define MAX_GPU_MESHES (1024 * 256)
@@ -273,6 +274,7 @@ namespace diverse
 
 		auto& asset_sys = AssetSystem::get_instance();
 		asset_sys.initialize(rg_renderer->device);
+
 		auto& gpu_sys = asset_sys.gpu_system();
 		gpu_sys.attach_bindless_descriptor_set(bindless_descriptor_set.get(), TEX_BUF_BINDING_ID, TEX_SIZE_BUF_BINDING_ID);
 		gpu_sys.attach_mesh_buffer_bindings(VERTEX_BUF_BINDING_ID, INDEX_BUF_BINDING_ID);
@@ -1543,8 +1545,15 @@ namespace diverse
     {
         image_luts.push_back(computer);
 
+        auto* gpu_texture = computer->get_image().get();
+        if (!gpu_texture)
+        {
+            DS_LOG_ERROR("add_image_lut: LUT {} has no GPU texture", id);
+            return;
+        }
+
         auto& gpu_sys = AssetSystem::get_instance().gpu_system();
-        auto handle = gpu_sys.bind_texture_at_slot(image_luts.back()->get_image().get(), static_cast<u32>(id));
+        auto handle = gpu_sys.bind_texture_at_slot(gpu_texture, static_cast<u32>(id));
         assert(id == handle.index);
     }
 

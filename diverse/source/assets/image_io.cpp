@@ -182,9 +182,37 @@ namespace diverse
 
         auto RawImage::resize(int w, int h) const -> RawImage
         {
-            std::vector<u8> dst(w * h * get_pixel_bytes(format));
-            stb_resize((float*)data.data(), (int)dimensions[0], (int)dimensions[1], (float*)dst.data(), w, h, STB_RGBA);
-            return RawImage{ format, { (u32)w, (u32)h }, std::move(dst) };
+            if (w <= 0 || h <= 0 || data.empty())
+                return {};
+
+            switch (format)
+            {
+            case PixelFormat::R8G8B8A8_UNorm:
+            case PixelFormat::R8G8B8A8_UNorm_sRGB:
+            {
+                std::vector<u8> dst(static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
+                stb_resize(data.data(), (int)dimensions[0], (int)dimensions[1], dst.data(), w, h, STB_RGBA);
+                return RawImage{ format, { (u32)w, (u32)h }, std::move(dst) };
+            }
+            case PixelFormat::R32G32B32A32_Float:
+            {
+                std::vector<u8> dst(static_cast<size_t>(w) * static_cast<size_t>(h) * 4 * sizeof(f32));
+                stb_resize(
+                    reinterpret_cast<const f32*>(data.data()),
+                    (int)dimensions[0],
+                    (int)dimensions[1],
+                    reinterpret_cast<f32*>(dst.data()),
+                    w,
+                    h,
+                    STB_RGBA);
+                return RawImage{ format, { (u32)w, (u32)h }, std::move(dst) };
+            }
+            case PixelFormat::R16G16B16A16_Float:
+                return convert(PixelFormat::R32G32B32A32_Float).resize(w, h).convert(format);
+            default:
+                DS_LOG_WARN("RawImage::resize unsupported pixel format {}; returning original image", (u32)format);
+                return *this;
+            }
         }
 
         auto RawImage::width() const -> u32 { return dimensions[0]; }
