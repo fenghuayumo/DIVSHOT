@@ -3,6 +3,7 @@
 
 //#include "physics/B2PhysicsEngine/B2PhysicsEngine.h"
 #include "scene.h"
+#include "json_scene_loader.h"
 #include "engine/application.h"
 #include "scene.h"
 //#include "physics/DiversePhysicsEngine/DiversePhysicsEngine.h"
@@ -103,12 +104,27 @@ namespace diverse
 
         m_SceneIdx     = m_QueuedSceneIndex;
         m_CurrentScene = m_vpAllScenes[m_QueuedSceneIndex].get();
+        m_CurrentScene->clear_import_meta();
+        m_CurrentScene->delete_all_game_objects();
 
-        std::string physicalPath;
-        if(diverse::FileSystem::get().resolve_physical_path("//assets/scenes/" + m_CurrentScene->get_scene_name() + ".dsn", physicalPath))
+        const std::string& scene_source_path = m_CurrentScene->get_source_file_path();
+
+        if (!scene_source_path.empty() && JsonSceneLoader::is_json_scene_file(scene_source_path))
         {
-            auto newPath = stringutility::remove_name(physicalPath);
-            m_CurrentScene->deserialise(newPath, false);
+            SceneImportMeta import_meta;
+            if (!JsonSceneLoader::load(*m_CurrentScene, scene_source_path, import_meta))
+                DS_LOG_ERROR("Failed to load JSON scene: {0}", scene_source_path);
+            else
+                m_CurrentScene->set_import_meta(import_meta);
+        }
+        else
+        {
+            std::string physicalPath;
+            if(diverse::FileSystem::get().resolve_physical_path("//assets/scenes/" + m_CurrentScene->get_scene_name() + ".dsn", physicalPath))
+            {
+                auto newPath = stringutility::remove_name(physicalPath);
+                m_CurrentScene->deserialise(newPath, false);
+            }
         }
 
         auto screenSize = app.get_window_size();
@@ -154,6 +170,7 @@ namespace diverse
 
         auto name  = stringutility::remove_file_extension(stringutility::get_file_name(filePath));
         auto scene = new Scene(name);
+        scene->set_source_file_path(filePath);
         enqueue_scene(scene);
         return int(m_vpAllScenes.Size()) - 1;
     }

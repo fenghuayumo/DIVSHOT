@@ -73,7 +73,7 @@ namespace diverse
         local_bounding_box.transform(extr_transform);
     }
 
-    void MeshModel::load_model(const std::string& path)
+    void MeshModel::load_model(const std::string& path, bool preserve_origin)
     {
         DS_PROFILE_FUNCTION();
         set_flag(AssetFlag::Loaded, false);
@@ -124,7 +124,10 @@ namespace diverse
             set_flag(AssetFlag::Invalid);
             return;
         }
-        reset_center();
+        if (!preserve_origin)
+            reset_center();
+        else
+            get_local_bounding_box();
         set_flag(AssetFlag::Loaded);
         set_flag(AssetFlag::UploadedGpu, false);
         DS_LOG_INFO("Loaded MeshModel - {0}", path);

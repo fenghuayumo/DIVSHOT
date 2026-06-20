@@ -97,6 +97,6 @@ namespace diverse
         u32     num_select_verts = 0;
         u32     num_select_faces = 0;
     public:
-        void load_model(const std::string& path);
+        void load_model(const std::string& path, bool preserve_origin = false);
     };
 }

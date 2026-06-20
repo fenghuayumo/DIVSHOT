@@ -156,6 +156,28 @@ namespace diverse
         auto game_view_tex = editor->get_main_render_texture();
         ImGuiHelper::Image(game_view_tex, glm::vec2(sceneViewSize.x, sceneViewSize.y), false);
 
+        if (ImGui::BeginDragDropTarget())
+        {
+            const ImGuiPayload* payload = ImGui::GetDragDropPayload();
+            if (payload && payload->IsDataType("AssetFile"))
+            {
+                const std::string file = (const char*)payload->Data;
+                if (editor->is_scene_file(file))
+                    ImGui::SetTooltip("Release to load scene");
+            }
+
+            auto data = ImGui::AcceptDragDropPayload("AssetFile", ImGuiDragDropFlags_AcceptNoDrawDefaultRect);
+            if (data)
+            {
+                std::string file = (char*)data->Data;
+                if (editor->is_scene_file(file))
+                    editor->load_scene_file(file);
+                else
+                    editor->file_open_callback(file);
+            }
+            ImGui::EndDragDropTarget();
+        }
+
         auto windowSize = ImGui::GetWindowSize();
         ImVec2 minBound = sceneViewPosition;
 
@@ -259,18 +281,6 @@ namespace diverse
             ImGui::BeginTooltip();
             ImGui::TextUnformatted(editor->get_hovered_train_view()->file_path.c_str());
             ImGui::EndTooltip();
-        }
-        const ImGuiPayload* payload = ImGui::GetDragDropPayload();
-
-        if (ImGui::BeginDragDropTarget())
-        {
-            auto data = ImGui::AcceptDragDropPayload("AssetFile", ImGuiDragDropFlags_AcceptNoDrawDefaultRect);
-            if (data)
-            {
-                std::string file = (char*)data->Data;
-                editor->file_open_callback(file);
-            }
-            ImGui::EndDragDropTarget();
         }
 
         if (app.get_scene_manager()->get_current_scene())

@@ -43,9 +43,21 @@
 
 namespace tinygltf
 {
+    std::filesystem::path resolve_existing_file_path(const std::filesystem::path& path)
+    {
+        if (std::filesystem::exists(path))
+            return path;
+
+        auto dds_path = path;
+        dds_path.replace_extension(".dds");
+        if (std::filesystem::exists(dds_path))
+            return dds_path;
+
+        return path;
+    }
 
     bool FileExists(const std::string& abs_filename, void*) {
-        return std::filesystem::exists(abs_filename);
+        return std::filesystem::exists(resolve_existing_file_path(abs_filename));
     }
 
     std::string ExpandFilePath(const std::string& filepath, void*) {
@@ -65,8 +77,9 @@ namespace tinygltf
 
     bool ReadWholeFile(std::vector<unsigned char>* out, std::string* err,
         const std::string& filepath, void*) {
+        const auto resolved = resolve_existing_file_path(filepath);
         size_t size;
-        return diverse::readByteData(filepath, *out, size);
+        return diverse::readByteData(resolved.string(), *out, size);
     }
 
     bool WriteWholeFile(std::string* err, const std::string& filepath,
@@ -79,6 +92,9 @@ namespace tinygltf
     {
         (void)warn;
         (void)userdata;
+
+        if (size >= 4 && bytes[0] == 'D' && bytes[1] == 'D' && bytes[2] == 'S' && bytes[3] == ' ')
+            return true;
 
         int w = 0, h = 0, comp = 0;
         unsigned char* data = stbi_load_from_memory(bytes, size, &w, &h, &comp, 4);
@@ -257,7 +273,7 @@ namespace diverse
         std::vector<SharedPtr<Material>> loadedMaterials;
         loadedMaterials.reserve(gltfModel.materials.size());
         bool animated = false;
-        if(gltfModel.skins.size() >= 0)
+        if(!gltfModel.skins.empty())
         {
             animated = true;
         }
@@ -341,6 +357,7 @@ namespace diverse
                         // Handle external texture files
                         if (image_path.is_relative())
                             image_path = std::filesystem::path(basePath) / image_path;
+                        image_path = tinygltf::resolve_existing_file_path(image_path);
                         auto texture = ResourceManager<asset::Texture>::get().get_resource(image_path.string());
                         return texture;
                     }
@@ -417,7 +434,8 @@ namespace diverse
                         gltfModel.textures[index].source >= 0 && gltfModel.textures[index].source < static_cast<int>(gltfModel.images.size()))
                     {
                         auto tex = gltfModel.textures[index];
-                        auto img_path = std::filesystem::path(basePath) / gltfModel.images[tex.source].uri;
+                        auto img_path = tinygltf::resolve_existing_file_path(
+                            std::filesystem::path(basePath) / gltfModel.images[tex.source].uri);
                         textures.albedo = ResourceManager<asset::Texture>::get().get_resource(img_path.string());
                         if (tex.extensions.count("KHR_texture_transform"))
                         {
@@ -438,7 +456,8 @@ namespace diverse
                         gltfModel.textures[index].source >= 0 && gltfModel.textures[index].source < static_cast<int>(gltfModel.images.size()))
                     {
                         auto tex = gltfModel.textures[index];
-                        auto img_path = std::filesystem::path(basePath) / gltfModel.images[tex.source].uri;
+                        auto img_path = tinygltf::resolve_existing_file_path(
+                            std::filesystem::path(basePath) / gltfModel.images[tex.source].uri);
                         textures.metallic  = ResourceManager<asset::Texture>::get().get_resource(img_path.string());
                         if (tex.extensions.count("KHR_texture_transform"))
                         {

@@ -34,56 +34,73 @@ namespace diverse
         }
 
 
-        //uint8_t* load_dds(const std::filesystem::path& path,int* width, int* height,PixelFormat& format)
-        //{
-        //    tinyddsloader::DDSFile dds;
-        //    tinyddsloader::Result loadResult = dds.Load(path.str().c_str());
-        //    if (tinyddsloader::Result::Success != loadResult) {
-        //        return nullptr;
-        //    }
-        //    *width = dds.GetWidth(); *height = dds.GetHeight();
-        //    switch (dds.GetFormat()) {
-        //        case tinyddsloader::DDSFile::DXGIFormat::BC1_UNorm:{
-        //            format = PixelFormat::BC1_UNorm;
-        //            break;
-        //        }
-        //        case tinyddsloader::DDSFile::DXGIFormat::BC7_UNorm:{
-        //            format = PixelFormat::BC7_UNorm;
-        //            break;
-        //        }
-        //        default: {
-        //            throw std::runtime_error{std::format("unsupported compressed format '{}'", path.str())};
-        //            break;
-        //        }
-        //    }
-        //    uint32_t arraySize = dds.GetArraySize();
-        //    uint32_t mipSize = dds.GetMipCount();
-        //    const auto* imageData = dds.GetImageData(0, 0);
+        auto is_block_compressed(PixelFormat format) -> bool
+        {
+            switch (format)
+            {
+            case PixelFormat::BC1_UNorm:
+            case PixelFormat::BC1_UNorm_sRGB:
+            case PixelFormat::BC3_UNorm:
+            case PixelFormat::BC3_UNorm_sRGB:
+            case PixelFormat::BC7_UNorm:
+            case PixelFormat::BC7_UNorm_sRGB:
+                return true;
+            default:
+                return false;
+            }
+        }
 
-        //    size_t totalSize = sizeof(size_t) + (arraySize * mipSize + 2) * sizeof(uint32);
-        //    for(uint32_t a = 0; a < arraySize; a++){
-        //        for(uint32_t m = 0; m < mipSize; m++){
-        //            const auto* imageData = dds.GetImageData(m, a);
-        //            totalSize += imageData->m_depth * imageData->m_memSlicePitch;
-        //        }
-        //    }
-        //    uint8_t* data = (uint8_t*)malloc(totalSize);
+        auto block_compressed_row_pitch(PixelFormat format, u32 width) -> u32
+        {
+            switch (format)
+            {
+            case PixelFormat::BC1_UNorm:
+            case PixelFormat::BC1_UNorm_sRGB:
+            case PixelFormat::BC3_UNorm:
+            case PixelFormat::BC3_UNorm_sRGB:
+            case PixelFormat::BC7_UNorm:
+            case PixelFormat::BC7_UNorm_sRGB:
+                return divide_up_by_multiple(width, 4) * 16;
+            default:
+                return width * 4;
+            }
+        }
 
-        //    uint8 *dds_data = (uint8 *) data;
-        //    memcpy(dds_data, &totalSize, sizeof(size_t)); dds_data += sizeof(size_t);
-        //    memcpy(dds_data, &arraySize, sizeof(uint32_t)); dds_data += sizeof(uint32_t);
-        //    memcpy(dds_data, &mipSize, sizeof(uint32_t)); dds_data += sizeof(uint32_t);
-        //    uint8 *pixel_addr = dds_data + (arraySize * mipSize * sizeof(uint32_t));
-        //    for(uint32_t a = 0; a < arraySize; a++){
-        //        for(uint32_t m = 0; m < mipSize; m++){
-        //            const auto* imageData = dds.GetImageData(m, a);
-        //            uint32_t pixelSize = imageData->m_depth * imageData->m_memSlicePitch;
-        //            memcpy(dds_data, &pixelSize, sizeof(uint32_t)); dds_data += sizeof(uint32_t);
-        //            memcpy(pixel_addr, imageData->m_mem, pixelSize); pixel_addr += pixelSize;
-        //        }
-        //    }
-        //    return data;
-        //}
+        auto pixel_format_from_dds(tinyddsloader::DDSFile::DXGIFormat dds_format) -> PixelFormat
+        {
+            using DXGIFormat = tinyddsloader::DDSFile::DXGIFormat;
+            switch (dds_format)
+            {
+            case DXGIFormat::BC1_UNorm: return PixelFormat::BC1_UNorm;
+            case DXGIFormat::BC1_UNorm_SRGB: return PixelFormat::BC1_UNorm_sRGB;
+            case DXGIFormat::BC3_UNorm: return PixelFormat::BC3_UNorm;
+            case DXGIFormat::BC3_UNorm_SRGB: return PixelFormat::BC3_UNorm_sRGB;
+            case DXGIFormat::BC7_UNorm: return PixelFormat::BC7_UNorm;
+            case DXGIFormat::BC7_UNorm_SRGB: return PixelFormat::BC7_UNorm_sRGB;
+            case DXGIFormat::R8G8B8A8_UNorm: return PixelFormat::R8G8B8A8_UNorm;
+            case DXGIFormat::R8G8B8A8_UNorm_SRGB: return PixelFormat::R8G8B8A8_UNorm_sRGB;
+            default:
+                throw std::runtime_error{ fmt::format("unsupported DDS format ({})", static_cast<uint32_t>(dds_format)) };
+            }
+        }
+
+        auto load_dds(const std::filesystem::path& path) -> RawImage
+        {
+            tinyddsloader::DDSFile dds;
+            if (tinyddsloader::Result::Success != dds.Load(path.string().c_str()))
+                throw std::runtime_error{ fmt::format("failed to load DDS '{}'", path.string()) };
+
+            const auto* image_data = dds.GetImageData(0, 0);
+            if (!image_data || !image_data->m_mem || image_data->m_memSlicePitch == 0)
+                throw std::runtime_error{ fmt::format("DDS '{}' contains no mip data", path.string()) };
+
+            RawImage image;
+            image.format = pixel_format_from_dds(dds.GetFormat());
+            image.dimensions = { dds.GetWidth(), dds.GetHeight() };
+            image.data.resize(image_data->m_memSlicePitch);
+            std::memcpy(image.data.data(), image_data->m_mem, image_data->m_memSlicePitch);
+            return image;
+        }
 
 
         auto load_hdr(const std::filesystem::path& path)-> RawImage
@@ -127,8 +144,7 @@ namespace diverse
             //transform ext to lower
             std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
             if(ext == ".dds"){
-                //TODO:
-                return RawImage{ PixelFormat::R32G32B32A32_Float};
+                return load_dds(path);
             }
             else if(ext == ".png" || ".jpg" == ext || ".bmp" == ext || ext == ".tga") {
                 
@@ -279,7 +295,10 @@ namespace diverse
                 for (auto mip_level = 0; mip_level < mips.size(); mip_level++)
                 {
                     auto& mip = mips[mip_level];
-                    auto row_pitch = std::max<u32>(1, (desc.extent[0] >> mip_level)) * 4;
+                    const u32 mip_width = std::max<u32>(1u, desc.extent[0] >> mip_level);
+                    auto row_pitch = is_block_compressed(format)
+                        ? block_compressed_row_pitch(format, mip_width)
+                        : mip_width * 4;
 
                     initial_data.emplace_back(rhi::ImageSubData{ mip.data(), (u32)mip.size(), row_pitch, 0 });
                 }
@@ -315,6 +334,19 @@ namespace diverse
             {
                 DS_LOG_ERROR("Texture initialisation failed: empty image data");
                 set_flag(AssetFlag::Invalid);
+                return;
+            }
+
+            if (is_block_compressed(img.format))
+            {
+                format = img.format;
+                extent = { img.dimensions[0], img.dimensions[1], 1 };
+                mips.clear();
+                mips.push_back(img.data);
+                upload_2_gpu(format);
+                if (gpu_texture)
+                    set_flag(AssetFlag::UploadedGpu);
+                set_flag(AssetFlag::Loaded);
                 return;
             }
 

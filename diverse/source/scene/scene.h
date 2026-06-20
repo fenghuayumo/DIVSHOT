@@ -1,5 +1,6 @@
 #pragma once
 #include "serialisation.h"
+#include "json_scene_loader.h"
 #include <sol/forward.hpp>
 #include <glm/vec3.hpp>
 #include "maths/bounding_box.h"
@@ -127,8 +128,16 @@ namespace diverse
         Entity get_keyFrame_entity();
 
         const bool& serialised() { return has_serialised;}
+
+        const SceneImportMeta& get_import_meta() const { return m_ImportMeta; }
+        void set_import_meta(const SceneImportMeta& meta) { m_ImportMeta = meta; }
+        void clear_import_meta() { m_ImportMeta = {}; }
+
+        const std::string& get_source_file_path() const { return m_SourceFilePath; }
+        void set_source_file_path(const std::string& path) { m_SourceFilePath = path; }
     protected:
         std::string m_SceneName;
+        std::string m_SourceFilePath;
         int m_SceneSerialisationVersion = 0;
 
         UniquePtr<EntityManager> m_EntityManager;
@@ -138,6 +147,7 @@ namespace diverse
         uint32_t m_ScreenHeight;
         u32      current_edit_splat_ent_id;
         bool     has_serialised = false;
+        SceneImportMeta m_ImportMeta;
     private:
         NONCOPYABLE(Scene)
 

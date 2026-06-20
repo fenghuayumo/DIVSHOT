@@ -286,7 +286,20 @@ namespace diverse
         }
         if (file_paths.size() == 1)
         {
-            file_open_callback(utf8_to_multibyte(file_paths[0]));
+            std::string path = utf8_to_multibyte(file_paths[0]);
+            path = stringutility::back_slashes_2_slashes(path);
+            if (is_scene_file(path))
+            {
+                const glm::vec2 mouse_pos = Input::get().get_mouse_position();
+                if (scene_view_rect.is_inside(mouse_pos))
+                    load_scene_file(path);
+                else
+                    DS_LOG_INFO("Drop the scene file onto the Scene viewport to load it.");
+            }
+            else
+            {
+                file_open_callback(path);
+            }
         }
         else
         {
@@ -374,8 +387,33 @@ namespace diverse
         }
 
         selected_entities.clear();
-        auto box = scene->get_world_bounding_box();
-        focus_camera(box.center(), 2.0f, 2.0f);
+
+        const auto& import_meta = scene->get_import_meta();
+        if (import_meta.has_camera)
+        {
+            auto* transform = get_editor_camera_transform();
+            auto* camera = get_camera();
+            if (transform)
+            {
+                transform->set_local_position(import_meta.camera_position);
+                transform->set_local_orientation(import_meta.camera_rotation);
+                transform->set_world_matrix(glm::mat4(1.0f));
+            }
+            if (camera)
+            {
+                camera->set_fov(import_meta.camera_fov_deg);
+                camera->set_near(import_meta.camera_near);
+                camera->set_far(import_meta.camera_far);
+                camera->set_aspect_ratio(
+                    (float)Application::get().get_window_size()[0] /
+                    (float)Application::get().get_window_size()[1]);
+            }
+        }
+        else
+        {
+            auto box = scene->get_world_bounding_box();
+            focus_camera(box.center(), 2.0f, 2.0f);
+        }
         
         for (auto panel : panels)
         {
@@ -490,7 +528,21 @@ namespace diverse
         std::string extension = stringutility::get_file_extension(filePath);
         if (extension == "dsn")
             return true;
+        const std::string lower = stringutility::to_lower(filePath);
+        if (lower.size() >= 11 && lower.compare(lower.size() - 11, 11, ".scene.json") == 0)
+            return true;
         return false;
+    }
+
+    void Editor::load_scene_file(const std::string& filePath)
+    {
+        auto path = filePath;
+        path = stringutility::back_slashes_2_slashes(path);
+        if (!is_scene_file(path))
+            return;
+
+        int index = Application::get().get_scene_manager()->enqueue_scene_from_file(path);
+        Application::get().get_scene_manager()->switch_scene(index);
     }
     bool Editor::is_font_file(const std::string& filePath)
     {
@@ -606,8 +658,7 @@ namespace diverse
         }
         else if(is_scene_file(path))
         {
-            int index = Application::get().get_scene_manager()->enqueue_scene_from_file(path);
-            Application::get().get_scene_manager()->switch_scene(index);
+            load_scene_file(path);
         }
         else if( is_project_file(path))
         {

@@ -32,6 +32,9 @@
 
 #include <cassert>
 #include <cstring>
+#include <fstream>
+#include <filesystem>
+#include <vector>
 
 #include "ozz/animation/offline/raw_animation_utils.h"
 #include "ozz/animation/offline/tools/import2ozz.h"
@@ -461,6 +464,51 @@ bool CreateNodeTransform(const tinygltf::Node& _node,
 
   return true;
 }
+
+bool GltfFsFileExists(const std::string& abs_filename, void*) {
+  return std::filesystem::exists(abs_filename);
+}
+
+std::string GltfFsExpandFilePath(const std::string& filepath, void*) {
+  return filepath;
+}
+
+bool GltfFsReadWholeFile(std::vector<unsigned char>* out, std::string* err,
+                         const std::string& filepath, void*) {
+  std::ifstream file(filepath, std::ios::binary | std::ios::ate);
+  if (!file) {
+    if (err) {
+      *err = "Failed to open file: " + filepath;
+    }
+    return false;
+  }
+
+  const auto size = file.tellg();
+  if (size < 0) {
+    if (err) {
+      *err = "Failed to get file size: " + filepath;
+    }
+    return false;
+  }
+
+  file.seekg(0, std::ios::beg);
+  out->resize(static_cast<size_t>(size));
+  file.read(reinterpret_cast<char*>(out->data()), size);
+  if (!file) {
+    if (err) {
+      *err = "Failed to read file: " + filepath;
+    }
+    out->clear();
+    return false;
+  }
+  return true;
+}
+
+bool GltfFsWriteWholeFile(std::string*, const std::string&,
+                          const std::vector<unsigned char>&, void*) {
+  return false;
+}
+
 }  // namespace
 
 class GltfImporter : public ozz::animation::offline::OzzImporter {
@@ -472,6 +520,13 @@ class GltfImporter : public ozz::animation::offline::OzzImporter {
                            std::string*, int, int, const unsigned char*, int,
                            void*) { return true; };
     m_loader.SetImageLoader(image_loader, NULL);
+
+    tinygltf::FsCallbacks callbacks{};
+    callbacks.FileExists = GltfFsFileExists;
+    callbacks.ExpandFilePath = GltfFsExpandFilePath;
+    callbacks.ReadWholeFile = GltfFsReadWholeFile;
+    callbacks.WriteWholeFile = GltfFsWriteWholeFile;
+    m_loader.SetFsCallbacks(callbacks);
   }
 
  private:

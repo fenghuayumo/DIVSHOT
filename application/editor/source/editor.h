@@ -303,6 +303,7 @@ namespace diverse
         bool is_font_file(const std::string& path);
         bool is_audio_file(const std::string& filepath);
         bool is_scene_file(const std::string& path);
+        void load_scene_file(const std::string& path);
         bool is_shader_file(const std::string& filepath);
         bool is_mesh_model_file(const std::string& filepath);
         bool is_camera_json_file(const std::string& filepath);
