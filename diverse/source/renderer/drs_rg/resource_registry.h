@@ -11,6 +11,7 @@ namespace diverse
 		{
 			enum class Type
 			{
+				Unused,
 				OwnedImage,
 				ImportedImage,
 				OwnedBuffer,
@@ -44,6 +45,11 @@ namespace diverse
 			static auto image(const std::shared_ptr<rhi::GpuTexture>& v) -> AnyRenderResource
 			{
 				return { AnyRenderResource::Type::OwnedImage, v };
+			}
+
+			static auto unused() -> AnyRenderResource
+			{
+				return { AnyRenderResource::Type::Unused, {} };
 			}
 
 			static auto buffer(const std::shared_ptr<rhi::GpuBuffer>& v) -> AnyRenderResource

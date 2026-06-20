@@ -134,7 +134,7 @@ namespace diverse
             }
 
             auto create_raw_resource(GraphResourceCreateInfo&& info) -> GraphRawResourceHandle;
-            auto calculate_resource_info() -> ResourceInfo;
+            auto calculate_resource_info() const -> ResourceInfo;
             auto build_pass_schedule() const -> PassSchedule;
             auto build_pass_queue_ranges(const std::vector<ScheduledPass>& scheduled_passes) const -> std::vector<PassQueueRange>;
             auto build_pass_execution_batches(const std::vector<ScheduledPass>& scheduled_passes, uint32 first_presentation_pass) const -> std::vector<PassExecutionBatch>;

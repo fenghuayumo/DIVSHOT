@@ -351,21 +351,9 @@ namespace diverse
             };
         }
 
-        auto RenderGraph::calculate_resource_info() -> ResourceInfo
+        auto RenderGraph::calculate_resource_info() const -> ResourceInfo
         {
             std::vector<ResourceLifeTime>   lifetimes(this->resources.size());
-            std::transform(resources.begin(), resources.end(), lifetimes.begin(),[](const GraphResourceInfo& res) {
-                switch (res.ty)
-                {
-                case GraphResourceInfo::Type::Created:
-                    return ResourceLifeTime{};
-                case GraphResourceInfo::Type::Imported:
-                    return ResourceLifeTime{0};
-                default:
-                    return ResourceLifeTime{};
-                }
-            });
-
             std::vector<rhi::TextureUsageFlags> image_usage_flags(resources.size());
             std::vector<rhi::BufferUsageFlags> buffer_usage_flags(resources.size());
 
@@ -383,13 +371,23 @@ namespace diverse
                 }
             }
 
-            for (auto pass_idx = 0; pass_idx < passes.size(); pass_idx++) {
+            const auto schedule = pass_schedule.ordered_passes.empty() && !passes.empty()
+                ? build_pass_schedule()
+                : pass_schedule;
+
+            for (auto scheduled_pass_idx = 0u; scheduled_pass_idx < schedule.ordered_passes.size(); scheduled_pass_idx++) {
+                auto pass_idx = schedule.ordered_passes[scheduled_pass_idx].pass_index;
                 auto& pass = passes[pass_idx];
 
                 auto traverse_pass = [&](const PassResourceRef& res_access) {
                     auto resource_index = res_access.handle.id;
-                    auto res = lifetimes[resource_index];
-                    res.last_access = res.last_access ? std::max<uint32>(res.last_access.value(), pass_idx) : pass_idx;
+                    if (resource_index >= resources.size())
+                    {
+                        DS_LOG_ERROR("RenderGraph resource access references invalid resource id {}", resource_index);
+                        return;
+                    }
+
+                    lifetimes[resource_index].record_access(scheduled_pass_idx);
                     switch (resources[resource_index].ty)
                     {
                     case GraphResourceInfo::Type::Created:
@@ -433,7 +431,17 @@ namespace diverse
             for (auto& [res, access_type] : exported_resources)
             {
                 auto raw_id = res.raw().id;
-                lifetimes[raw_id].last_access = std::max<uint32>(passes.size() - 1,0);
+                if (raw_id >= lifetimes.size())
+                {
+                    DS_LOG_ERROR("RenderGraph exported resource references invalid resource id {}", raw_id);
+                    continue;
+                }
+
+                const auto export_access = schedule.ordered_passes.empty()
+                    ? 0u
+                    : static_cast<uint32>(schedule.ordered_passes.size() - 1);
+                lifetimes[raw_id].record_access(export_access);
+
                 if (access_type != rhi::AccessType::Nothing) {
                    
                     if (res.ty == ExportableGraphResource::Type::Image) {
@@ -701,6 +709,33 @@ namespace diverse
                 << ", dependencies: " << schedule.dependencies.size()
                 << ", first_presentation_pass: " << schedule.first_presentation_pass << "\n";
 
+            const auto info = resource_info.lifetimes.size() == resources.size()
+                ? resource_info
+                : calculate_resource_info();
+
+            out << "\nresources:\n";
+            for (auto resource_idx = 0u; resource_idx < resources.size(); resource_idx++)
+            {
+                out << "  " << resource_label(resources, resource_idx);
+                if (resource_idx < info.lifetimes.size())
+                {
+                    const auto& lifetime = info.lifetimes[resource_idx];
+                    if (lifetime.is_used())
+                    {
+                        out << " lifetime=["
+                            << lifetime.first_access.value()
+                            << ", "
+                            << lifetime.last_access.value()
+                            << "]";
+                    }
+                    else
+                    {
+                        out << " lifetime=unused";
+                    }
+                }
+                out << "\n";
+            }
+
             out << "\nordered passes:\n";
             for (auto ordered_idx = 0u; ordered_idx < schedule.ordered_passes.size(); ordered_idx++)
             {
@@ -809,9 +844,9 @@ namespace diverse
 
         auto RenderGraph::compile(rhi::PipelineCache& pipeline_cache) -> void
         {
-            auto resource_info = calculate_resource_info();
             pass_schedule = build_pass_schedule();
             pass_queue_ranges = pass_schedule.queue_ranges;
+            auto resource_info = calculate_resource_info();
             
             std::vector<rhi::ComputePipelineHandle>  compute_pipeline_handles;
             std::vector<rhi::RasterPipelineHandle>  raster_pipeline_handles;
@@ -900,6 +935,13 @@ namespace diverse
                 auto& resource = resources[res_id];
                 if (resource.ty == GraphResourceInfo::Type::Created)
                 {
+                    const auto has_lifetime = res_id < resource_info.lifetimes.size();
+                    if (has_lifetime && !resource_info.lifetimes[res_id].is_used())
+                    {
+                        ret_resources.push_back({ AnyRenderResource::unused(), rhi::AccessType::Nothing });
+                        continue;
+                    }
+
                     auto& create_info = resource.graph_resource_create_info();
                     const auto& desc = create_info.desc;
                     switch ( desc.ty )
@@ -926,9 +968,12 @@ namespace diverse
                     break;
                     case GraphResourceDesc::Type::RayTracingAcceleration:
                     {
+                        DS_LOG_ERROR("Created ray tracing acceleration resources are not implemented in RenderGraph");
+                        ret_resources.push_back({ AnyRenderResource::unused(), rhi::AccessType::Nothing });
                     }
                     break;
                     default:
+                        ret_resources.push_back({ AnyRenderResource::unused(), rhi::AccessType::Nothing });
                         break;
                     }
                 }

@@ -1,5 +1,6 @@
 #pragma once
 #include "backend/drs_rhi/gpu_device.h"
+#include <algorithm>
 #include <any>
 #include <concepts>
 
@@ -9,12 +10,25 @@ namespace diverse
 	{
 		struct ResourceLifeTime
         {
+            // Pass indices are in scheduled execution order, not insertion order.
+            std::optional<uint32> first_access;
             std::optional<uint32> last_access;
+
+            bool is_used() const
+            {
+                return first_access.has_value() && last_access.has_value();
+            }
+
+            void record_access(uint32 pass_index)
+            {
+                first_access = first_access ? std::min(first_access.value(), pass_index) : pass_index;
+                last_access = last_access ? std::max(last_access.value(), pass_index) : pass_index;
+            }
         };
 
         struct ResourceInfo
         {
-            std::vector<ResourceLifeTime>   _lifetimes;
+            std::vector<ResourceLifeTime>   lifetimes;
             std::vector<rhi::TextureUsageFlags> image_usage_flags;
             std::vector<rhi::BufferUsageFlags> buffer_usage_flags;
         };
@@ -250,9 +264,19 @@ namespace diverse
 				return std::any_cast<Handle<rhi::GpuTexture>&>(value);
 			}
 
+			auto Image() const -> const Handle<rhi::GpuTexture>&
+			{
+				return std::any_cast<const Handle<rhi::GpuTexture>&>(value);
+			}
+
 			auto Buffer()->Handle<rhi::GpuBuffer>&
 			{
 				return std::any_cast<Handle<rhi::GpuBuffer>&>(value);
+			}
+
+			auto Buffer() const -> const Handle<rhi::GpuBuffer>&
+			{
+				return std::any_cast<const Handle<rhi::GpuBuffer>&>(value);
 			}
 
 			static auto Image(const Handle<rhi::GpuTexture>& handle) -> ExportableGraphResource
@@ -266,12 +290,15 @@ namespace diverse
 
 			auto raw() -> GraphRawResourceHandle 
 			{
+				return std::as_const(*this).raw();
+			}
+
+			auto raw() const -> GraphRawResourceHandle
+			{
 				if (ty == Type::Image) {
 					return Image().raw;
 				}
-				else  {
-					return Buffer().raw;
-				}
+				return Buffer().raw;
 			}
 		};
 
