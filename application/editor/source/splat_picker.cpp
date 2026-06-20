@@ -14,7 +14,7 @@ namespace diverse
                     const glm::vec2& mouse_pos,
                     const maths::Ray& ray,
                     const glm::mat4& model_transform,
-                    const maths::Transform& camera_transform,
+                    const Transform& camera_transform,
                     const glm::mat4& proj,
                     u32 surface_width,
                     u32 surface_height,

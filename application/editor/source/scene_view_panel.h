@@ -32,10 +32,10 @@ namespace diverse
         void draw_splat_edit_toolbox(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void draw_progress(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void draw_3d_paint_toolbar(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
-        void draw_splat_focus_box(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
+        void draw_splat_focus_box(Camera* camera, Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void draw_shade_toolbar(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
-        void handle_splat_edit(Camera* camera,maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
-        void handle_splat_crop(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
+        void handle_splat_edit(Camera* camera,Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
+        void handle_splat_crop(Camera* camera, Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         void handle_3d_paint(const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize);
         bool handle_mouse_move(MouseMovedEvent& e) override;
         bool handle_mouse_pressed(MouseButtonPressedEvent& e) override;
@@ -45,7 +45,7 @@ namespace diverse
                 const glm::vec2& mouse_pos,
                 const maths::Ray& ray,
                 const glm::mat4& model_transform,
-                const maths::Transform& camera_transform,
+                const Transform& camera_transform,
                 const glm::mat4& project,
                 u32 surface_width,
                 u32 surface_height,

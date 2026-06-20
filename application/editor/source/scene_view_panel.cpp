@@ -110,7 +110,7 @@ namespace diverse
             return;
         }
         Camera* camera = nullptr;
-        maths::Transform* transform = nullptr;
+        Transform* transform = nullptr;
         {
             DS_PROFILE_SCOPE("Set Override Camera");
             camera = editor->get_camera();
@@ -240,7 +240,7 @@ namespace diverse
             {
                 auto splat_model = splat_ent.get_component<GaussianComponent>().ModelRef;
                 auto& transform = splat_ent.get_component<maths::Transform>();
-                maths::Transform* cameraTransform = editor->get_editor_camera_transform();
+                Transform* cameraTransform = editor->get_editor_camera_transform();
                 auto project = camera->get_projection_matrix();
                 glm::vec3 isect_point;
                 if (cameraTransform && pick_splat(splat_model,
@@ -577,7 +577,7 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
         Camera* camera = editor->get_camera();
-        maths::Transform* cameraTransform = editor->get_editor_camera_transform();
+        Transform* cameraTransform = editor->get_editor_camera_transform();
         auto& registry = scene->get_registry();
         glm::mat4 view = glm::inverse(cameraTransform->get_world_matrix());
         glm::mat4 proj = camera->get_projection_matrix();
@@ -975,7 +975,7 @@ namespace diverse
         }
     }
     
-    void SceneViewPanel::handle_splat_edit(Camera* camera, maths::Transform* camera_transform, const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)
+    void SceneViewPanel::handle_splat_edit(Camera* camera, Transform* camera_transform, const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)
     {
         if (!editor->splat_edit()) return;
         auto splat_ent = Entity(editor->get_current_splat_entt(), editor->get_current_scene());
@@ -1228,7 +1228,7 @@ namespace diverse
         }
     }
 
-    void SceneViewPanel::draw_splat_focus_box(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)
+    void SceneViewPanel::draw_splat_focus_box(Camera* camera, Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)
     {
 #ifdef DS_SPLAT_TRAIN
         auto splat_ent = Entity(editor->get_current_splat_entt(), editor->get_current_scene());
@@ -1264,7 +1264,7 @@ namespace diverse
 #endif
     }
     
-    void SceneViewPanel::handle_splat_crop(Camera* camera, maths::Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)
+    void SceneViewPanel::handle_splat_crop(Camera* camera, Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)
     {
         auto splat_group = current_scene->get_registry().group<GaussianCrop>(entt::get<maths::Transform>);
         for (auto gs_ent : splat_group)

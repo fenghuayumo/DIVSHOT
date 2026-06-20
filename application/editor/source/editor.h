@@ -224,14 +224,14 @@ namespace diverse
             return nullptr;
         }
 
-        maths::Transform* get_editor_camera_transform()
+        Transform* get_editor_camera_transform()
         {
             if (editor_camera_entity != entt::null && get_current_scene())
             {
                 auto& reg = get_current_scene()->get_registry();
                 if (reg.valid(editor_camera_entity))
                 {
-                    return reg.try_get<maths::Transform>(editor_camera_entity);
+                    return reg.try_get<Transform>(editor_camera_entity);
                 }
             }
             return nullptr;

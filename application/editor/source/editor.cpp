@@ -88,6 +88,20 @@ namespace diverse
         return FileSystem::get_working_directory() + "/../resource/";
     }
 
+    static void update_entity_global_transform(Scene* scene, entt::entity entity)
+    {
+        if (!scene || entity == entt::null)
+            return;
+
+        auto& registry = scene->get_registry();
+        if (!registry.valid(entity))
+            return;
+
+        if (auto* global_transform = registry.try_get<GlobalTransform>(entity))
+            global_transform->dirty = true;
+        scene->update_scene_graph();
+    }
+
     Editor::Editor()
         : Application()
         , ini_file("")
@@ -374,10 +388,9 @@ namespace diverse
             // Set current camera
             current_camera = &cam_component;
 
-            // Add maths::Transform component for editor camera
-            auto& transform = editorCamEntity.add_component<maths::Transform>();
-            transform.set_local_orientation(glm::radians(glm::vec3(-10.0f, 10.0f, 0.0f)));
-            transform.set_world_matrix(glm::mat4(1.0f));
+            auto& transform = editorCamEntity.get_component<::diverse::Transform>();
+            transform.local_rotation = glm::quat(glm::radians(glm::vec3(-10.0f, 10.0f, 0.0f)));
+            editorCamEntity.get_or_add_component<GlobalTransform>().dirty = true;
 
             // Add EditorCameraController component for controlling camera speed, mode, etc
             auto& controller = editorCamEntity.add_component<EditorCameraController>();
@@ -393,13 +406,14 @@ namespace diverse
         const auto& import_meta = scene->get_import_meta();
         if (import_meta.has_camera)
         {
-            auto* transform = get_editor_camera_transform();
+            auto* transform = scene->get_registry().try_get<::diverse::Transform>(editor_camera_entity);
             auto* camera = get_camera();
             if (transform)
             {
-                transform->set_local_position(import_meta.camera_position);
-                transform->set_local_orientation(import_meta.camera_rotation);
-                transform->set_world_matrix(glm::mat4(1.0f));
+                transform->local_position = import_meta.camera_position;
+                transform->local_rotation = import_meta.camera_rotation;
+                if (auto* global_transform = scene->get_registry().try_get<GlobalTransform>(editor_camera_entity))
+                    global_transform->dirty = true;
             }
             if (camera)
             {
@@ -416,6 +430,8 @@ namespace diverse
             auto box = scene->get_world_bounding_box();
             focus_camera(box.center(), 2.0f, 2.0f);
         }
+
+        scene->update_scene_graph();
         
         for (auto panel : panels)
         {
@@ -1342,7 +1358,7 @@ namespace diverse
                     controller->handle_keyboard(*transform, (float)ts.get_seconds());
                 }
 
-                transform->set_world_matrix(glm::mat4(1.0f));
+                update_entity_global_transform(scene, editor_camera_entity);
 
                 if (!selected_entities.empty() && Input::get().get_key_pressed(InputCode::Key::F))
                 {
@@ -1387,6 +1403,7 @@ namespace diverse
                     auto distanceToDestination = glm::distance(cameraCurrentPosition, camera_destination);
 
                     is_transitioning_camera = distanceToDestination > kTransitionCompletionDistanceTolerance;
+                    update_entity_global_transform(scene, editor_camera_entity);
                 }
             }
 

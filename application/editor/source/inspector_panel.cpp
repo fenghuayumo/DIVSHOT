@@ -1284,7 +1284,7 @@ namespace MM
         if(controller)
         {                
             // Camera view mode selection - 相机6视图和透视图切换
-            auto* transform = reg.try_get<diverse::maths::Transform>(e);
+            auto* transform = reg.try_get<diverse::Transform>(e);
             if (transform)
             {
                 ImGui::TextUnformatted("View Mode");
@@ -1370,6 +1370,8 @@ namespace MM
                                 break;
                         }
                     }
+                    if (auto* global_transform = reg.try_get<diverse::GlobalTransform>(e))
+                        global_transform->dirty = true;
                 }
                 
                 ImGui::PopItemWidth();

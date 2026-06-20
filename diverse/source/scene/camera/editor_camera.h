@@ -1,5 +1,6 @@
 #pragma once
 #include "camera_controller.h"
+#include "scene/components/transform_component.h"
 
 namespace diverse
 {
@@ -17,21 +18,21 @@ namespace diverse
         EditorCameraController();
         ~EditorCameraController();
 
-        virtual void handle_mouse(maths::Transform& transform, float dt, float xpos, float ypos) override;
-        virtual void handle_keyboard(maths::Transform& transform, float dt) override;
+        void handle_mouse(Transform& transform, float dt, float xpos, float ypos);
+        void handle_keyboard(Transform& transform, float dt);
 
-        void mouse_pan(maths::Transform& transform, const glm::vec2& delta);
-        void mouse_rotate(maths::Transform& transform, const glm::vec2& delta);
-        void mouse_zoom(maths::Transform& transform, float delta);
-        void update_camera_view(maths::Transform& transform, float dt);
+        void mouse_pan(Transform& transform, const glm::vec2& delta);
+        void mouse_rotate(Transform& transform, const glm::vec2& delta);
+        void mouse_zoom(Transform& transform, float delta);
+        void update_camera_view(Transform& transform, float dt);
 
-        glm::vec3 calculate_position(maths::Transform& transform) const;
-        void      update_focal_point(maths::Transform& transform,const glm::vec3& camera_pos);
+        glm::vec3 calculate_position(Transform& transform) const;
+        void      update_focal_point(Transform& transform,const glm::vec3& camera_pos);
         std::pair<float, float> pan_speed() const;
         float get_rotation_speed() const;
         float get_zoom_speed() const;
 
-        void update_scroll(maths::Transform& transform, float offset, float dt) override;
+        void update_scroll(Transform& transform, float offset, float dt);
 
         void stop_movement();
         void set_speed(float speed) { camera_speed = speed; }
@@ -39,18 +40,18 @@ namespace diverse
         void set_current_mode(EditorCameraMode mode);
         EditorCameraMode get_current_mode() const { return camera_mode; }
         bool is_moving() const;
-        void set_buttom_view(maths::Transform& transform);
-        void set_top_view(maths::Transform& transform);
-        void set_left_view(maths::Transform& transform);
-        void set_right_view(maths::Transform& transform);
-        void set_front_view(maths::Transform& transform);
-        void set_back_view(maths::Transform& transform);
+        void set_buttom_view(Transform& transform);
+        void set_top_view(Transform& transform);
+        void set_left_view(Transform& transform);
+        void set_right_view(Transform& transform);
+        void set_front_view(Transform& transform);
+        void set_back_view(Transform& transform);
         
         // Initialize orthographic view center from current camera state
-        void init_ortho_view_from_current(const maths::Transform& transform);
+        void init_ortho_view_from_current(const Transform& transform);
         
         // Sync focal_point from ortho_view_center (when switching back to ARCBALL)
-        void sync_focal_point_from_ortho_view(const maths::Transform& transform);
+        void sync_focal_point_from_ortho_view(const Transform& transform);
         
     private:
         EditorCameraMode camera_mode = EditorCameraMode::ARCBALL;

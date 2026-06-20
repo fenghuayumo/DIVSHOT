@@ -51,7 +51,7 @@ namespace diverse
     {
     }
 
-    void EditorCameraController::update_camera_view(maths::Transform& transform, float dt)
+    void EditorCameraController::update_camera_view(Transform& transform, float dt)
     {
         const float yawSign = transform.get_up_direction().y < 0 ? -1.0f : 1.0f;
 
@@ -65,7 +65,7 @@ namespace diverse
         pitch_delta *= pow(dampening_factor, dt);
         position_delta *= pow(dampening_factor, dt);
     }
-    void EditorCameraController::handle_mouse(maths::Transform& transform, float dt, float xpos, float ypos)
+    void EditorCameraController::handle_mouse(Transform& transform, float dt, float xpos, float ypos)
     {
         DS_PROFILE_FUNCTION();
         
@@ -254,7 +254,7 @@ namespace diverse
         }
     }
 
-    void EditorCameraController::handle_keyboard(maths::Transform& transform, float dt)
+    void EditorCameraController::handle_keyboard(Transform& transform, float dt)
     {
         // Camera Keyboard Controls:
         // ARCBALL Mode:
@@ -402,7 +402,7 @@ namespace diverse
         speed          = glm::min(speed, 50.0f); // max speed = 50
         return speed * camera_speed / 1000.0f;
     }
-    void EditorCameraController::mouse_pan(maths::Transform& transform, const glm::vec2& delta)
+    void EditorCameraController::mouse_pan(Transform& transform, const glm::vec2& delta)
     {
         // Apply shift key acceleration for faster panning
         float multiplier = 1.0f;
@@ -417,14 +417,14 @@ namespace diverse
         transform.set_local_position(calculate_position(transform));
     }
 
-    void EditorCameraController::mouse_rotate(maths::Transform& transform, const glm::vec2& delta)
+    void EditorCameraController::mouse_rotate(Transform& transform, const glm::vec2& delta)
     {
         const float yawSign = transform.get_up_direction().y < 0.0f ? -1.0f : 1.0f;
         yaw_delta += yawSign * delta.x * get_rotation_speed();
         pitch_delta += delta.y * get_rotation_speed();
     }
 
-    void EditorCameraController::mouse_zoom(maths::Transform& transform, float delta)
+    void EditorCameraController::mouse_zoom(Transform& transform, float delta)
     {
         if (Input::get().get_key_held(InputCode::Key::LeftControl))
         {
@@ -449,7 +449,7 @@ namespace diverse
         }
     }
 
-    void EditorCameraController::update_scroll(maths::Transform& transform, float offset, float dt)
+    void EditorCameraController::update_scroll(Transform& transform, float offset, float dt)
     {
         if (Input::get().get_key_held(InputCode::Key::LeftControl))
         {
@@ -527,7 +527,7 @@ namespace diverse
                zoom_velocity != 0.0f;
     }
 
-    glm::vec3 EditorCameraController::calculate_position(maths::Transform& transform) const
+    glm::vec3 EditorCameraController::calculate_position(Transform& transform) const
     {
         auto forward = transform.get_forward_direction();
         auto right = transform.get_right_direction();
@@ -536,14 +536,14 @@ namespace diverse
         return camera_pos + position_delta;
     }
 
-    void EditorCameraController::update_focal_point(maths::Transform& transform,const glm::vec3& camera_pos)
+    void EditorCameraController::update_focal_point(Transform& transform,const glm::vec3& camera_pos)
     {
         transform.set_local_position(camera_pos);
         focal_point = camera_pos - transform.get_forward_direction() * distance;
         //+ transform.get_right_direction() * distance  - transform.get_up_direction() * distance;
     }
     
-    void EditorCameraController::init_ortho_view_from_current(const maths::Transform& transform)
+    void EditorCameraController::init_ortho_view_from_current(const Transform& transform)
     {
         // Calculate the center point that the current camera is looking at
         glm::vec3 forward = transform.get_forward_direction();
@@ -565,14 +565,14 @@ namespace diverse
         }
     }
     
-    void EditorCameraController::sync_focal_point_from_ortho_view(const maths::Transform& transform)
+    void EditorCameraController::sync_focal_point_from_ortho_view(const Transform& transform)
     {
         // Sync focal_point and distance from ortho_view data
         // This is called when switching back to ARCBALL mode
         focal_point = ortho_view_center;
         distance = ortho_view_distance;
     }
-    void EditorCameraController::set_front_view(maths::Transform& transform)
+    void EditorCameraController::set_front_view(Transform& transform)
     {
         // Front view: looking along negative Z-axis (toward -Z)
         // Camera position: ortho_view_center + (0, 0, +distance)
@@ -583,7 +583,7 @@ namespace diverse
         transform.set_local_position(new_position);
     }
 
-    void EditorCameraController::set_back_view(maths::Transform& transform)
+    void EditorCameraController::set_back_view(Transform& transform)
     {
         // Back view: looking along positive Z-axis (toward +Z)
         // Camera position: ortho_view_center + (0, 0, -distance)
@@ -594,7 +594,7 @@ namespace diverse
         transform.set_local_position(new_position);
     }
 
-    void EditorCameraController::set_left_view(maths::Transform& transform)
+    void EditorCameraController::set_left_view(Transform& transform)
     {
         // Left view: camera on left side looking toward +X (toward center)
         // Camera position: ortho_view_center + (-distance, 0, 0)
@@ -605,7 +605,7 @@ namespace diverse
         transform.set_local_position(new_position);
     }
 
-    void EditorCameraController::set_right_view(maths::Transform& transform)
+    void EditorCameraController::set_right_view(Transform& transform)
     {
         // Right view: camera on right side looking toward -X (toward center)
         // Camera position: ortho_view_center + (+distance, 0, 0)
@@ -616,7 +616,7 @@ namespace diverse
         transform.set_local_position(new_position);
     }
 
-    void EditorCameraController::set_top_view(maths::Transform& transform)
+    void EditorCameraController::set_top_view(Transform& transform)
     {
         // Top view: looking along negative Y-axis (toward -Y, from top)
         // Camera position: ortho_view_center + (0, +distance, 0)
@@ -627,7 +627,7 @@ namespace diverse
         transform.set_local_position(new_position);
     }
 
-    void EditorCameraController::set_buttom_view(maths::Transform& transform)
+    void EditorCameraController::set_buttom_view(Transform& transform)
     {
         // Bottom view: looking along positive Y-axis (toward +Y, from bottom)
         // Camera position: ortho_view_center + (0, -distance, 0)

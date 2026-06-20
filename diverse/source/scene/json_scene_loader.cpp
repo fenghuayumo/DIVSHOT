@@ -6,7 +6,9 @@
 #include "scene/component/environment.h"
 #include "scene/entity_manager.h"
 #include "scene/scene_graph.h"
+#include "scene/components/global_transform_component.h"
 #include "scene/components/light_component.h"
+#include "scene/components/transform_component.h"
 #include "assets/model_asset.h"
 #include "maths/transform.h"
 #include "utility/string_utils.h"
@@ -90,6 +92,27 @@ namespace diverse
 
             // Don't set world matrix here - let scene graph update handle it
             transform.update_matrices();
+        }
+
+        void apply_transform(::diverse::Transform& transform, const json& node)
+        {
+            if (node.contains("translation"))
+                transform.local_position = read_vec3(node["translation"]);
+
+            if (node.contains("rotation"))
+                transform.local_rotation = read_rotation_quat(node["rotation"]);
+            else if (node.contains("euler"))
+                transform.local_rotation = glm::quat(read_vec3(node["euler"]));
+
+            if (node.contains("scaling"))
+                transform.local_scale = read_scale(node["scaling"]);
+        }
+
+        void apply_entity_transform(Entity entity, const json& node, Entity parent = {})
+        {
+            auto& transform = entity.get_or_add_component<::diverse::Transform>();
+            apply_transform(transform, node);
+            entity.get_or_add_component<GlobalTransform>().dirty = true;
         }
 
         std::filesystem::path resolve_scene_media_path(
@@ -289,9 +312,7 @@ namespace diverse
                     cylinder_light.length = node["length"].get<float>();
             }
 
-            // Apply transform
-            auto& transform = entity.get_component<maths::Transform>();
-            apply_transform(transform, node);
+            apply_entity_transform(entity, node, parent);
 
             return entity;
         }
@@ -340,8 +361,7 @@ namespace diverse
                     auto model = load_mesh_model_preserve_origin(model_path, model_cache);
                     entity.add_component<MeshModelComponent>(model);
 
-                    auto& transform = entity.get_component<maths::Transform>();
-                    apply_transform(transform, node);
+                    apply_entity_transform(entity, node, parent);
                     continue;
                 }
 
@@ -352,8 +372,7 @@ namespace diverse
                     if (parent)
                         container.set_parent(parent);
 
-                    auto& transform = container.get_component<maths::Transform>();
-                    apply_transform(transform, node);
+                    apply_entity_transform(container, node, parent);
                 }
 
                 if (node_type == "EnvironmentLight")

@@ -4,6 +4,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 #include <cereal/cereal.hpp>
 
 namespace diverse
@@ -39,10 +40,50 @@ namespace diverse
             return result;
         }
 
+        glm::mat4 get_local_matrix() const
+        {
+            return compute_local_matrix();
+        }
+
+        glm::mat4 get_world_matrix() const
+        {
+            return compute_local_matrix();
+        }
+
+        glm::vec3 get_world_position() const
+        {
+            return local_position;
+        }
+
+        glm::quat get_world_orientation() const
+        {
+            return local_rotation;
+        }
+
+        const glm::vec3& get_local_position() const
+        {
+            return local_position;
+        }
+
+        const glm::quat& get_local_orientation() const
+        {
+            return local_rotation;
+        }
+
+        const glm::vec3& get_local_scale() const
+        {
+            return local_scale;
+        }
+
         // Direction helpers (in local space, assuming identity parent)
         glm::vec3 up() const
         {
             return local_rotation * glm::vec3(0.0f, 1.0f, 0.0f);
+        }
+
+        glm::vec3 get_up_direction() const
+        {
+            return up();
         }
 
         glm::vec3 right() const
@@ -50,9 +91,19 @@ namespace diverse
             return local_rotation * glm::vec3(1.0f, 0.0f, 0.0f);
         }
 
+        glm::vec3 get_right_direction() const
+        {
+            return right();
+        }
+
         glm::vec3 forward() const
         {
             return local_rotation * glm::vec3(0.0f, 0.0f, 1.0f);
+        }
+
+        glm::vec3 get_forward_direction() const
+        {
+            return forward();
         }
 
         // Modifiers
@@ -60,6 +111,44 @@ namespace diverse
         {
             local_position += delta;
             return *this;
+        }
+
+        void set_local_position(const glm::vec3& position)
+        {
+            local_position = position;
+        }
+
+        void set_local_scale(const glm::vec3& scale_)
+        {
+            local_scale = scale_;
+            if (local_scale.x == 0.0f) local_scale.x = 1e-3f;
+            if (local_scale.y == 0.0f) local_scale.y = 1e-3f;
+            if (local_scale.z == 0.0f) local_scale.z = 1e-3f;
+        }
+
+        void set_local_orientation(const glm::quat& rotation)
+        {
+            local_rotation = glm::normalize(rotation);
+        }
+
+        void set_local_orientation(const glm::vec3& euler)
+        {
+            local_rotation = glm::quat(euler);
+        }
+
+        void set_local_transform(const glm::mat4& local_matrix)
+        {
+            glm::vec3 skew;
+            glm::vec4 perspective;
+            glm::decompose(local_matrix, local_scale, local_rotation, local_position, skew, perspective);
+            local_rotation = glm::normalize(local_rotation);
+        }
+
+        void set_world_matrix(const glm::mat4& world_matrix)
+        {
+            if (world_matrix == glm::mat4(1.0f))
+                return;
+            set_local_transform(world_matrix);
         }
 
         Transform& rotate(const glm::quat& delta_rotation)
