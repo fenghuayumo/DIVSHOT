@@ -374,8 +374,8 @@ namespace diverse
             // Set current camera
             current_camera = &cam_component;
 
-            // The transform component is automatically added, set initial orientation
-            auto& transform = editorCamEntity.get_component<maths::Transform>();
+            // Add maths::Transform component for editor camera
+            auto& transform = editorCamEntity.add_component<maths::Transform>();
             transform.set_local_orientation(glm::radians(glm::vec3(-10.0f, 10.0f, 0.0f)));
             transform.set_world_matrix(glm::mat4(1.0f));
 

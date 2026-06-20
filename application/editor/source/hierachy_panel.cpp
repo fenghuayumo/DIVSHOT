@@ -17,6 +17,7 @@
 #include <scene/component/mesh_model_component.h>
 #include <scene/components/parent_component.h>
 #include <scene/components/children_component.h>
+#include <scene/components/global_transform_component.h>
 #include <scene/systems/hierarchy_system.h>
 
 #include <imGui/IconsMaterialDesignIcons.h>
@@ -168,9 +169,9 @@ namespace diverse
                 double_clicked_entity = node;
                 if (Application::get().get_editor_state() == EditorState::Preview)
                 {
-                    auto transform = registry.try_get<maths::Transform>(node);
-                    if (transform)
-                        editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
+                    auto globalTransform = registry.try_get<GlobalTransform>(node);
+                    if (globalTransform)
+                        editor->focus_camera(globalTransform->position(), 2.0f, 2.0f);
                 }
             }
 
@@ -289,9 +290,9 @@ namespace diverse
 
                 if (ImGui::Selectable("Zoom to"))
                 {
-                    auto transform = registry.try_get<maths::Transform>(node);
-                    if (transform)
-                        editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
+                    auto globalTransform = registry.try_get<GlobalTransform>(node);
+                    if (globalTransform)
+                        editor->focus_camera(globalTransform->position(), 2.0f, 2.0f);
                 }
                 ImGui::EndPopup();
             }
@@ -329,9 +330,9 @@ namespace diverse
                 double_clicked_entity = node;
                 if (Application::get().get_editor_state() == EditorState::Preview)
                 {
-                    auto transform = registry.try_get<maths::Transform>(node);
-                    if (transform)
-                        editor->focus_camera(transform->get_world_position(), 2.0f, 2.0f);
+                    auto globalTransform = registry.try_get<GlobalTransform>(node);
+                    if (globalTransform)
+                        editor->focus_camera(globalTransform->position(), 2.0f, 2.0f);
                 }
             }
 
