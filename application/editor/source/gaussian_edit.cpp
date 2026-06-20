@@ -374,8 +374,8 @@ namespace diverse
                 gs_constants.select_color = g_render_settings.select_color;
                 gs_constants.num_gaussians = num_gaussians;
                 gs_constants.color_offset = glm::vec4(glm::vec3(offset, offset, offset), splat->ModelRef->splat_size);
-                auto point_list_key_buffer = rg.import_res(splat->ModelRef->points_key_buf, rhi::AccessType::Nothing);
-                auto point_list_value_buffer = rg.import_res(splat->ModelRef->points_value_buf, rhi::AccessType::Nothing);
+                auto point_list_key_buffer = rg.import_res(splat->ModelRef->get_points_key_buf(), rhi::AccessType::Nothing);
+                auto point_list_value_buffer = rg.import_res(splat->ModelRef->get_points_value_buf(), rhi::AccessType::Nothing);
                 rg::RenderPass::new_compute(
                     rg.add_pass("clear_points"), "/shaders/gaussian/clear_points.hlsl")
                     .write(point_list_key_buffer)

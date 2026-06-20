@@ -70,7 +70,23 @@ namespace diverse
 
             }
 
+            auto& sys = AssetSystem::get_instance();
+            auto& registry = AssetRegistry::get_instance();
 
+            if (registry.get_state(id) == AssetState::ReadyCpu)
+            {
+                next_stage = PipelineStage::CpuOptimize;
+                return true;
+            }
+
+            if (sys.is_async_loading(id))
+                return false;
+
+            if (metadata->type == AssetType::Texture)
+            {
+                sys.start_async_load(id);
+                return false;
+            }
 
             next_stage = PipelineStage::Decode;
 
@@ -116,17 +132,19 @@ namespace diverse
 
                 {
 
-                    auto texture = import_texture_from_path(metadata->source_path);
+                    if (registry.get_state(id) == AssetState::ReadyCpu)
+                        break;
 
+                    auto texture = sys.get_asset<TextureAsset>(id);
                     if (!texture)
-
-                        return false;
-
-                    texture->id = id;
-
-                    texture->source_path = metadata->source_path;
-
-                    sys.register_cpu_texture(texture);
+                    {
+                        texture = import_texture_from_path(metadata->source_path);
+                        if (!texture)
+                            return false;
+                        texture->id = id;
+                        texture->source_path = metadata->source_path;
+                        sys.register_cpu_texture(texture);
+                    }
 
                     registry.set_state(id, AssetState::ReadyCpu);
 

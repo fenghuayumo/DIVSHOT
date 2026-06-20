@@ -1,6 +1,9 @@
 #include "backend/drs_rhi/buffer_builder.h"
 #include "gaussian_model.h"
-#include <sstream>
+#include "asset_system.h"
+#include "asset_registry.h"
+#include "core/profiler.h"
+#include <sstream>>>
 #include <glm/glm.hpp>
 #include "utility/pack_utils.h"
 #include "utility/file_utils.h"
@@ -32,6 +35,82 @@ namespace diverse
 		auto model = createSharedPtr<GaussianModel>(path);
 		s_gaussian_cache[path] = model;
 		return model;
+	}
+
+	bool GaussianModel::is_gpu_uploaded() const
+	{
+		if (!id.is_valid())
+			return false;
+		return AssetRegistry::get_instance().get_state(id) == AssetState::ResidentGpu;
+	}
+
+	std::shared_ptr<rhi::GpuBuffer> GaussianModel::get_gaussians_buf() const
+	{
+		if (!id.is_valid())
+			return nullptr;
+		return AssetSystem::get_instance().gpu_system().get_gaussian_gpu(id).gaussians_buf;
+	}
+
+	std::shared_ptr<rhi::GpuBuffer> GaussianModel::get_gaussians_sh_0_buf() const
+	{
+		if (!id.is_valid())
+			return nullptr;
+		return AssetSystem::get_instance().gpu_system().get_gaussian_gpu(id).sh_0_buf;
+	}
+
+	std::shared_ptr<rhi::GpuBuffer> GaussianModel::get_gaussians_sh_n_buf() const
+	{
+		if (!id.is_valid())
+			return nullptr;
+		return AssetSystem::get_instance().gpu_system().get_gaussian_gpu(id).sh_n_buf;
+	}
+
+	std::shared_ptr<rhi::GpuBuffer> GaussianModel::get_gaussian_state_buf() const
+	{
+		if (!id.is_valid())
+			return nullptr;
+		return AssetSystem::get_instance().gpu_system().get_gaussian_gpu(id).state_buf;
+	}
+
+	std::shared_ptr<rhi::GpuBuffer> GaussianModel::get_points_key_buf() const
+	{
+		if (!id.is_valid())
+			return nullptr;
+		return AssetSystem::get_instance().gpu_system().get_gaussian_gpu(id).points_key_buf;
+	}
+
+	std::shared_ptr<rhi::GpuBuffer> GaussianModel::get_points_value_buf() const
+	{
+		if (!id.is_valid())
+			return nullptr;
+		return AssetSystem::get_instance().gpu_system().get_gaussian_gpu(id).points_value_buf;
+	}
+
+	void GaussianModel::sync_cpu_asset()
+	{
+		if (!loaded || pos.empty())
+			return;
+
+		if (!id.is_valid())
+			id = GenerateAssetId();
+
+		auto asset = std::make_shared<GaussianAsset>();
+		asset->id = id;
+		asset->source_path = file_path;
+		asset->pos = pos;
+		asset->shs_0 = shs_0;
+		asset->shs_n = shs_n;
+		asset->opacities = opacities;
+		asset->scales = scales;
+		asset->rot = rot;
+		asset->splat_state = splat_state;
+		asset->splat_select_flag = splat_select_flag;
+		asset->splat_transform_index = splat_transform_index;
+		asset->bounding_box = local_bounding_box;
+		asset->version = 0;
+		asset->cpu_memory_size = asset->calculate_memory_size();
+
+		AssetSystem::get_instance().register_cpu_gaussian(asset);
 	}
 
 	auto sigmoid = [](const float v) {
@@ -136,178 +215,25 @@ namespace diverse
 
 	void GaussianModel::create_gpu_buffer(rhi::GpuDevice* device, bool compact)
 	{
-		if (!device)
+		DS_PROFILE_FUNCTION();
+		if (!device || pos.empty())
 			return;
-		const auto alignment = std::max<u64>(1, device->gpu_limits.minStorageBufferOffsetAlignment);
-		std::vector<Gaussian> gaussians(pos.size());
-		std::vector<PackedVertexColor>	gaussians_sh_0(pos.size());
-		std::vector<PackedVertexSH>	gaussians_sh_n(pos.size());
+
 		splat_state.resize(pos.size());
 		splat_select_flag.resize(pos.size());
 		splat_transform_index.resize(pos.size());
-		
-        const u32 t11 = (1 << 11) - 1;
-        const u32 t10 = (1 << 10) - 1;
-		constexpr float SH_C0 = 0.28209479177387814f;
-		parallel_for<size_t>(0, gaussians.size(), [&](size_t k) {
-			glm::vec4 harmonics[16];
 
-			Gaussian& gaussian = gaussians[k];
-			glm::uvec2& gs_color = gaussians_sh_0[k];
-			// copy position
-			gaussian.position.xyz = pos[k];
-			//normalize 
-			float length2 = 0;
-			for (int j = 0; j < 4; j++)
-				length2 += rot[k][j] * rot[k][j];
-			float length = sqrt(length2);
-			glm::vec4 rot_t;
-			for (int j = 0; j < 4; j++)
-				rot_t[j] = rot[k][j] / length;
-
-			auto rotation0 = glm::packHalf2x16(glm::vec2(rot_t[0], rot_t[1]));
-			auto rotation1 = glm::packHalf2x16(glm::vec2(rot_t[2], rot_t[3]));
-
-			glm::vec3 scale_t;
-			for (int j = 0; j < 3; j++)
-				scale_t[j] = exp(scales[k][j]);
-			auto scale0 = glm::packHalf2x16(glm::vec2(scale_t[0], scale_t[1]));
-			auto scale1 = glm::packHalf2x16(glm::vec2(scale_t[2], sigmoid(opacities[k])));
-
-			gaussian.rotation_scale = glm::uvec4(rotation0, rotation1, scale0, scale1);
-			const float r = (shs_0[k][0] * SH_C0 + 0.5);
-            const float g = (shs_0[k][1] * SH_C0 + 0.5);
-            const float b = (shs_0[k][2] * SH_C0 + 0.5);
-			gs_color.x = glm::packHalf2x16(glm::vec2(r, g));
-			gs_color.y = glm::packHalf2x16(glm::vec2(b, 0));
-
-			// extract coefficients
-			std::array<float,45> c = {0};
-			for (auto j = 0; j < 15; ++j) {
-                c[j * 3] = shs_n[k][j * 3];
-                c[j * 3 + 1] = shs_n[k][j * 3 + 1];
-                c[j * 3 + 2] = shs_n[k][j * 3 + 2];
-            }
-
-            // calc maximum value
-            auto max = c[0];
-            for (auto j = 1; j < 15 * 3; ++j) {
-                max = std::max(max, std::abs(c[j]));
-            }
-
-            // normalize
-			if( max != 0){
-				for (auto j = 0; j < 15; ++j) {
-					c[j * 3 + 0] = (c[j * 3 + 0] / max);
-					c[j * 3 + 1] = (c[j * 3 + 1] / max);
-					c[j * 3 + 2] = (c[j * 3 + 2] / max);
-				}
-			}
-			auto& sh1to3 = gaussians_sh_n[k].sh1to3;
-			sh1to3.x = *(u32*)(&max);
-			sh1to3.y = pack_unit_direction_11_10_11(glm::vec3(c[0],c[1],c[2]));
-			sh1to3.z = pack_unit_direction_11_10_11(glm::vec3(c[3],c[4],c[5]));
-			sh1to3.w = pack_unit_direction_11_10_11(glm::vec3(c[6],c[7],c[8]));
-
-			//sh > 1
-            {
-				auto& sh4to7 = gaussians_sh_n[k].sh4to7;
-				sh4to7.x = pack_unit_direction_11_10_11(glm::vec3(c[9],c[10],c[11]));
-				sh4to7.y = pack_unit_direction_11_10_11(glm::vec3(c[12],c[13],c[14]));
-				sh4to7.z = pack_unit_direction_11_10_11(glm::vec3(c[15],c[16],c[17]));
-				sh4to7.w = pack_unit_direction_11_10_11(glm::vec3(c[18],c[19],c[20]));
-
-				//sh > 2
-                {
-					auto& sh8to11 = gaussians_sh_n[k].sh8to11;
-					sh8to11.x = pack_unit_direction_11_10_11(glm::vec3(c[21],c[22],c[23]));
-					sh8to11.y = pack_unit_direction_11_10_11(glm::vec3(c[24],c[25],c[26]));
-					sh8to11.z = pack_unit_direction_11_10_11(glm::vec3(c[27],c[28],c[29]));
-					sh8to11.w = pack_unit_direction_11_10_11(glm::vec3(c[30],c[31],c[32]));
-
-					auto& sh12to15 = gaussians_sh_n[k].sh12to15;
-					sh12to15.x = pack_unit_direction_11_10_11(glm::vec3(c[33],c[34],c[35]));
-					sh12to15.y = pack_unit_direction_11_10_11(glm::vec3(c[36],c[37],c[38]));
-					sh12to15.z = pack_unit_direction_11_10_11(glm::vec3(c[39],c[40],c[41]));
-					sh12to15.w = pack_unit_direction_11_10_11(glm::vec3(c[42],c[43],c[44]));
-                }
-            }
-		});
-		if (gaussians_buf && gaussians_buf->desc.size >= (gaussians.size() * sizeof(Gaussian)))
+		sync_cpu_asset();
+		auto& gpu_sys = AssetSystem::get_instance().gpu_system();
+		auto gpu = gpu_sys.upload_gaussian_from_model(*this, compact);
+		if (gpu.is_valid())
 		{
-			{
-				auto data = reinterpret_cast<Gaussian*>(gaussians_buf->map(device));
-				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians[i];
-				});
-				gaussians_buf->unmap(device);
-			}
-			{
-				auto data = reinterpret_cast<PackedVertexColor*>(gaussians_sh_0_buf->map(device));
-				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians_sh_0[i];
-				});
-				gaussians_sh_0_buf->unmap(device);
-			}
-			{
-				auto data = reinterpret_cast<PackedVertexSH*>(gaussians_sh_n_buf->map(device));
-				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians_sh_n[i];
-				});
-				gaussians_sh_n_buf->unmap(device);
-			}
-			{
-				auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
-				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					uint state = states_data[i];
-					state = setOpState(state, splat_state[i]);
-					state = setTransformIndex(state, splat_transform_index[i]);
-					states_data[i] = state;
-				});
-				gaussian_state_buf->unmap(device);
-			}
+			splat_transforms.upload(device);
+			gpu_sys.bind_gaussian_to_slot(
+				gpu.bindless_slot,
+				gpu,
+				splat_transforms.splat_transform_buffer.get());
 		}
-		else
-		{
-			int scaleFactor = std::ceil(static_cast<double>(gaussians.size()) / static_cast<double>(max_splats));
-			auto num_gaussians = compact ? gaussians.size() : scaleFactor * max_splats;
-			gaussians_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(Gaussian), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_buf", nullptr);
-			gaussians_sh_0_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(PackedVertexColor), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_sh_0_buf", nullptr);
-			gaussians_sh_n_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(PackedVertexSH), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_sh_n_buf", nullptr);
-			points_key_buf = device->create_buffer(rhi::GpuBufferDesc::new_gpu_only(num_gaussians * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "points_key_buf", nullptr);
-			points_value_buf = device->create_buffer(rhi::GpuBufferDesc::new_gpu_only(num_gaussians * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "points_value_buf", nullptr);
-			gaussian_state_buf = device->create_buffer(rhi::GpuBufferDesc::new_cpu_to_gpu(num_gaussians * sizeof(u32), rhi::BufferUsageFlags::STORAGE_BUFFER | rhi::BufferUsageFlags::VERTEX_BUFFER | rhi::BufferUsageFlags::TRANSFER_DST), "gaussian_state_buf", nullptr);
-
-			{
-				auto data = reinterpret_cast<Gaussian*>(gaussians_buf->map(device));
-				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians[i];
-				});
-				gaussians_buf->unmap(device);
-			}
-			{
-				auto data = reinterpret_cast<PackedVertexColor*>(gaussians_sh_0_buf->map(device));
-				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians_sh_0[i];
-				});
-				gaussians_sh_0_buf->unmap(device);
-			}
-			{
-				auto data = reinterpret_cast<PackedVertexSH*>(gaussians_sh_n_buf->map(device));
-				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					data[i] = gaussians_sh_n[i];
-				});
-				gaussians_sh_n_buf->unmap(device);
-			}
-			{
-				auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
-				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-					states_data[i] = 0;
-				});
-				gaussian_state_buf->unmap(device);
-			}
-		}
-		gpu_uploaded = true;
 	}
 
 	void GaussianModel::update_data()
@@ -322,7 +248,8 @@ namespace diverse
 		local_bounding_box = maths::BoundingBox(minn,maxx);
 		loaded = true;
 		invalid = false;
-		gpu_uploaded = false;
+		if (id.is_valid())
+			AssetRegistry::get_instance().set_state(id, AssetState::ReadyCpu);
 		update_state();
 	}
 
@@ -341,19 +268,22 @@ namespace diverse
 			else if(state & HIDE_STATE)
 				num_hidden++;
 		}
-		if (gaussians_buf )
+		if (auto gaussians_buf = get_gaussians_buf())
 		{
 			auto device = gaussians_buf->get_owner_device();
 			if (!device)
 				return;
-			auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
-			parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-				uint state = states_data[i];
-				state = setOpState(state, splat_state[i]);
-				state = setTransformIndex(state, splat_transform_index[i]);
-				states_data[i]	= state;
-			});
-			gaussian_state_buf->unmap(device);
+			if (auto gaussian_state_buf = get_gaussian_state_buf())
+			{
+				auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
+				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
+					uint state = states_data[i];
+					state = setOpState(state, splat_state[i]);
+					state = setTransformIndex(state, splat_transform_index[i]);
+					states_data[i]	= state;
+				});
+				gaussian_state_buf->unmap(device);
+			}
 		}
 
 		make_selection_bound_dirty();
@@ -361,41 +291,45 @@ namespace diverse
 
 	void GaussianModel::update_feature_dc_data(const std::vector<u32>& indices)
 	{
-		if (!gaussians_sh_0_buf)
-			return;
-		auto device = gaussians_sh_0_buf->get_owner_device();
-		if (!device)
-			return;
+		if (auto gaussians_sh_0_buf = get_gaussians_sh_0_buf())
+		{
+			auto device = gaussians_sh_0_buf->get_owner_device();
+			if (!device)
+				return;
 	
-		auto data = reinterpret_cast<PackedVertexColor*>(gaussians_sh_0_buf->map(device));
-		parallel_for<size_t>(0, indices.size(), [&](size_t idx) {
-			auto i = indices[idx];
-			glm::vec4 harmonics;
-			harmonics.x = shs_0[i][0];
-			harmonics.y = shs_0[i][1];
-			harmonics.z = shs_0[i][2];
-			harmonics.w = 0;
-			auto hom0 = u32_to_f32(glm::packHalf2x16(harmonics.xy));
-			auto hom1 = u32_to_f32(glm::packHalf2x16(harmonics.zw));
-			data[i].xy = glm::vec2(hom0, hom1);
-		});
-		gaussians_sh_0_buf->unmap(device);
+			auto data = reinterpret_cast<PackedVertexColor*>(gaussians_sh_0_buf->map(device));
+			parallel_for<size_t>(0, indices.size(), [&](size_t idx) {
+				auto i = indices[idx];
+				glm::vec4 harmonics;
+				harmonics.x = shs_0[i][0];
+				harmonics.y = shs_0[i][1];
+				harmonics.z = shs_0[i][2];
+				harmonics.w = 0;
+				auto hom0 = u32_to_f32(glm::packHalf2x16(harmonics.xy));
+				auto hom1 = u32_to_f32(glm::packHalf2x16(harmonics.zw));
+				data[i].xy = glm::vec2(hom0, hom1);
+			});
+			gaussians_sh_0_buf->unmap(device);
+		}
 	}
 
 	void GaussianModel::update_transform_index()
 	{
-		if (gaussians_buf)
+		if (auto gaussians_buf = get_gaussians_buf())
 		{
 			auto device = gaussians_buf->get_owner_device();
 			if (!device)
 				return;
-			auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
-			parallel_for<size_t>(0, pos.size(), [&](size_t i) {
-				uint state = states_data[i];
-				state = setTransformIndex(state, splat_transform_index[i]);
-				states_data[i] = state;
-			});
-			gaussian_state_buf->unmap(device);
+			if (auto gaussian_state_buf = get_gaussian_state_buf())
+			{
+				auto states_data = reinterpret_cast<u32*>(gaussian_state_buf->map(device));
+				parallel_for<size_t>(0, pos.size(), [&](size_t i) {
+					uint state = states_data[i];
+					state = setTransformIndex(state, splat_transform_index[i]);
+					states_data[i] = state;
+				});
+				gaussian_state_buf->unmap(device);
+			}
 		}
 	}
 
@@ -628,7 +562,7 @@ namespace diverse
 		});
 		loaded = true;
 		invalid = false;
-		gpu_uploaded = false;
+		sync_cpu_asset();
 	}
 
 	void GaussianModel::export_to_cpu()
@@ -671,6 +605,7 @@ namespace diverse
 
 	void GaussianModel::download_state_buffer()
 	{
+		auto gaussian_state_buf = get_gaussian_state_buf();
 		if (!gaussian_state_buf)
 			return;
 		auto device = gaussian_state_buf->get_owner_device();
@@ -688,7 +623,7 @@ namespace diverse
 
 	u64 GaussianModel::get_num_gaussians() const
 	{
-		if( gaussians_buf )
+		if (get_gaussians_buf())
 			return pos.size();
 		return 0;
 	}

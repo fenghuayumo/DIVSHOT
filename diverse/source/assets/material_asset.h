@@ -86,10 +86,8 @@ namespace diverse
         }
     }
 
-    // Default texture IDs for fallback (must match renderer constants)
-    constexpr uint32_t WHITE_TEX_ID = 0;
-    constexpr uint32_t BLACK_TEX_ID = 1;
-    constexpr uint32_t NORMAL_TEX_ID = 2;
+    // Default texture IDs are defined locally in each module that needs them
+    // (gpu_resource_system.cpp, defered_renderer.cpp) to avoid conflicts
 
     // Create default material asset
     std::shared_ptr<MaterialAsset> create_default_material();

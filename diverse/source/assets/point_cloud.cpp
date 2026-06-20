@@ -1,8 +1,9 @@
 #include "point_cloud.h"
+#include "asset_system.h"
+#include "asset_registry.h"
 #include "utility/string_utils.h"
 #include "engine/file_system.h"
 #include "core/profiler.h"
-#include "backend/drs_rhi/gpu_device.h"
 #include <mutex>
 #include <unordered_map>
 
@@ -30,30 +31,42 @@ namespace diverse
     }
 
     PointCloud::PointCloud(const std::string& filePath)
-        :file_path(filePath)
+        : file_path(filePath)
     {
         std::thread t([this, filePath]() {
             load(filePath);
         });
         t.detach();
     }
+
     PointCloud::PointCloud()
     {
     }
-    void PointCloud::create_gpu_buffer(rhi::GpuDevice* device)
+
+    bool PointCloud::is_gpu_uploaded() const
     {
-        DS_PROFILE_FUNCTION();
-        if (pcd_vertex.size() == 0)
+        if (!id.is_valid())
+            return false;
+        return AssetRegistry::get_instance().get_state(id) == AssetState::ResidentGpu;
+    }
+
+    void PointCloud::sync_cpu_asset()
+    {
+        if (!loaded || pcd_vertex.empty())
             return;
-        if (!device)
-            return;
-        auto vertex_desc = rhi::GpuBufferDesc::new_gpu_only(pcd_vertex.size() * sizeof(PointCloudVertex),
-            rhi::BufferUsageFlags::STORAGE_BUFFER
-            | rhi::BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | rhi::BufferUsageFlags::VERTEX_BUFFER
-            | rhi::BufferUsageFlags::TRANSFER_DST);
-        vertex_buffer = device->create_buffer(vertex_desc, "point_vert_buf", (u8*)pcd_vertex.data());
-        gpu_uploaded = true;
+
+        if (!id.is_valid())
+            id = GenerateAssetId();
+
+        auto asset = std::make_shared<PointCloudAsset>();
+        asset->id = id;
+        asset->source_path = file_path;
+        asset->vertices = pcd_vertex;
+        asset->bounding_box = local_bounding_box;
+        asset->version = 0;
+        asset->cpu_memory_size = asset->calculate_memory_size();
+
+        AssetSystem::get_instance().register_cpu_point_cloud(asset);
     }
 
     void PointCloud::reset_center()
@@ -65,7 +78,7 @@ namespace diverse
 
     maths::BoundingBox& PointCloud::get_local_bounding_box()
     {
-        if(local_bounding_box.defined())
+        if (local_bounding_box.defined())
         {
             return local_bounding_box;
         }
@@ -95,7 +108,7 @@ namespace diverse
 
         const std::string fileExtension = stringutility::get_file_extension(path);
         bool ret = false;
-        if(fileExtension == "ply")
+        if (fileExtension == "ply")
             ret = load_ply(resolvedPath);
         else
             DS_LOG_ERROR("Unsupported File Type : {0}", fileExtension);
@@ -108,7 +121,7 @@ namespace diverse
         reset_center();
         loaded = true;
         invalid = false;
-        gpu_uploaded = false;
+        sync_cpu_asset();
         DS_LOG_INFO("Loaded PointCloud - {0}", path);
     }
 }

@@ -1,8 +1,14 @@
 #include "asset_system.h"
 #include "asset_pipeline_handlers.h"
 #include "model_asset_loader.h"
+#include "point_cloud_asset.h"
+#include "gaussian_asset.h"
+#include "material_importer.h"
+#include "mesh_importer.h"
 #include "backend/drs_rhi/gpu_device.h"
 #include "core/ds_log.h"
+#include <chrono>
+#include <mutex>
 
 namespace diverse
 {
@@ -19,6 +25,10 @@ namespace diverse
                 return AssetType::Material;
             else if constexpr (std::is_same_v<TAsset, ModelAsset>)
                 return AssetType::MeshModel;
+            else if constexpr (std::is_same_v<TAsset, PointCloudAsset>)
+                return AssetType::PointCloud;
+            else if constexpr (std::is_same_v<TAsset, GaussianAsset>)
+                return AssetType::Gaussian;
             else
                 return AssetType::None;
         }
@@ -32,6 +42,10 @@ namespace diverse
                 return sys.mesh_cache();
             else if constexpr (std::is_same_v<TAsset, ModelAsset>)
                 return sys.model_cache();
+            else if constexpr (std::is_same_v<TAsset, PointCloudAsset>)
+                return sys.point_cloud_cache();
+            else if constexpr (std::is_same_v<TAsset, GaussianAsset>)
+                return sys.gaussian_cache();
             else
                 return sys.material_cache();
         }
@@ -53,6 +67,10 @@ namespace diverse
             material_cache_ptr = std::make_unique<AssetCache<MaterialAsset>>();
         if (!model_cache_ptr)
             model_cache_ptr = std::make_unique<AssetCache<ModelAsset>>();
+        if (!point_cloud_cache_ptr)
+            point_cloud_cache_ptr = std::make_unique<AssetCache<PointCloudAsset>>();
+        if (!gaussian_cache_ptr)
+            gaussian_cache_ptr = std::make_unique<AssetCache<GaussianAsset>>();
     }
 
     void AssetSystem::register_cpu_model(const std::shared_ptr<ModelAsset>& model)
@@ -85,6 +103,157 @@ namespace diverse
             return;
         ensure_cpu_caches();
         material_cache_ptr->insert(material->id, material);
+
+        auto& registry = AssetRegistry::get_instance();
+        if (!registry.get_metadata(material->id))
+        {
+            AssetMetadata metadata;
+            metadata.id = material->id;
+            metadata.type = AssetType::Material;
+            metadata.version = material->version;
+            metadata.state = AssetState::ReadyCpu;
+            registry.register_asset(material->id, metadata);
+        }
+    }
+
+    void AssetSystem::register_cpu_point_cloud(const std::shared_ptr<PointCloudAsset>& point_cloud)
+    {
+        if (!point_cloud)
+            return;
+        ensure_cpu_caches();
+        point_cloud_cache_ptr->insert(point_cloud->id, point_cloud);
+
+        auto& registry = AssetRegistry::get_instance();
+        if (!registry.get_metadata(point_cloud->id))
+        {
+            AssetMetadata metadata;
+            metadata.id = point_cloud->id;
+            metadata.type = AssetType::PointCloud;
+            metadata.source_path = point_cloud->source_path;
+            metadata.version = point_cloud->version;
+            metadata.state = AssetState::ReadyCpu;
+            registry.register_asset(point_cloud->id, metadata);
+        }
+    }
+
+    void AssetSystem::register_cpu_gaussian(const std::shared_ptr<GaussianAsset>& gaussian)
+    {
+        if (!gaussian)
+            return;
+        ensure_cpu_caches();
+        gaussian_cache_ptr->insert(gaussian->id, gaussian);
+
+        auto& registry = AssetRegistry::get_instance();
+        if (!registry.get_metadata(gaussian->id))
+        {
+            AssetMetadata metadata;
+            metadata.id = gaussian->id;
+            metadata.type = AssetType::Gaussian;
+            metadata.source_path = gaussian->source_path;
+            metadata.version = gaussian->version;
+            metadata.state = AssetState::ReadyCpu;
+            registry.register_asset(gaussian->id, metadata);
+        }
+    }
+
+    void AssetSystem::register_asset_loaders()
+    {
+        texture_loader_ptr = std::make_unique<TextureLoader>();
+        mesh_loader_ptr = std::make_unique<MeshLoader>();
+
+        texture_loader_ptr->set_default_asset(get_default_white_texture());
+
+        texture_loader_ptr->set_load_func([](const AssetId& id, const AssetMetadata& metadata) -> std::shared_ptr<TextureAsset> {
+            auto texture = import_texture_from_path(metadata.source_path);
+            if (!texture)
+                return nullptr;
+            texture->id = id;
+            texture->source_path = metadata.source_path;
+            return texture;
+        });
+
+        texture_loader_ptr->set_on_loaded([this](const AssetId& id, std::shared_ptr<TextureAsset> asset) {
+            register_cpu_texture(asset);
+            registry().set_state(id, AssetState::ReadyCpu);
+        });
+
+        mesh_loader_ptr->set_load_func([](const AssetId& id, const AssetMetadata& metadata) -> std::shared_ptr<MeshAsset> {
+            (void)id;
+            (void)metadata;
+            return nullptr;
+        });
+    }
+
+    bool AssetSystem::is_async_loading(const AssetId& id) const
+    {
+        std::lock_guard lock(async_load_mutex);
+        return pending_async_loads.find(id) != pending_async_loads.end();
+    }
+
+    void AssetSystem::start_async_load(const AssetId& id)
+    {
+        auto metadata = AssetRegistry::get_instance().get_metadata(id);
+        if (!metadata)
+            return;
+
+        {
+            std::lock_guard lock(async_load_mutex);
+            if (pending_async_loads.find(id) != pending_async_loads.end())
+                return;
+        }
+
+        registry().set_state(id, AssetState::LoadingCpu);
+
+        switch (metadata->type)
+        {
+            case AssetType::Texture:
+            {
+                if (!texture_loader_ptr)
+                    return;
+                auto future = texture_loader_ptr->load(id, *metadata);
+                std::lock_guard lock(async_load_mutex);
+                pending_async_loads[id] = PendingAsyncLoad{ std::move(future) };
+                break;
+            }
+            default:
+                registry().set_state(id, AssetState::Failed);
+                break;
+        }
+    }
+
+    void AssetSystem::process_async_loads()
+    {
+        std::vector<AssetId> completed;
+        std::vector<AssetId> failed;
+
+        {
+            std::lock_guard lock(async_load_mutex);
+            for (auto& [id, pending] : pending_async_loads)
+            {
+                if (pending.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+                    continue;
+
+                auto result = pending.future.get();
+                if (result.success)
+                    completed.push_back(id);
+                else
+                {
+                    failed.push_back(id);
+                    DS_LOG_WARN("Async asset load failed: {}", result.error_message);
+                }
+            }
+
+            for (const auto& id : completed)
+                pending_async_loads.erase(id);
+            for (const auto& id : failed)
+                pending_async_loads.erase(id);
+        }
+
+        for (const auto& id : failed)
+            registry().set_state(id, AssetState::Failed);
+
+        for (const auto& id : completed)
+            pipeline().submit(id, PipelineStage::CpuOptimize);
     }
 
     void AssetSystem::register_default_textures()
@@ -120,12 +289,15 @@ namespace diverse
         texture_cache_ptr = std::make_unique<AssetCache<TextureAsset>>();
         mesh_cache_ptr = std::make_unique<AssetCache<MeshAsset>>();
         model_cache_ptr = std::make_unique<AssetCache<ModelAsset>>();
+        point_cloud_cache_ptr = std::make_unique<AssetCache<PointCloudAsset>>();
+        gaussian_cache_ptr = std::make_unique<AssetCache<GaussianAsset>>();
 
         gpu_resource_system = std::make_shared<GpuResourceSystem>(device);
         file_watcher_ptr = std::make_shared<AssetFileWatcher>();
         AssetRegistry::get_instance().set_file_watcher(file_watcher_ptr);
 
         register_default_textures();
+        register_asset_loaders();
         register_asset_pipeline_handlers();
 
         hot_reload_enabled = true;
@@ -155,10 +327,20 @@ namespace diverse
         if (mesh_cache_ptr) mesh_cache_ptr->clear();
         if (material_cache_ptr) material_cache_ptr->clear();
         if (model_cache_ptr) model_cache_ptr->clear();
+        if (point_cloud_cache_ptr) point_cloud_cache_ptr->clear();
+        if (gaussian_cache_ptr) gaussian_cache_ptr->clear();
+        {
+            std::lock_guard lock(async_load_mutex);
+            pending_async_loads.clear();
+        }
+        texture_loader_ptr.reset();
+        mesh_loader_ptr.reset();
         texture_cache_ptr.reset();
         mesh_cache_ptr.reset();
         material_cache_ptr.reset();
         model_cache_ptr.reset();
+        point_cloud_cache_ptr.reset();
+        gaussian_cache_ptr.reset();
         default_white.reset();
         default_normal.reset();
 
@@ -244,6 +426,7 @@ namespace diverse
         if (hot_reload_enabled)
             process_hot_reloads(frame_index);
 
+        process_async_loads();
         pipeline().tick(frame_index);
 
         if (gpu_resource_system)
@@ -360,6 +543,8 @@ namespace diverse
     template std::shared_ptr<MeshAsset> AssetSystem::get_asset<MeshAsset>(const AssetId&);
     template std::shared_ptr<MaterialAsset> AssetSystem::get_asset<MaterialAsset>(const AssetId&);
     template std::shared_ptr<ModelAsset> AssetSystem::get_asset<ModelAsset>(const AssetId&);
+    template std::shared_ptr<PointCloudAsset> AssetSystem::get_asset<PointCloudAsset>(const AssetId&);
+    template std::shared_ptr<GaussianAsset> AssetSystem::get_asset<GaussianAsset>(const AssetId&);
 
     template std::shared_ptr<TextureAsset> AssetSystem::resolve<TextureAsset>(const AssetHandle<TextureAsset>&);
     template std::shared_ptr<MeshAsset> AssetSystem::resolve<MeshAsset>(const AssetHandle<MeshAsset>&);

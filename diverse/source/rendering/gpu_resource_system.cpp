@@ -1,6 +1,12 @@
 #include "gpu_resource_system.h"
 #include "assets/asset_registry.h"
 #include "assets/asset_system.h"
+#include "assets/material_asset.h"
+#include "assets/material_properties.h"
+#include "assets/point_cloud_asset.h"
+#include "assets/gaussian_asset.h"
+#include "assets/gaussian_model.h"
+#include "core/base_type.h"
 #include "mesh_gpu_utils.h"
 #include "texture_gpu_utils.h"
 #include "utility/file_utils.h"
@@ -14,6 +20,10 @@ namespace diverse
         static constexpr uint32_t MAX_BINDLESS_TEXTURES = 16384;
         static constexpr size_t STAGING_BUFFER_SIZE = 16 * 1024 * 1024;
         static constexpr uint64_t MAX_FRAMES_IN_FLIGHT = 3;
+
+        // Default texture IDs (must match BindlessTable fixed slots)
+        static constexpr uint32_t WHITE_TEX_ID = BindlessTable::DEFAULT_WHITE;
+        static constexpr uint32_t NORMAL_TEX_ID = BindlessTable::DEFAULT_NORMAL;
 
         size_t align_up(size_t value, size_t alignment)
         {
@@ -146,6 +156,12 @@ namespace diverse
                 case AssetType::Material:
                     process_material_upload(request.asset_id);
                     break;
+                case AssetType::PointCloud:
+                    process_point_cloud_upload(request.asset_id);
+                    break;
+                case AssetType::Gaussian:
+                    process_gaussian_upload(request.asset_id);
+                    break;
                 default:
                     break;
             }
@@ -200,7 +216,18 @@ namespace diverse
         entry.priority = ResidentPriority::Normal;
         texture_memory_usage += gpu_memory_size;
 
+        // Add to LRU tracking
+        texture_lru.push_back({
+            id,
+            current_frame,
+            gpu_memory_size,
+            ResidentPriority::Normal
+        });
+
         registry.set_state(id, AssetState::ResidentGpu);
+
+        // Notify CPU cache that GPU upload is complete
+        AssetSystem::get_instance().texture_cache().mark_gpu_uploaded(id);
     }
 
     void GpuResourceSystem::process_mesh_upload(const AssetId& id)
@@ -238,13 +265,286 @@ namespace diverse
         entry.priority = ResidentPriority::Normal;
         buffer_memory_usage += entry.gpu_memory_size;
 
+        // Add to LRU tracking
+        mesh_lru.push_back({
+            id,
+            current_frame,
+            entry.gpu_memory_size,
+            ResidentPriority::Normal
+        });
+
         AssetRegistry::get_instance().set_state(id, AssetState::ResidentGpu);
+
+        // Notify CPU cache that GPU upload is complete
+        AssetSystem::get_instance().mesh_cache().mark_gpu_uploaded(id);
     }
 
     void GpuResourceSystem::process_material_upload(const AssetId& id)
     {
-        // Materials are uploaded to a uniform buffer, not as separate GPU resources
-        // This would update the material buffer
+        auto& registry = AssetRegistry::get_instance();
+        auto metadata = registry.get_metadata(id);
+        if (!metadata || metadata->type != AssetType::Material)
+            return;
+
+        auto material_asset = AssetSystem::get_instance().get_asset<MaterialAsset>(id);
+        if (!material_asset)
+            return;
+
+        auto resolve_texture = [this](const AssetHandle<TextureAsset>& handle, uint32_t default_id) -> uint32_t {
+            if (!handle.is_valid())
+                return default_id;
+            auto tex_gpu = request_texture(handle.get_id(), UploadPriority::Critical);
+            return tex_gpu.srv.is_valid() ? tex_gpu.srv.index : default_id;
+        };
+
+        MaterialGpu gpu;
+        gpu.resident_version = registry.get_version(id);
+        gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_ALBEDO, resolve_texture(material_asset->albedo, WHITE_TEX_ID));
+        gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_NORMAL, resolve_texture(material_asset->normal, NORMAL_TEX_ID));
+        gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_METALLIC, resolve_texture(material_asset->metallic, WHITE_TEX_ID));
+        gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_ROUGHNESS, resolve_texture(material_asset->roughness, WHITE_TEX_ID));
+        gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_AO, resolve_texture(material_asset->ao, WHITE_TEX_ID));
+        gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_EMISSIVE, resolve_texture(material_asset->emissive, WHITE_TEX_ID));
+        gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_TRANSMISSION, WHITE_TEX_ID);
+        gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_NORMAL_DETAIL, NORMAL_TEX_ID);
+
+        MaterialProperties props = material_asset->properties;
+        update_material_properties_bindless_indices(props, gpu);
+
+        uint32_t slot = 0;
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+            auto it = material_gpu_cache.find(id);
+            if (it == material_gpu_cache.end())
+            {
+                slot = material_count++;
+                if (slot >= material_capacity)
+                    return;
+            }
+            else
+            {
+                slot = it->second.material_buffer_index;
+            }
+
+            gpu.material_buffer_index = slot;
+            material_gpu_cache[id] = gpu;
+        }
+
+        if (material_buffer && slot < material_capacity)
+        {
+            auto* material_data = reinterpret_cast<MaterialProperties*>(material_buffer->map(device));
+            if (material_data)
+            {
+                material_data[slot] = props;
+                material_buffer->unmap(device);
+            }
+        }
+
+        AssetSystem::get_instance().material_cache().mark_gpu_uploaded(id);
+        registry.set_state(id, AssetState::ResidentGpu);
+    }
+
+    void GpuResourceSystem::process_point_cloud_upload(const AssetId& id)
+    {
+        auto& registry = AssetRegistry::get_instance();
+        auto metadata = registry.get_metadata(id);
+        if (!metadata || metadata->type != AssetType::PointCloud)
+            return;
+
+        auto point_asset = AssetSystem::get_instance().get_asset<PointCloudAsset>(id);
+        if (!point_asset || point_asset->vertices.empty())
+            return;
+
+        auto vertex_desc = rhi::GpuBufferDesc::new_gpu_only(
+            point_asset->vertices.size() * sizeof(PointCloudVertex),
+            rhi::BufferUsageFlags::STORAGE_BUFFER
+            | rhi::BufferUsageFlags::SHADER_DEVICE_ADDRESS
+            | rhi::BufferUsageFlags::VERTEX_BUFFER
+            | rhi::BufferUsageFlags::TRANSFER_DST);
+        auto vertex_buffer = device->create_buffer(
+            vertex_desc,
+            "point_vert_buf",
+            reinterpret_cast<u8*>(point_asset->vertices.data()));
+        if (!vertex_buffer)
+            return;
+
+        const size_t gpu_memory_size = point_asset->vertices.size() * sizeof(PointCloudVertex);
+
+        PointCloudGpu gpu;
+        gpu.vertex_buffer = vertex_buffer;
+        gpu.resident_version = registry.get_version(id);
+        gpu.gpu_memory_size = gpu_memory_size;
+
+        uint32_t slot = 0;
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+            auto it = point_cloud_gpu_cache.find(id);
+            if (it == point_cloud_gpu_cache.end())
+                slot = next_point_cloud_slot++;
+            else
+                slot = it->second.bindless_slot;
+
+            gpu.bindless_slot = slot;
+            point_cloud_gpu_cache[id] = gpu;
+
+            GpuResourceEntry& entry = gpu_resources[id];
+            entry.resource = vertex_buffer;
+            entry.gpu_version = gpu.resident_version;
+            entry.last_used_frame = current_frame;
+            entry.is_resident = true;
+            entry.gpu_memory_size = gpu_memory_size;
+            entry.priority = ResidentPriority::Normal;
+            buffer_memory_usage += gpu_memory_size;
+
+            point_cloud_lru.push_back({
+                id,
+                current_frame,
+                gpu_memory_size,
+                ResidentPriority::Normal
+            });
+        }
+
+        bind_point_cloud_to_slot(slot, gpu);
+        AssetSystem::get_instance().point_cloud_cache().mark_gpu_uploaded(id);
+        registry.set_state(id, AssetState::ResidentGpu);
+    }
+
+    void GpuResourceSystem::process_gaussian_upload(const AssetId& id)
+    {
+        auto gaussian_asset = AssetSystem::get_instance().get_asset<GaussianAsset>(id);
+        if (!gaussian_asset || gaussian_asset->pos.empty())
+            return;
+
+        auto packed = pack_gaussian_asset(*gaussian_asset);
+        const GaussianBufferUpload* existing = nullptr;
+        {
+            std::shared_lock lock(gpu_resources_mutex);
+            auto it = gaussian_buffer_uploads.find(id);
+            if (it != gaussian_buffer_uploads.end())
+                existing = &it->second;
+        }
+
+        auto upload = upload_gaussian_buffers(
+            device,
+            packed,
+            existing,
+            gaussian_asset->pos.size(),
+            10000,
+            true,
+            gaussian_asset->splat_state,
+            gaussian_asset->splat_transform_index);
+
+        if (!upload.gaussians_buf)
+            return;
+
+        auto& registry = AssetRegistry::get_instance();
+        uint32_t slot = 0;
+        GaussianGpu gpu;
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+            auto it = gaussian_gpu_cache.find(id);
+            if (it == gaussian_gpu_cache.end())
+                slot = next_gaussian_slot++;
+            else
+                slot = it->second.bindless_slot;
+
+            gaussian_buffer_uploads[id] = upload;
+            gpu = make_gaussian_gpu(upload, registry.get_version(id), slot);
+            gaussian_gpu_cache[id] = gpu;
+
+            gaussian_lru.push_back({
+                id,
+                current_frame,
+                upload.gpu_memory_size,
+                ResidentPriority::Normal
+            });
+            buffer_memory_usage += upload.gpu_memory_size;
+        }
+
+        bind_gaussian_to_slot(slot, gpu, nullptr);
+        AssetSystem::get_instance().gaussian_cache().mark_gpu_uploaded(id);
+        registry.set_state(id, AssetState::ResidentGpu);
+    }
+
+    GaussianGpu GpuResourceSystem::upload_gaussian_from_model(GaussianModel& model, bool compact)
+    {
+        if (!device || model.position().empty())
+            return {};
+
+        if (!model.get_asset_id().is_valid())
+            return {};
+
+        const AssetId asset_id = model.get_asset_id();
+        GaussianAsset snapshot;
+        snapshot.id = asset_id;
+        snapshot.source_path = model.get_file_path();
+        snapshot.pos = model.position();
+        snapshot.shs_0 = model.sh0();
+        snapshot.shs_n = model.shn();
+        snapshot.opacities = model.opacity();
+        snapshot.scales = model.scale();
+        snapshot.rot = model.rotation();
+        snapshot.splat_state = model.state();
+        snapshot.splat_select_flag = model.flags();
+        snapshot.splat_transform_index = model.transform_index();
+
+        auto packed = pack_gaussian_asset(snapshot);
+        const GaussianBufferUpload* existing = nullptr;
+        {
+            std::shared_lock lock(gpu_resources_mutex);
+            auto it = gaussian_buffer_uploads.find(asset_id);
+            if (it != gaussian_buffer_uploads.end())
+                existing = &it->second;
+        }
+
+        auto upload = upload_gaussian_buffers(
+            device,
+            packed,
+            existing,
+            model.position().size(),
+            model.get_max_splats(),
+            compact,
+            model.state(),
+            model.transform_index());
+
+        if (!upload.gaussians_buf)
+            return {};
+
+        auto& registry = AssetRegistry::get_instance();
+        uint32_t slot = 0;
+        GaussianGpu gpu;
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+            auto it = gaussian_gpu_cache.find(asset_id);
+            if (it == gaussian_gpu_cache.end())
+                slot = next_gaussian_slot++;
+            else
+                slot = it->second.bindless_slot;
+
+            gaussian_buffer_uploads[asset_id] = upload;
+            gpu = make_gaussian_gpu(upload, registry.get_version(asset_id), slot);
+            gaussian_gpu_cache[asset_id] = gpu;
+
+            gaussian_lru.push_back({
+                asset_id,
+                current_frame,
+                upload.gpu_memory_size,
+                ResidentPriority::Normal
+            });
+            buffer_memory_usage += upload.gpu_memory_size;
+        }
+
+        bind_gaussian_to_slot(slot, gpu, model.splat_transforms.splat_transform_buffer.get());
+        AssetSystem::get_instance().gaussian_cache().mark_gpu_uploaded(asset_id);
+        registry.set_state(asset_id, AssetState::ResidentGpu);
+        return gpu;
+    }
+
+    GaussianGpu GpuResourceSystem::get_gaussian_gpu(const AssetId& id) const
+    {
+        std::shared_lock lock(gpu_resources_mutex);
+        auto it = gaussian_gpu_cache.find(id);
+        return it != gaussian_gpu_cache.end() ? it->second : GaussianGpu{};
     }
 
     void GpuResourceSystem::make_resident(const AssetId& id, ResidentPriority priority)
@@ -441,6 +741,53 @@ namespace diverse
         device->write_descriptor_set(bindless_descriptor_set, index_buffer_binding_id, mesh.index_buffer.get(), slot);
     }
 
+    void GpuResourceSystem::bind_point_cloud_to_slot(uint32_t slot, const PointCloudGpu& point_cloud)
+    {
+        if (!bindless_descriptor_set || !device || !point_cloud.is_valid())
+            return;
+        if (point_cloud_buffer_binding_id == 0xFFFFFFFF)
+            return;
+
+        device->write_descriptor_set(
+            bindless_descriptor_set,
+            point_cloud_buffer_binding_id,
+            point_cloud.vertex_buffer.get(),
+            slot);
+    }
+
+    void GpuResourceSystem::attach_material_buffer_binding(uint32_t binding_id)
+    {
+        material_buffer_binding_id = binding_id;
+        if (material_buffer && bindless_descriptor_set && device)
+            device->write_descriptor_set(bindless_descriptor_set, binding_id, material_buffer.get());
+    }
+
+    void GpuResourceSystem::attach_point_cloud_buffer_binding(uint32_t binding_id)
+    {
+        point_cloud_buffer_binding_id = binding_id;
+    }
+
+    void GpuResourceSystem::attach_gaussian_buffer_bindings(uint32_t gs_binding_id, uint32_t splat_state_binding_id)
+    {
+        gaussian_buffer_binding_id = gs_binding_id;
+        gaussian_state_binding_id = splat_state_binding_id;
+    }
+
+    void GpuResourceSystem::bind_gaussian_to_slot(uint32_t slot, const GaussianGpu& gaussian, rhi::GpuBuffer* splat_transform_buffer)
+    {
+        if (!bindless_descriptor_set || !device || !gaussian.is_valid())
+            return;
+        if (gaussian_buffer_binding_id == 0xFFFFFFFF || gaussian_state_binding_id == 0xFFFFFFFF)
+            return;
+
+        device->write_descriptor_set(bindless_descriptor_set, gaussian_buffer_binding_id, gaussian.gaussians_buf.get(), slot * 4 + 0);
+        device->write_descriptor_set(bindless_descriptor_set, gaussian_buffer_binding_id, gaussian.sh_0_buf.get(), slot * 4 + 1);
+        device->write_descriptor_set(bindless_descriptor_set, gaussian_buffer_binding_id, gaussian.sh_n_buf.get(), slot * 4 + 2);
+        if (splat_transform_buffer)
+            device->write_descriptor_set(bindless_descriptor_set, gaussian_buffer_binding_id, splat_transform_buffer, slot * 4 + 3);
+        device->write_descriptor_set(bindless_descriptor_set, gaussian_state_binding_id, gaussian.state_buf.get(), slot);
+    }
+
     void GpuResourceSystem::flush_bindless_updates()
     {
         if (bindless)
@@ -520,7 +867,16 @@ namespace diverse
             std::shared_lock lock(gpu_resources_mutex);
             auto it = texture_gpu_cache.find(id);
             if (it != texture_gpu_cache.end())
+            {
+                // Update last_used_frame in LRU entry
+                auto lru_it = std::find_if(texture_lru.begin(), texture_lru.end(),
+                    [&id](const GpuLruEntry<TextureAsset>& e) { return e.id == id; });
+                if (lru_it != texture_lru.end())
+                {
+                    lru_it->last_used_frame = current_frame;
+                }
                 return it->second;
+            }
         }
         queue_upload(id, AssetType::Texture, priority);
         process_texture_upload(id);
@@ -536,13 +892,82 @@ namespace diverse
             std::shared_lock lock(gpu_resources_mutex);
             auto it = mesh_gpu_cache.find(id);
             if (it != mesh_gpu_cache.end())
+            {
+                // Update last_used_frame in LRU entry
+                auto lru_it = std::find_if(mesh_lru.begin(), mesh_lru.end(),
+                    [&id](const GpuLruEntry<MeshAsset>& e) { return e.id == id; });
+                if (lru_it != mesh_lru.end())
+                {
+                    lru_it->last_used_frame = current_frame;
+                }
                 return it->second;
+            }
         }
         queue_upload(id, AssetType::MeshModel, priority);
         process_mesh_upload(id);
         std::shared_lock lock(gpu_resources_mutex);
         auto found = mesh_gpu_cache.find(id);
         return found != mesh_gpu_cache.end() ? found->second : MeshGpu{};
+    }
+
+    MaterialGpu GpuResourceSystem::request_material(const AssetId& id, UploadPriority priority)
+    {
+        if (!id.is_valid())
+            return MaterialGpu{};
+
+        process_material_upload(id);
+
+        std::shared_lock lock(gpu_resources_mutex);
+        auto found = material_gpu_cache.find(id);
+        return found != material_gpu_cache.end() ? found->second : MaterialGpu{};
+    }
+
+    PointCloudGpu GpuResourceSystem::request_point_cloud(const AssetId& id, UploadPriority priority)
+    {
+        {
+            std::shared_lock lock(gpu_resources_mutex);
+            auto it = point_cloud_gpu_cache.find(id);
+            if (it != point_cloud_gpu_cache.end())
+            {
+                // Update last_used_frame in LRU entry
+                auto lru_it = std::find_if(point_cloud_lru.begin(), point_cloud_lru.end(),
+                    [&id](const GpuLruEntry<PointCloudAsset>& e) { return e.id == id; });
+                if (lru_it != point_cloud_lru.end())
+                {
+                    lru_it->last_used_frame = current_frame;
+                }
+                return it->second;
+            }
+        }
+        queue_upload(id, AssetType::PointCloud, priority);
+        process_point_cloud_upload(id);
+        std::shared_lock lock(gpu_resources_mutex);
+        auto found = point_cloud_gpu_cache.find(id);
+        return found != point_cloud_gpu_cache.end() ? found->second : PointCloudGpu{};
+    }
+
+    GaussianGpu GpuResourceSystem::request_gaussian(const AssetId& id, UploadPriority priority)
+    {
+        {
+            std::shared_lock lock(gpu_resources_mutex);
+            auto it = gaussian_gpu_cache.find(id);
+            if (it != gaussian_gpu_cache.end())
+            {
+                // Update last_used_frame in LRU entry
+                auto lru_it = std::find_if(gaussian_lru.begin(), gaussian_lru.end(),
+                    [&id](const GpuLruEntry<GaussianAsset>& e) { return e.id == id; });
+                if (lru_it != gaussian_lru.end())
+                {
+                    lru_it->last_used_frame = current_frame;
+                }
+                return it->second;
+            }
+        }
+        queue_upload(id, AssetType::Gaussian, priority);
+        process_gaussian_upload(id);
+        std::shared_lock lock(gpu_resources_mutex);
+        auto found = gaussian_gpu_cache.find(id);
+        return found != gaussian_gpu_cache.end() ? found->second : GaussianGpu{};
     }
 
     void GpuResourceSystem::enqueue_uploads(uint64_t frame_index)
@@ -787,6 +1212,59 @@ namespace diverse
         enforce_budget();
     }
 
+    void GpuResourceSystem::initialize_material_buffer(uint32_t capacity)
+    {
+        std::unique_lock lock(gpu_resources_mutex);
+
+        material_capacity = capacity;
+        material_count = 0;
+
+        rhi::GpuBufferDesc mat_buffer_desc = rhi::GpuBufferDesc::new_cpu_to_gpu(
+            capacity * sizeof(MaterialProperties),
+            rhi::BufferUsageFlags::STORAGE_BUFFER |
+            rhi::BufferUsageFlags::SHADER_DEVICE_ADDRESS |
+            rhi::BufferUsageFlags::TRANSFER_DST
+        );
+
+        material_buffer = device->create_buffer(mat_buffer_desc, "material buffer", nullptr);
+
+        if (material_buffer && bindless_descriptor_set && material_buffer_binding_id != 0xFFFFFFFF)
+            device->write_descriptor_set(bindless_descriptor_set, material_buffer_binding_id, material_buffer.get());
+    }
+
+    void GpuResourceSystem::upload_material_data(const AssetId& id, const MaterialProperties& props)
+    {
+        std::shared_lock lock(gpu_resources_mutex);
+
+        auto it = material_gpu_cache.find(id);
+        if (it == material_gpu_cache.end())
+            return;
+
+        uint32_t slot = it->second.material_buffer_index;
+        if (slot >= material_capacity || !material_buffer)
+            return;
+
+        // Upload material data directly to buffer
+        // In production, this should use staging buffer for better sync
+        auto material_data = reinterpret_cast<MaterialProperties*>(material_buffer->map(device));
+        if (material_data)
+        {
+            material_data[slot] = props;
+            material_buffer->unmap(device);
+        }
+    }
+
+    MaterialGpu GpuResourceSystem::get_material_gpu(const AssetId& id) const
+    {
+        std::shared_lock lock(gpu_resources_mutex);
+
+        auto it = material_gpu_cache.find(id);
+        if (it != material_gpu_cache.end())
+            return it->second;
+
+        return MaterialGpu{};
+    }
+
     void GpuResourceSystem::release()
     {
         std::unique_lock lock(gpu_resources_mutex);
@@ -794,9 +1272,18 @@ namespace diverse
         gpu_resources.clear();
         texture_lru.clear();
         mesh_lru.clear();
+        point_cloud_lru.clear();
+        gaussian_lru.clear();
         texture_bindless.clear();
         texture_gpu_cache.clear();
         mesh_gpu_cache.clear();
+        material_gpu_cache.clear();
+        point_cloud_gpu_cache.clear();
+        gaussian_gpu_cache.clear();
+        gaussian_buffer_uploads.clear();
+        material_buffer.reset();
+        material_capacity = 0;
+        material_count = 0;
 
         texture_memory_usage = 0;
         buffer_memory_usage = 0;

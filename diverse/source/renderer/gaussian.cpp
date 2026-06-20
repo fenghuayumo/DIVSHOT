@@ -259,8 +259,8 @@ namespace diverse
 			gs_constants.select_color = outline_enabled ? glm::vec4(0.0f) : cmd.select_color;
 			gs_constants.num_gaussians = num_gaussians;
 			gs_constants.color_offset = glm::vec4(cmd.color_offset,cmd.model->splat_size);
-			auto point_list_key_buffer = rg.import_res(gs_model->points_key_buf, rhi::AccessType::Nothing);
-			auto point_list_value_buffer = rg.import_res(gs_model->points_value_buf, rhi::AccessType::Nothing);
+			auto point_list_key_buffer = rg.import_res(gs_model->get_points_key_buf(), rhi::AccessType::Nothing);
+			auto point_list_value_buffer = rg.import_res(gs_model->get_points_value_buf(), rhi::AccessType::Nothing);
 			auto num_visible_buffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(sizeof(u32) * 4, 
 				rhi::BufferUsageFlags::STORAGE_BUFFER | 
 				rhi::BufferUsageFlags::TRANSFER_SRC | 
@@ -502,8 +502,8 @@ namespace diverse
 			gut_constants.color_offset = glm::vec4(cmd.color_offset, cmd.model->splat_size);
 			
 			// Create sorting buffers
-			auto point_list_key_buffer = rg.import_res(gs_model->points_key_buf, rhi::AccessType::Nothing);
-			auto point_list_value_buffer = rg.import_res(gs_model->points_value_buf, rhi::AccessType::Nothing);
+			auto point_list_key_buffer = rg.import_res(gs_model->get_points_key_buf(), rhi::AccessType::Nothing);
+			auto point_list_value_buffer = rg.import_res(gs_model->get_points_value_buf(), rhi::AccessType::Nothing);
 			auto num_visible_buffer = rg.create<rhi::GpuBuffer>(rhi::GpuBufferDesc::new_gpu_only(sizeof(u32) * 4, 
 				rhi::BufferUsageFlags::STORAGE_BUFFER | 
 				rhi::BufferUsageFlags::TRANSFER_SRC | 

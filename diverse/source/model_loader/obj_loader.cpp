@@ -1,5 +1,7 @@
 #include "assets/model_asset.h"
 #include "assets/material_asset.h"
+#include "assets/asset_system.h"
+#include "assets/asset_registry.h"
 #include "model_loader/model_loader_utils.h"
 #include "maths/transform.h"
 #include "utility/string_utils.h"
@@ -141,11 +143,18 @@ namespace diverse
                 material_asset->properties.roughness_mult = mp->roughness;
             }
 
-            slots[shape_idx] = { mesh, material_asset };
+            // Register assets and create handles
+            AssetSystem::get_instance().register_cpu_mesh(mesh);
+            AssetSystem::get_instance().register_cpu_material(material_asset);
+
+            ModelMeshSlot slot;
+            slot.mesh = AssetRegistry::get_instance().get_mesh_handle(mesh->id);
+            slot.material = AssetRegistry::get_instance().get_material_handle(material_asset->id);
+            slots[shape_idx] = std::move(slot);
         });
 
         slots.erase(std::remove_if(slots.begin(), slots.end(),
-            [](const ModelMeshSlot& slot) { return !slot.mesh; }), slots.end());
+            [](const ModelMeshSlot& slot) { return !slot.mesh.is_valid(); }), slots.end());
         return !slots.empty();
     }
 }

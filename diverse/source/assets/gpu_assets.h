@@ -128,6 +128,46 @@ namespace diverse
         }
     };
 
+    // GPU-side point cloud representation
+    struct PointCloudGpu
+    {
+        std::shared_ptr<rhi::GpuBuffer> vertex_buffer;
+        uint32_t bindless_slot;
+        uint32_t resident_version;
+        size_t gpu_memory_size;
+
+        PointCloudGpu()
+            : bindless_slot(0xFFFFFFFF)
+            , resident_version(0)
+            , gpu_memory_size(0)
+        {}
+
+        bool is_valid() const { return vertex_buffer != nullptr; }
+    };
+
+    // GPU-side Gaussian splat representation
+    struct GaussianGpu
+    {
+        std::shared_ptr<rhi::GpuBuffer> gaussians_buf;
+        std::shared_ptr<rhi::GpuBuffer> sh_0_buf;
+        std::shared_ptr<rhi::GpuBuffer> sh_n_buf;
+        std::shared_ptr<rhi::GpuBuffer> state_buf;
+        std::shared_ptr<rhi::GpuBuffer> points_key_buf;
+        std::shared_ptr<rhi::GpuBuffer> points_value_buf;
+        std::shared_ptr<rhi::GpuBuffer> splat_transforms;
+        uint32_t bindless_slot;
+        uint32_t resident_version;
+        size_t gpu_memory_size;
+
+        GaussianGpu()
+            : bindless_slot(0xFFFFFFFF)
+            , resident_version(0)
+            , gpu_memory_size(0)
+        {}
+
+        bool is_valid() const { return gaussians_buf != nullptr; }
+    };
+
     // Resident priority for GPU memory budget control
     enum class ResidentPriority : uint8_t
     {

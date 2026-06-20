@@ -266,10 +266,8 @@ namespace diverse
 		auto	upload_mesh_materials(ModelAsset* model, GpuSceneDirtyState& dirty_state)->int;
 		auto	is_material_texture_bound(const AssetHandle<TextureAsset>& handle)->bool;
 		auto	are_material_textures_bound(const MaterialAsset& material)->bool;
-		auto	update_material_texture_bindings(MaterialProperties& material, const MaterialAsset& mat)->void;
 		auto	record_mesh_instance_gpu_state(ModelAsset* model, u32 entity_id, const maths::Transform& transform)->void;
 		auto	upload_mesh_model(ModelAsset* model)->void;
-		auto	upload_material(const AssetId& material_id, const MaterialProperties& material)->void;
 		auto	defer_release(std::function<void()>&& release)->void;
 		auto	retire_deferred_releases(bool release_all = false)->void;
 		auto	prepare_render_graph_hybrid(
@@ -299,7 +297,6 @@ namespace diverse
 		maths::Transform* camera_transform = nullptr;
 	public:
 	  	std::shared_ptr<rhi::GpuBuffer>     mesh_buffer;
-        std::shared_ptr<rhi::GpuBuffer>     material_buffer;
 		std::shared_ptr<rhi::GpuRayTracingAcceleration> tlas;
 	protected:
 		std::shared_ptr<rg::Renderer>  rg_renderer;

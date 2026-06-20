@@ -16,8 +16,12 @@ namespace diverse
     class Skeleton;
     class Animation;    struct ModelMeshSlot
     {
-        std::shared_ptr<MeshAsset> mesh;
-        std::shared_ptr<MaterialAsset> material;
+        AssetHandle<MeshAsset> mesh;
+        AssetHandle<MaterialAsset> material;
+
+        // Helper to resolve handles (lazy resolution for hot reload safety)
+        MeshAsset* get_mesh() const;
+        MaterialAsset* get_material() const;
     };
 
     class ModelAsset

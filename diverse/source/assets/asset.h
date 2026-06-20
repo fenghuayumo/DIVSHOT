@@ -41,6 +41,7 @@ namespace diverse
         Animation           = 11,
         AnimationController = 12,
         PointCloud = 13,
+        Gaussian = 14,
     };
 
     class Asset

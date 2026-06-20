@@ -997,7 +997,7 @@ namespace diverse
             const auto& slots = model.ModelRef->get_slots();
             for (const auto& slot : slots)
             {
-                auto mesh = slot.mesh.get();
+                auto mesh = slot.get_mesh();
                 if (!mesh)
                     continue;
                 auto bbCopy = mesh->bounding_box.transformed(worldTransform);

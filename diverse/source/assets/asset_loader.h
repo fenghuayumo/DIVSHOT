@@ -86,6 +86,9 @@ namespace diverse
         // Register load function for asset type
         void set_load_func(LoadFunc<AssetType> func);
 
+        using LoadedCallback = std::function<void(const AssetId&, std::shared_ptr<AssetType>)>;
+        void set_on_loaded(LoadedCallback callback);
+
         // Async load with future result
         std::future<LoadResult> load(const AssetId& id, const AssetMetadata& metadata);
 
@@ -106,6 +109,7 @@ namespace diverse
 
     private:
         LoadFunc<AssetType> load_func;
+        LoadedCallback on_loaded;
 
         // Default asset for fallback
         std::shared_ptr<AssetType> default_asset;
@@ -170,6 +174,12 @@ namespace diverse
     }
 
     template<typename AssetType>
+    void AssetLoader<AssetType>::set_on_loaded(LoadedCallback callback)
+    {
+        on_loaded = std::move(callback);
+    }
+
+    template<typename AssetType>
     std::future<LoadResult> AssetLoader<AssetType>::load(const AssetId& id, const AssetMetadata& metadata)
     {
         {
@@ -191,6 +201,9 @@ namespace diverse
                 {
                     return LoadResult::failed(id, "Load function returned null asset");
                 }
+
+                if (on_loaded)
+                    on_loaded(id, asset);
 
                 {
                     std::lock_guard lock(loading_mutex);

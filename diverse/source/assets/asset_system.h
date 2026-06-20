@@ -38,8 +38,13 @@
 #include "asset_pipeline.h"
 #include "texture_importer.h"
 #include "model_asset.h"
+#include "point_cloud_asset.h"
+#include "gaussian_asset.h"
 #include "primitive_type.h"
+#include <future>
 #include <memory>
+#include <mutex>
+#include <unordered_map>
 
 namespace diverse
 {
@@ -80,7 +85,15 @@ namespace diverse
         AssetCache<MeshAsset>& mesh_cache() { return *mesh_cache_ptr; }
         AssetCache<MaterialAsset>& material_cache() { return *material_cache_ptr; }
         AssetCache<ModelAsset>& model_cache() { return *model_cache_ptr; }
+        AssetCache<PointCloudAsset>& point_cloud_cache() { return *point_cloud_cache_ptr; }
+        AssetCache<GaussianAsset>& gaussian_cache() { return *gaussian_cache_ptr; }
         AssetPipeline& pipeline() { return AssetPipeline::get_instance(); }
+
+        TextureLoader& texture_loader() { return *texture_loader_ptr; }
+        MeshLoader& mesh_loader() { return *mesh_loader_ptr; }
+
+        bool is_async_loading(const AssetId& id) const;
+        void start_async_load(const AssetId& id);
 
         // Model loading (Registry + Pipeline entry points)
         std::shared_ptr<ModelAsset> load_model(
@@ -102,8 +115,15 @@ namespace diverse
         void register_cpu_mesh(const std::shared_ptr<MeshAsset>& mesh);
         void register_cpu_material(const std::shared_ptr<MaterialAsset>& material);
         void register_cpu_model(const std::shared_ptr<ModelAsset>& model);
+        void register_cpu_point_cloud(const std::shared_ptr<PointCloudAsset>& point_cloud);
+        void register_cpu_gaussian(const std::shared_ptr<GaussianAsset>& gaussian);
 
     private:
+        struct PendingAsyncLoad
+        {
+            std::future<LoadResult> future;
+        };
+
         AssetSystem() = default;
         ~AssetSystem() = default;
 
@@ -114,12 +134,21 @@ namespace diverse
         std::unique_ptr<AssetCache<MeshAsset>> mesh_cache_ptr;
         std::unique_ptr<AssetCache<MaterialAsset>> material_cache_ptr;
         std::unique_ptr<AssetCache<ModelAsset>> model_cache_ptr;
+        std::unique_ptr<AssetCache<PointCloudAsset>> point_cloud_cache_ptr;
+        std::unique_ptr<AssetCache<GaussianAsset>> gaussian_cache_ptr;
+
+        std::unique_ptr<TextureLoader> texture_loader_ptr;
+        std::unique_ptr<MeshLoader> mesh_loader_ptr;
+        std::unordered_map<AssetId, PendingAsyncLoad> pending_async_loads;
+        mutable std::mutex async_load_mutex;
 
         std::shared_ptr<TextureAsset> default_white;
         std::shared_ptr<TextureAsset> default_normal;
 
         void ensure_cpu_caches();
         void register_default_textures();
+        void register_asset_loaders();
+        void process_async_loads();
         void invalidate_for_hot_reload(const AssetId& id, uint64_t frame_index);
         void begin_hot_reload(const AssetId& id, uint64_t frame_index);
 

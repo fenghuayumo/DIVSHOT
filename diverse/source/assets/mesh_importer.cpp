@@ -52,16 +52,25 @@ namespace diverse
 
     void MeshImporter::assign_sub_asset_ids(ModelAsset& model)
     {
+        auto& sys = AssetSystem::get_instance();
         for (auto& slot : model.get_slots())
         {
-            if (slot.mesh)
+            if (slot.mesh.is_valid())
             {
-                if (!slot.mesh->id.is_valid())
-                    slot.mesh->id = GenerateAssetId();
-                slot.mesh->source_path = model.source_path;
+                auto mesh = sys.get_asset<MeshAsset>(slot.mesh.get_id());
+                if (mesh)
+                {
+                    if (!mesh->id.is_valid())
+                        mesh->id = GenerateAssetId();
+                    mesh->source_path = model.source_path;
+                }
             }
-            if (slot.material && !slot.material->id.is_valid())
-                slot.material->id = GenerateAssetId();
+            if (slot.material.is_valid())
+            {
+                auto material = sys.get_asset<MaterialAsset>(slot.material.get_id());
+                if (material && !material->id.is_valid())
+                    material->id = GenerateAssetId();
+            }
         }
     }
 
@@ -86,32 +95,40 @@ namespace diverse
 
         for (auto& slot : model.get_slots())
         {
-            if (slot.mesh)
+            if (slot.mesh.is_valid())
             {
-                register_child(slot.mesh->id, AssetType::MeshModel);
-                sys.register_cpu_mesh(slot.mesh);
-            }
-            if (slot.material)
-            {
-                register_child(slot.material->id, AssetType::Material);
-                sys.register_cpu_material(slot.material);
-
-                const AssetHandle<TextureAsset>* handles[] = {
-                    &slot.material->albedo,
-                    &slot.material->normal,
-                    &slot.material->metallic,
-                    &slot.material->roughness,
-                    &slot.material->ao,
-                    &slot.material->emissive,
-                    &slot.material->transmission,
-                    &slot.material->normal_detail,
-                };
-                for (const auto* handle : handles)
+                auto mesh = sys.get_asset<MeshAsset>(slot.mesh.get_id());
+                if (mesh)
                 {
-                    if (handle && handle->is_valid())
+                    register_child(mesh->id, AssetType::MeshModel);
+                    sys.register_cpu_mesh(mesh);
+                }
+            }
+            if (slot.material.is_valid())
+            {
+                auto material = sys.get_asset<MaterialAsset>(slot.material.get_id());
+                if (material)
+                {
+                    register_child(material->id, AssetType::Material);
+                    sys.register_cpu_material(material);
+
+                    const AssetHandle<TextureAsset>* handles[] = {
+                        &material->albedo,
+                        &material->normal,
+                        &material->metallic,
+                        &material->roughness,
+                        &material->ao,
+                        &material->emissive,
+                        &material->transmission,
+                        &material->normal_detail,
+                    };
+                    for (const auto* handle : handles)
                     {
-                        registry.add_dependency(slot.material->id, handle->get_id());
-                        registry.add_dependency(model_id, handle->get_id());
+                        if (handle && handle->is_valid())
+                        {
+                            registry.add_dependency(material->id, handle->get_id());
+                            registry.add_dependency(model_id, handle->get_id());
+                        }
                     }
                 }
             }
@@ -134,8 +151,12 @@ namespace diverse
         meshes.reserve(model.get_slots().size());
         for (const auto& slot : model.get_slots())
         {
-            if (slot.mesh && slot.mesh->is_valid())
-                meshes.push_back(slot.mesh);
+            if (slot.mesh.is_valid())
+            {
+                auto mesh = AssetSystem::get_instance().get_asset<MeshAsset>(slot.mesh.get_id());
+                if (mesh)
+                    meshes.push_back(mesh);
+            }
         }
         return meshes;
     }
@@ -190,8 +211,8 @@ namespace diverse
         auto& gpu_sys = AssetSystem::get_instance().gpu_system();
         for (const auto& slot : model.get_slots())
         {
-            if (slot.mesh && slot.mesh->id.is_valid())
-                gpu_sys.queue_upload(slot.mesh->id, AssetType::MeshModel, UploadPriority::Normal);
+            if (slot.mesh.is_valid())
+                gpu_sys.queue_upload(slot.mesh.get_id(), AssetType::MeshModel, UploadPriority::Normal);
         }
     }
 

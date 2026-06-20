@@ -5,6 +5,7 @@
 #include "assets/cpu_assets.h"
 #include "assets/gpu_assets.h"
 #include "bindless_table.h"
+#include "gaussian_gpu_utils.h"
 #include "texture_gpu_utils.h"
 #include "backend/drs_rhi/gpu_resource.h"
 #include "backend/drs_rhi/gpu_device.h"
@@ -22,6 +23,8 @@ namespace diverse
 {
     // Forward declarations
     class StagingBuffer;
+    class GaussianModel;
+    struct MaterialProperties;
 
     // Upload priority for GPU resource uploads
     enum class UploadPriority : uint8_t
@@ -74,6 +77,13 @@ namespace diverse
             : last_used_frame(0)
             , memory_size(0)
             , priority(ResidentPriority::Normal)
+        {}
+
+        GpuLruEntry(const AssetId& i, uint64_t frame, size_t size, ResidentPriority p)
+            : id(i)
+            , last_used_frame(frame)
+            , memory_size(size)
+            , priority(p)
         {}
     };
 
@@ -167,6 +177,11 @@ namespace diverse
         // Typed GPU residency requests
         TextureGpu request_texture(const AssetId& id, UploadPriority priority = UploadPriority::Normal);
         MeshGpu request_mesh(const AssetId& id, UploadPriority priority = UploadPriority::Normal);
+        MaterialGpu request_material(const AssetId& id, UploadPriority priority = UploadPriority::Normal);
+        PointCloudGpu request_point_cloud(const AssetId& id, UploadPriority priority = UploadPriority::Normal);
+        GaussianGpu request_gaussian(const AssetId& id, UploadPriority priority = UploadPriority::Normal);
+        GaussianGpu upload_gaussian_from_model(GaussianModel& model, bool compact);
+        GaussianGpu get_gaussian_gpu(const AssetId& id) const;
         void enqueue_uploads(uint64_t frame_index);
         void retire(uint64_t completed_frame);
 
@@ -174,7 +189,12 @@ namespace diverse
         rhi::DescriptorSet* get_bindless_descriptor_set() const;
         void attach_bindless_descriptor_set(rhi::DescriptorSet* set, uint32_t texture_binding_id, uint32_t size_binding_id);
         void attach_mesh_buffer_bindings(uint32_t vertex_binding_id, uint32_t index_binding_id);
+        void attach_material_buffer_binding(uint32_t binding_id);
+        void attach_point_cloud_buffer_binding(uint32_t binding_id);
+        void attach_gaussian_buffer_bindings(uint32_t gs_binding_id, uint32_t splat_state_binding_id);
         void bind_mesh_to_slot(uint32_t slot, const MeshGpu& mesh);
+        void bind_point_cloud_to_slot(uint32_t slot, const PointCloudGpu& point_cloud);
+        void bind_gaussian_to_slot(uint32_t slot, const GaussianGpu& gaussian, rhi::GpuBuffer* splat_transform_buffer);
 
         // Staging buffer pool
         StagingBuffer* acquire_staging_buffer(size_t size);
@@ -193,6 +213,14 @@ namespace diverse
         std::shared_ptr<rhi::GpuResource> get_gpu_resource(const AssetId& id) const;
         TextureGpu get_texture_gpu(const AssetId& id) const;
         MeshGpu get_mesh_gpu(const AssetId& id) const;
+        MaterialGpu get_material_gpu(const AssetId& id) const;
+
+        // Material buffer management (delegated from renderer)
+        void initialize_material_buffer(uint32_t capacity);
+        void upload_material_data(const AssetId& id, const MaterialProperties& props);
+        rhi::GpuBuffer* get_material_buffer() const { return material_buffer.get(); }
+        uint32_t get_material_capacity() const { return material_capacity; }
+        uint32_t get_material_count() const { return material_count; }
 
         // Statistics
         size_t get_texture_memory_usage() const;
@@ -223,15 +251,27 @@ namespace diverse
         // LRU tracking
         std::vector<GpuLruEntry<TextureAsset>> texture_lru;
         std::vector<GpuLruEntry<MeshAsset>> mesh_lru;
+        std::vector<GpuLruEntry<class PointCloudAsset>> point_cloud_lru;
+        std::vector<GpuLruEntry<class GaussianAsset>> gaussian_lru;
 
         // Bindless management
         std::unique_ptr<BindlessTable> bindless;
         rhi::DescriptorSet* bindless_descriptor_set = nullptr;
         uint32_t vertex_buffer_binding_id = 4;
         uint32_t index_buffer_binding_id = 5;
+        uint32_t material_buffer_binding_id = 0xFFFFFFFF;
+        uint32_t point_cloud_buffer_binding_id = 0xFFFFFFFF;
+        uint32_t gaussian_buffer_binding_id = 0xFFFFFFFF;
+        uint32_t gaussian_state_binding_id = 0xFFFFFFFF;
+        uint32_t next_point_cloud_slot = 0;
+        uint32_t next_gaussian_slot = 0;
+        std::unordered_map<AssetId, GaussianBufferUpload> gaussian_buffer_uploads;
         std::unordered_map<AssetId, BindlessHandle> texture_bindless;
         std::unordered_map<AssetId, TextureGpu> texture_gpu_cache;
         std::unordered_map<AssetId, MeshGpu> mesh_gpu_cache;
+        std::unordered_map<AssetId, MaterialGpu> material_gpu_cache;
+        std::unordered_map<AssetId, PointCloudGpu> point_cloud_gpu_cache;
+        std::unordered_map<AssetId, GaussianGpu> gaussian_gpu_cache;
 
         // Staging buffer pool
         std::vector<StagingBufferPoolEntry> staging_buffers;
@@ -243,6 +283,11 @@ namespace diverse
 
         // Current frame counter
         uint64_t current_frame;
+
+        // Material buffer (delegated from renderer)
+        std::shared_ptr<rhi::GpuBuffer> material_buffer;
+        uint32_t material_capacity = 0;
+        uint32_t material_count = 0;
 
         // Memory usage tracking
         size_t texture_memory_usage;
@@ -260,6 +305,8 @@ namespace diverse
         void process_texture_upload(const AssetId& id);
         void process_mesh_upload(const AssetId& id);
         void process_material_upload(const AssetId& id);
+        void process_point_cloud_upload(const AssetId& id);
+        void process_gaussian_upload(const AssetId& id);
     };
 
     // Staging buffer for GPU uploads

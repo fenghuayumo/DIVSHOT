@@ -1146,7 +1146,7 @@ namespace MM
 
             for(const auto& slot : slots)
             {
-                auto mesh = slot.mesh.get();
+                auto mesh = slot.get_mesh();
                 if (!mesh)
                     continue;
 
@@ -1162,7 +1162,8 @@ namespace MM
                     diverse::ImGuiHelper::Property("Triangle Count", stats.triangle_count, nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
                     diverse::ImGuiHelper::Property("Vertex Count", stats.vertex_count, nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
                     diverse::ImGuiHelper::Property("Index Count", stats.index_count, nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
-                    diverse::ImGuiHelper::PropertyConst("Material", slot.material ? slot.material->name.c_str() : "Empty");
+                    auto material = slot.get_material();
+                    diverse::ImGuiHelper::PropertyConst("Material", material ? material->name.c_str() : "Empty");
                     ImGui::Columns(1);
 
                     ImGui::Unindent();
@@ -1173,14 +1174,14 @@ namespace MM
             }
             ImGui::TreePop();
         }
-        
+
         if(ImGui::TreeNodeEx("Materials", ImGuiTreeNodeFlags_Framed))
         {
             MaterialAsset* MaterialShown[1000];
             uint32_t MaterialCount = 0;
             for(const auto& slot : slots)
             {
-                auto material = slot.material.get();
+                auto material = slot.get_material();
                 std::string matName = material ? material->name : "";
 
                 bool materialFound = false;

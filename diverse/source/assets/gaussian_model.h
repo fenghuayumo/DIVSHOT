@@ -1,4 +1,6 @@
 #pragma once
+#include "gaussian_asset.h"
+#include "asset_id.h"
 #include "core/reference.h"
 #include "maths/bounding_box.h"
 #include "splat_transform_palette.h"
@@ -44,25 +46,6 @@ namespace diverse
        struct GpuDevice;
     }
 
-    struct Gaussian
-    {
-        glm::vec4 position;				// Gaussian position
-        glm::uvec4 rotation_scale;		// rotation, scale, and opacity
-    };
-
-    struct PackedVertexSH
-    {
-        glm::uvec4 sh1to3;
-        glm::uvec4 sh4to7;
-        glm::uvec4 sh8to11;
-        glm::uvec4 sh12to15;
-    };
-
-    // struct PackedVertexColor
-    // {
-    //     glm::vec2 sh0;
-    // };
-    using PackedVertexColor = glm::uvec2;
 	struct GaussianModel
 	{
 	public:
@@ -72,9 +55,19 @@ namespace diverse
 
 		bool is_loaded() const { return loaded; }
 		bool is_invalid() const { return invalid; }
-		bool is_gpu_uploaded() const { return gpu_uploaded; }
+		bool is_gpu_uploaded() const;
 
 		static SharedPtr<GaussianModel> acquire(const std::string& path);
+
+		AssetId get_asset_id() const { return id; }
+		int get_max_splats() const { return max_splats; }
+
+		std::shared_ptr<rhi::GpuBuffer> get_gaussians_buf() const;
+		std::shared_ptr<rhi::GpuBuffer> get_gaussians_sh_0_buf() const;
+		std::shared_ptr<rhi::GpuBuffer> get_gaussians_sh_n_buf() const;
+		std::shared_ptr<rhi::GpuBuffer> get_gaussian_state_buf() const;
+		std::shared_ptr<rhi::GpuBuffer> get_points_key_buf() const;
+		std::shared_ptr<rhi::GpuBuffer> get_points_value_buf() const;
 
 		maths::BoundingBox& get_local_bounding_box()  { return local_bounding_box; }
 
@@ -122,19 +115,13 @@ namespace diverse
         auto    antialiased() -> bool& { return mip_antialiased; }
         void    create_gpu_buffer(rhi::GpuDevice* device, bool compact = false);
     protected:
+        void    sync_cpu_asset();
         void    update_data();
     private:
+        AssetId id;
         bool loaded = false;
         bool invalid = false;
-        bool gpu_uploaded = false;
     public:
-        std::shared_ptr<rhi::GpuBuffer>	gaussians_buf;
-        std::shared_ptr<rhi::GpuBuffer>	gaussians_sh_0_buf; //sh0 data, f16 store float data
-        std::shared_ptr<rhi::GpuBuffer>	gaussians_sh_n_buf; //sh1to3, sh4to7, sh8to11, sh12to15
-        std::shared_ptr<rhi::GpuBuffer>	points_key_buf;
-        std::shared_ptr<rhi::GpuBuffer>	points_value_buf;
-        std::shared_ptr<rhi::GpuBuffer>	gaussian_state_buf;
-
         SplatTransformPalette                 splat_transforms;
         maths::BoundingBox	                  local_bounding_box;
         maths::BoundingBox	                  world_bounding_box;
