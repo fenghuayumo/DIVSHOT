@@ -384,7 +384,8 @@ namespace MM
 
                 ImGui::EndPopup();
             }
-            material->dirty_flag() = dirty;
+            if (dirty)
+                material->dirty_flag() = true;
             ImGui::Columns(1);
 
             ImGui::Separator();

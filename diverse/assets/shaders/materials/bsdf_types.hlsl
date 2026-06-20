@@ -7,16 +7,36 @@
 /// Compatible with RTXPT's LobeType system
 enum LobeType : uint
 {
-    LOBE_NONE = 0,
-    LOBE_DIFFUSE_REFLECTION = 1 << 0,
-    LOBE_SPECULAR_REFLECTION = 1 << 1,
-    LOBE_SPECULAR_TRANSMISSION = 1 << 2,
-    LOBE_DIFFUSE_TRANSMISSION = 1 << 3,
-    LOBE_FUZZ = 1 << 4,
-    LOBE_SHEEN = 1 << 5,
-    LOBE_COAT = 1 << 6,
-    LOBE_SUBSURFACE = 1 << 7,
+    LOBE_NONE = 0x00u,
+
+    LOBE_DIFFUSE_REFLECTION = 0x01u,
+    LOBE_SPECULAR_REFLECTION = 0x02u,
+    LOBE_DELTA_REFLECTION = 0x04u,
+
+    LOBE_DIFFUSE_TRANSMISSION = 0x10u,
+    LOBE_SPECULAR_TRANSMISSION = 0x20u,
+    LOBE_DELTA_TRANSMISSION = 0x40u,
+
+    LOBE_DIFFUSE = 0x11u,
+    LOBE_SPECULAR = 0x22u,
+    LOBE_DELTA = 0x44u,
+    LOBE_NON_DELTA = 0x33u,
+
+    LOBE_REFLECTION = 0x0fu,
+    LOBE_TRANSMISSION = 0xf0u,
+
+    LOBE_NON_DELTA_REFLECTION = 0x03u,
+    LOBE_NON_DELTA_TRANSMISSION = 0x30u,
+
+    LOBE_ALL = 0xffu,
+
+    LOBE_FUZZ = LOBE_DIFFUSE_REFLECTION,
 };
+
+bool lobe_has(uint lobes, LobeType type)
+{
+    return (lobes & (uint)type) != 0;
+}
 
 /// BSDF evaluation context
 struct BsdfEvalData
@@ -131,7 +151,7 @@ struct BsdfSampleResult
 
     bool is_valid()
     {
-        return pdf > 0.0 && selected_lobe != LOBE_NONE;
+        return selected_lobe != LOBE_NONE && (pdf > 0.0 || lobe_has((uint)selected_lobe, LOBE_DELTA));
     }
 };
 

@@ -8,18 +8,18 @@ static const float ENVIRONMENT_LIGHT_SELECTION_PDF = 1.0;
 
 // Match RTXPT default (SampleUI.cpp: EnvironmentMapDiffuseSampleMIPLevel = 2).
 // Only mip 0 is unbiased; higher mips trade accuracy for stability on glossy-indirect paths.
-#ifndef REFERENCE_PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL
-#define REFERENCE_PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL 2.0
+#ifndef PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL
+#define PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL 2.0
 #endif
 
 float environment_miss_sample_mip_level(uint diffuse_bounces)
 {
-    return (diffuse_bounces > 1) ? REFERENCE_PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL : 0.0;
+    return (diffuse_bounces > 1) ? PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL : 0.0;
 }
 
 float environment_nee_sample_mip_level()
 {
-    return REFERENCE_PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL;
+    return PT_ENVIRONMENT_DIFFUSE_SAMPLE_MIP_LEVEL;
 }
 
 struct EnvironmentLightSample
@@ -49,11 +49,6 @@ struct EnvironmentLightSample
 float3 sample_environment_light(float3 direction, float mip_level)
 {
     return sky_cube_tex.SampleLevel(sampler_llc, direction, mip_level).rgb;
-}
-
-float nee_balance_mis(float this_pdf, float other_pdf)
-{
-    return this_pdf / max(this_pdf + other_pdf, 1e-8);
 }
 
 float environment_uniform_pdf()

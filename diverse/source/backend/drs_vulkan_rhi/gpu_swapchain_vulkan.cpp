@@ -39,6 +39,7 @@ namespace diverse
 
         auto SwapchainVulkan::acquire_next_image()->SwapchainImage
         {
+            std::lock_guard lock(host_mutex);
             // Per Vulkan best practices: Use cycling index for acquire semaphore,
             // but use image index for render finished semaphore
             // Reference: nvpro_core2/nvvk/swapchain.cpp
@@ -62,7 +63,8 @@ namespace diverse
                 // present_image will use image_index to select the correct renderFinishedSemaphore
                 return SwapchainImage{
                     images[image_index],
-                    image_index  // Store image index for selecting renderFinishedSemaphore
+                    image_index,  // Store image index for selecting renderFinishedSemaphore
+                    acquire_sem_index
                 };
             }
             else
@@ -84,6 +86,7 @@ namespace diverse
 
         auto SwapchainVulkan::present_image(const SwapchainImage& image, CommandBuffer* present_cb) -> void
         {
+            std::lock_guard lock(host_mutex);
             auto presentation_cb = dynamic_cast<GpuCommandBufferVulkan*>(present_cb);
 
             // CRITICAL: Per Vulkan best practices (nvpro_core2 reference):
@@ -93,7 +96,7 @@ namespace diverse
             // preventing semaphore reuse issues
             
             // Use the acquire semaphore index that was saved during acquire
-            auto acquire_semaphore = acquire_semaphores[current_acquire_sem_index];
+            auto acquire_semaphore = acquire_semaphores[image.acquire_semaphore_index];
             
             // Use image index for renderFinishedSemaphore (per Vulkan spec recommendation)
             u32 image_index = image.image_index;

@@ -50,16 +50,14 @@ PsOut main(PsIn ps) {
     if( material.work_flow == PBR_WORKFLOW_METALLIC_ROUGHNESS ) {
         roughness = metalness_roughness.y;
         metalness = metalness_roughness.x;
-        float perceptual_roughness = (1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness;
-        roughness = clamp(perceptual_roughness_to_roughness(perceptual_roughness), 1e-4, 1.0);
+        roughness = clamp((1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness, 1e-4, 1.0);
         metalness = (1.0f - material.metallic_map_factor) * material.metalness_factor + material.metallic_map_factor * metalness;
     } else {
         metalness = metalness_roughness.x;
         float2 roughness_uv = transform_material_uv(material, ps.uv, 5);
         Texture2D roughness_tex = bindless_textures[NonUniformResourceIndex(material.roughness_map)];
         roughness = roughness_tex.SampleBias(sampler_llr, roughness_uv, lod_bias).x;
-        float perceptual_roughness = (1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness;
-        roughness = clamp(perceptual_roughness_to_roughness(perceptual_roughness), 1e-4, 1.0);
+        roughness = clamp((1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness, 1e-4, 1.0);
         metalness = (1.0f - material.metallic_map_factor) * material.metalness_factor + material.metallic_map_factor * metalness;
     }
     if (frame_constants.render_overrides.has_flag(RenderOverrideFlags::NO_METAL)) {
@@ -69,7 +67,7 @@ PsOut main(PsIn ps) {
     if (frame_constants.render_overrides.material_roughness_scale <= 1) {
         roughness *= frame_constants.render_overrides.material_roughness_scale;
     } else {
-        roughness = square(lerp(sqrt(roughness), 1.0, 1.0 - 1.0 / frame_constants.render_overrides.material_roughness_scale));
+        roughness = lerp(roughness, 1.0, 1.0 - 1.0 / frame_constants.render_overrides.material_roughness_scale);
     }
 
     float3 normal_ws; {

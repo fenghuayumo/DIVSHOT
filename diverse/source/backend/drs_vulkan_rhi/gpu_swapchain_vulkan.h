@@ -4,6 +4,7 @@
 
 #include "vk_utils.h"
 #include "vk_surface.h"
+#include <mutex>
 
 namespace diverse
 {
@@ -22,6 +23,7 @@ namespace diverse
 			u64			current_frame_id = 0;
 			u32			current_image_index = 0;  // Index of the currently acquired swapchain image
 			u64			current_acquire_sem_index = 0;  // Index of acquire semaphore used in current frame
+			std::mutex	host_mutex;
 		public:
 			SwapchainVulkan(struct GpuDeviceVulkan* device,SwapchainDesc desc,void* window);
 			~SwapchainVulkan();

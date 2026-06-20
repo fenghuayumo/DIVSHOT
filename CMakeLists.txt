@@ -292,7 +292,7 @@ add_subdirectory(tools/shader_pak_builder)
 
 set(DIVERSE_SHADER_CACHE_DIR "${CMAKE_BINARY_DIR}/cache" CACHE PATH "Directory containing cooked shader .cached files")
 set(DIVERSE_SHADER_PAK_PATH "${CMAKE_BINARY_DIR}/shaders.pak" CACHE FILEPATH "Output path for the cooked shader package")
-set(DIVERSE_SHADER_PAK_MANIFEST "${CMAKE_SOURCE_DIR}/diverse/source/assets/shader_manifests/reference_pipeline.txt" CACHE FILEPATH "Shader pak manifest to pack")
+set(DIVERSE_SHADER_PAK_MANIFEST "${CMAKE_SOURCE_DIR}/diverse/source/assets/shader_manifests/path_pipeline.txt" CACHE FILEPATH "Shader pak manifest to pack")
 add_custom_target(pack_shaders
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DIVERSE_SHADER_CACHE_DIR}"
     COMMAND $<TARGET_FILE:shader_pak_builder> "${DIVERSE_SHADER_CACHE_DIR}" "${DIVERSE_SHADER_PAK_PATH}" "${DIVERSE_SHADER_PAK_MANIFEST}"

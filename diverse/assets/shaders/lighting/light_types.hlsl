@@ -3,71 +3,79 @@
 
 #include "../inc/math.hlsl"
 
-/// Light sample result structure
+/// Direct-light sample used by NEE, ReSTIR DI/GI, and hybrid shading.
 struct LightSample
 {
-    float3 Li;              ///< Incident radiance at shading point (unshadowed)
-    float3 direction;       ///< Ray direction (normalized)
-    float distance;         ///< Ray distance for visibility evaluation
-    uint light_index;       ///< Identifier of the source light
-    float selection_pdf;    ///< Pdf of light selection
-    float solid_angle_pdf;  ///< Pdf with respect to solid angle
-    bool light_sampleable_by_bsdf;  ///< Can BSDF sample this light
-    bool from_local_distribution;  ///< Was drawn from local distribution
+    float3 Li;
+    float3 direction;
+    float distance;
+    uint light_index;
+    float selection_pdf;
+    float solid_angle_pdf;
+    bool light_sampleable_by_bsdf;
 
-    static LightSample make()
+    static LightSample invalid()
     {
         LightSample ret;
-        ret.Li = float3(0, 0, 0);
-        ret.direction = float3(0, 0, 0);
-        ret.distance = 0;
-        ret.light_index = 0xFFFFFFFF;
-        ret.selection_pdf = 0;
-        ret.solid_angle_pdf = 0;
+        ret.Li = 0.0.xxx;
+        ret.direction = 0.0.xxx;
+        ret.distance = 0.0;
+        ret.light_index = 0xffffffff;
+        ret.selection_pdf = 0.0;
+        ret.solid_angle_pdf = 0.0;
         ret.light_sampleable_by_bsdf = false;
-        ret.from_local_distribution = false;
         return ret;
     }
 
-    bool Valid()
+    bool valid()
     {
-        return any(Li > 0);
+        return any(Li > 0.0);
+    }
+
+    float combined_pdf()
+    {
+        return selection_pdf * solid_angle_pdf;
     }
 };
 
-/// Polymorphic light types
-enum LightType : uint
+/// Weighted reservoir for NEE-AT / ReSTIR-style candidate filtering.
+struct NeeReservoir
 {
-    POINT = 0,
-    SPOT = 1,
-    DIRECTIONAL = 2,
-    TRIANGLE = 3,
-    ENVIRONMENT = 4,
-};
+    LightSample sample;
+    float weight_sum;
+    float selected_weight;
 
-/// Light data structure
-struct LightData
-{
-    float3 position;       ///< For point/spot lights
-    float3 direction;      ///< For spot/directional lights
-    float3 color;          ///< Light color/intensity
-    float range;           ///< For point/spot lights
-    float spot_angle;      ///< For spot lights (cos of angle)
-    LightType type;        ///< Light type
-    uint padding;          ///< Alignment padding
-
-    static LightData make()
+    static NeeReservoir make()
     {
-        LightData ret;
-        ret.position = float3(0, 0, 0);
-        ret.direction = float3(0, -1, 0);
-        ret.color = float3(1, 1, 1);
-        ret.range = 1000.0;
-        ret.spot_angle = 0.5;
-        ret.type = POINT;
-        ret.padding = 0;
+        NeeReservoir ret;
+        ret.sample = LightSample::invalid();
+        ret.weight_sum = 0.0;
+        ret.selected_weight = 0.0;
         return ret;
     }
+
+    void add(float random_value, LightSample candidate, float candidate_weight)
+    {
+        if (candidate_weight <= 0.0)
+            return;
+
+        weight_sum += candidate_weight;
+        if (random_value < saturate(candidate_weight / max(weight_sum, 1e-8)))
+        {
+            sample = candidate;
+            selected_weight = candidate_weight;
+        }
+    }
+
+    bool valid()
+    {
+        return weight_sum > 0.0 && selected_weight > 0.0 && sample.valid();
+    }
 };
+
+float nee_balance_mis(float this_pdf, float other_pdf)
+{
+    return this_pdf / max(this_pdf + other_pdf, 1e-8);
+}
 
 #endif // LIGHTING_LIGHT_TYPES_HLSL

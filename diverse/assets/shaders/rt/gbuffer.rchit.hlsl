@@ -111,16 +111,14 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
         float2 metalness_roughness = bindless_textures[NonUniformResourceIndex(metalness_tex.texture_idx)].SampleLevel(sampler_llr, metallic_uv, metalness_tex.lod).xy;
         roughness = metalness_roughness.y;
         metalness = metalness_roughness.x;
-        float perceptual_roughness = (1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness;
-        roughness = clamp(perceptual_roughness_to_roughness(perceptual_roughness), 1e-4, 1.0);
+        roughness = clamp((1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness, 1e-4, 1.0);
         metalness = (1.0f - material.metallic_map_factor) * material.metalness_factor + material.metallic_map_factor * metalness;
     } else {
         metalness = bindless_textures[NonUniformResourceIndex(metalness_tex.texture_idx)].SampleLevel(sampler_llr, metallic_uv, metalness_tex.lod).x;
         float2 roughness_uv = transform_material_uv(material, uv, 5);
         const BindlessTextureWithLod roughness_tex = compute_texture_lod(material.roughness_map, lod_triangle_constant, WorldRayDirection(), surf_normal, cone_width);
         roughness = bindless_textures[NonUniformResourceIndex(roughness_tex.texture_idx)].SampleLevel(sampler_llr, roughness_uv, roughness_tex.lod).x;
-        float perceptual_roughness = (1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness;
-        roughness = clamp(perceptual_roughness_to_roughness(perceptual_roughness), 1e-4, 1.0);
+        roughness = clamp((1.0f - material.roughness_map_factor) * material.roughness_mult + material.roughness_map_factor * roughness, 1e-4, 1.0);
         metalness = (1.0f - material.metallic_map_factor) * material.metalness_factor + material.metallic_map_factor * metalness;
     }
    
@@ -131,7 +129,7 @@ void main(inout GbufferRayPayload payload: SV_RayPayload, in RayHitAttrib attrib
     if (frame_constants.render_overrides.material_roughness_scale <= 1) {
         roughness *= frame_constants.render_overrides.material_roughness_scale;
     } else {
-        roughness = square(lerp(sqrt(roughness), 1.0, 1.0 - 1.0 / frame_constants.render_overrides.material_roughness_scale));
+        roughness = lerp(roughness, 1.0, 1.0 - 1.0 / frame_constants.render_overrides.material_roughness_scale);
     }
 
     float2 emissive_uv = transform_material_uv(material, uv, 3);

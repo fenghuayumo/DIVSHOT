@@ -26,7 +26,7 @@ namespace diverse
 
 		rg::RenderPass::new_rt(
 			rg.add_pass("reference pt"),
-			rhi::ShaderSource{ "/shaders/rt/reference_path_trace.rgen.hlsl" },
+			rhi::ShaderSource{ "/shaders/rt/path_trace.rgen.hlsl" },
 			{
 				rhi::ShaderSource{ "/shaders/rt/gbuffer.rmiss.hlsl" },
 				rhi::ShaderSource{ "/shaders/rt/shadow.rmiss.hlsl" }

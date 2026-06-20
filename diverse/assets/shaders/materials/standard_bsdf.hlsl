@@ -3,357 +3,359 @@
 
 #include "bsdf_types.hlsl"
 #include "material_data.hlsl"
-#include "../inc/math.hlsl"
+#include "../inc/gbuffer.hlsl"
+#include "bxdf.hlsl"
 
-/// Standard BSDF implementation
-/// Multi-lobe BSDF compatible with RTXPT's StandardBSDF
 struct StandardBSDF
 {
-    // === Lobe weights ===
-    float diffuse_weight;
-    float specular_weight;
-    float transmission_weight;
-    float fuzz_weight;
-    float coat_weight;
+    DiffuseReflectionLambertBxDF diffuse_reflection;
+    DiffuseTransmissionLambertBxDF diffuse_transmission;
+    FuzzReflectionBxDF fuzz_reflection;
+    SpecularReflectionMicrofacetBxDF specular_reflection;
+    SpecularReflectionTransmissionMicrofacetBxDF specular_reflection_transmission;
 
-    // === Material parameters ===
     float roughness;
-    float anisotropy;
-    float ior;
-    float3 base_color;
-    float3 specular_f0;
-    float3 fuzz_color;
-    float fuzz_roughness;
-
-    // === Lobe configuration ===
+    float alpha;
     uint active_lobes;
 
-    // === Helper functions ===
+    float diffuse_transmission_mix;
+    float specular_transmission_mix;
+
+    float p_diffuse_reflection;
+    float p_diffuse_transmission;
+    float p_fuzz_reflection;
+    float p_specular_reflection;
+    float p_specular_reflection_transmission;
+
     bool has_lobe(LobeType type)
     {
-        return (active_lobes & (uint)type) != 0;
+        return lobe_has(active_lobes, type);
     }
 
-    float active_lobe_weight(LobeType type, float weight)
+    void normalize_sampling_weights()
     {
-        return has_lobe(type) ? max(0.0, weight) : 0.0;
+        float norm = p_diffuse_reflection
+            + p_diffuse_transmission
+            + p_fuzz_reflection
+            + p_specular_reflection
+            + p_specular_reflection_transmission;
+
+        if (norm <= 0.0)
+            return;
+
+        float inv_norm = 1.0 / norm;
+        p_diffuse_reflection *= inv_norm;
+        p_diffuse_transmission *= inv_norm;
+        p_fuzz_reflection *= inv_norm;
+        p_specular_reflection *= inv_norm;
+        p_specular_reflection_transmission *= inv_norm;
     }
 
-    float compute_total_weight()
+    static uint get_lobes(StandardBSDFData data)
     {
-        return active_lobe_weight(LOBE_DIFFUSE_REFLECTION, diffuse_weight)
-            + active_lobe_weight(LOBE_SPECULAR_REFLECTION, specular_weight)
-            + active_lobe_weight(LOBE_SPECULAR_TRANSMISSION, transmission_weight)
-            + active_lobe_weight(LOBE_FUZZ, fuzz_weight)
-            + active_lobe_weight(LOBE_COAT, coat_weight);
-    }
+        float alpha = data.roughness * data.roughness;
+        bool is_delta = alpha < MATERIAL_MIN_GGX_ALPHA;
 
-    float ggx_ndf(float ndoth, float alpha2)
-    {
-        float denom = ndoth * ndoth * (alpha2 - 1.0) + 1.0;
-        return alpha2 / max(M_PI * denom * denom, 1e-8);
-    }
+        float diffuse_trans = saturate(data.diffuse_transmission);
+        float specular_trans = saturate(data.specular_transmission);
 
-    float smith_g1_ggx(float ndotw, float alpha2)
-    {
-        float c = saturate(ndotw);
-        if (c <= 0.0)
-            return 0.0;
-
-        float c2 = c * c;
-        float tan2 = max(0.0, (1.0 - c2) / max(c2, 1e-8));
-        return 2.0 / (1.0 + sqrt(1.0 + alpha2 * tan2));
-    }
-
-    float lobe_selection_pdf(LobeType type, float weight)
-    {
-        float total_weight = compute_total_weight();
-        if (total_weight <= 0.0 || !has_lobe(type))
-            return 0.0;
-
-        return max(0.0, weight) / total_weight;
-    }
-
-    // === Lambert diffuse BRDF ===
-    BsdfLobeResult evaluate_diffuse_lambert(BsdfEvalData data)
-    {
-        BsdfLobeResult result;
-        result.value = base_color * M_FRAC_1_PI;
-        result.pdf = data.ndotl * M_FRAC_1_PI;
-        result.weight = diffuse_weight;
-        return result;
-    }
-
-    BsdfSampleResult sample_diffuse_lambert(float3 wo, float2 urand)
-    {
-        BsdfSampleResult result;
-        result.selected_lobe = LOBE_DIFFUSE_REFLECTION;
-
-        // Cosine-weighted hemisphere sampling
-        float phi = urand.x * M_TAU;
-        float cos_theta = sqrt(max(0.0, 1.0 - urand.y));
-        float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
-
-        result.wi = float3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
-        result.pdf = cos_theta * M_FRAC_1_PI;
-        result.lobe_value = base_color * M_FRAC_1_PI;
-        result.value = result.lobe_value / max(result.pdf, 1e-8);
-        result.approx_roughness = 1.0;
-        result.lobe_pdf = result.pdf;
-
-        return result;
-    }
-
-    // === GGX specular BRDF ===
-    BsdfLobeResult evaluate_specular_ggx(BsdfEvalData data)
-    {
-        BsdfLobeResult result;
-
-        if (data.ndotl <= 0.0 || data.ndotv <= 0.0)
+        uint lobes = is_delta ? (uint)LOBE_DELTA_REFLECTION : (uint)LOBE_SPECULAR_REFLECTION;
+        if ((any(data.diffuse > 0.0) || data.fuzz_weight > 0.0) && specular_trans < 1.0)
         {
-            return BsdfLobeResult::invalid();
+            if (diffuse_trans < 1.0)
+                lobes |= (uint)LOBE_DIFFUSE_REFLECTION;
+            if (diffuse_trans > 0.0)
+                lobes |= (uint)LOBE_DIFFUSE_TRANSMISSION;
         }
 
-        float alpha = roughness * roughness;
-        float alpha2 = alpha * alpha;
+        if (specular_trans > 0.0)
+            lobes |= is_delta ? (uint)LOBE_DELTA_TRANSMISSION : (uint)LOBE_SPECULAR_TRANSMISSION;
 
-        // GGX NDF
-        float ndoth = saturate(data.half_vector.z);
-        float d = ggx_ndf(ndoth, alpha2);
-
-        // Smith masking-shadowing
-        float g1_wo = smith_g1_ggx(data.ndotv, alpha2);
-        float g1_wi = smith_g1_ggx(data.ndotl, alpha2);
-        float g = g1_wo * g1_wi;
-
-        // Fresnel (Schlick approximation)
-        float vdoth = saturate(dot(data.wo, data.half_vector));
-        float3 f = specular_f0 + (1.0 - specular_f0) * pow(1.0 - vdoth, 5.0);
-
-        // Combined BRDF
-        result.value = d * g * f / max(4.0 * data.ndotv * data.ndotl, 1e-8);
-
-        // PDF with VNDF reflection sampling, with the half-vector reflection Jacobian applied.
-        result.pdf = d * g1_wo / max(4.0 * data.ndotv, 1e-8);
-
-        result.weight = specular_weight;
-        return result;
+        return lobes;
     }
 
-    BsdfSampleResult sample_specular_ggx_vndf(float3 wo, float2 urand)
+    void init(StandardBSDFData data, float3 shading_normal, float3 view_world)
     {
-        BsdfSampleResult result;
-        result.selected_lobe = LOBE_SPECULAR_REFLECTION;
+        roughness = clamp(data.roughness, 0.0, 1.0);
+        alpha = roughness * roughness;
+        alpha = alpha < MATERIAL_MIN_GGX_ALPHA ? 0.0 : max(alpha, MATERIAL_MIN_GGX_ALPHA);
+        active_lobes = get_lobes(data);
 
-        float alpha = roughness * roughness;
+        float3 transmission_albedo = data.is_thin_surface
+            ? max(0.0.xxx, data.transmission)
+            : sqrt(max(0.0.xxx, data.transmission));
 
-        // VNDF sampling for GGX
-        float3 vh = normalize(float3(alpha * wo.x, alpha * wo.y, wo.z));
+        diffuse_reflection.albedo = max(0.0.xxx, data.diffuse);
+        diffuse_transmission.albedo = transmission_albedo;
 
-        float3 t1 = (vh.z < 0.9999) ? normalize(cross(float3(0, 0, 1), vh)) : float3(1, 0, 0);
-        float3 t2 = cross(vh, t1);
+        fuzz_reflection.color = max(0.0.xxx, data.fuzz_color);
+        fuzz_reflection.weight = max(0.0, data.fuzz_weight);
+        fuzz_reflection.roughness = saturate(data.fuzz_roughness);
 
-        float r = sqrt(urand.x);
-        float phi = 2.0 * M_PI * urand.y;
-        float t1_val = r * cos(phi);
-        float t2_val = r * sin(phi);
-        float s = 0.5 * (1.0 + vh.z);
-        t2_val = (1.0 - s) * sqrt(max(0.0, 1.0 - t1_val * t1_val)) + s * t2_val;
+        specular_reflection.albedo = max(0.0.xxx, data.specular);
+        specular_reflection.alpha = alpha;
+        specular_reflection.anisotropy = data.anisotropy;
+        specular_reflection.active_lobes = active_lobes;
 
-        float3 nh = t1_val * t1 + t2_val * t2 + sqrt(max(0.0, 1.0 - t1_val * t1_val - t2_val * t2_val)) * vh;
-        float3 h = normalize(float3(alpha * nh.x, alpha * nh.y, max(0.0, nh.z)));
+        specular_reflection_transmission.transmission_albedo = transmission_albedo;
+        specular_reflection_transmission.alpha = data.eta == 1.0 ? 0.0 : alpha;
+        specular_reflection_transmission.eta = data.eta;
+        specular_reflection_transmission.active_lobes = active_lobes;
+        specular_reflection_transmission.is_thin_surface = data.is_thin_surface;
 
-        // Reflect wo around h
-        result.wi = reflect(-wo, h);
+        diffuse_transmission_mix = saturate(data.diffuse_transmission);
+        specular_transmission_mix = saturate(data.specular_transmission);
 
-        // Check valid sample
-        if (result.wi.z <= 1e-6 || wo.z <= 1e-6)
-        {
-            return BsdfSampleResult::invalid();
-        }
+        float metallic_brdf = saturate(data.metallic) * (1.0 - specular_transmission_mix);
+        float dielectric_bsdf = (1.0 - saturate(data.metallic)) * (1.0 - specular_transmission_mix);
+        float specular_bsdf = specular_transmission_mix;
 
-        // Compute PDF
-        float alpha2 = alpha * alpha;
-        float g1_wo = smith_g1_ggx(wo.z, alpha2);
-        float d = ggx_ndf(saturate(h.z), alpha2);
-        result.pdf = d * g1_wo / max(4.0 * wo.z, 1e-8);
+        float diffuse_weight = material_luminance(diffuse_reflection.albedo);
+        float fuzz_weight = material_luminance(fuzz_reflection.color) * fuzz_reflection.weight;
+        float specular_weight = material_luminance(fresnel_schlick(specular_reflection.albedo, 1.0, saturate(dot(view_world, shading_normal))));
 
-        // Compute value
-        BsdfEvalData eval_data = BsdfEvalData::create(wo, result.wi, float3(0, 0, 1), float3(0, 0, 1));
-        BsdfLobeResult lobe_result = evaluate_specular_ggx(eval_data);
+        p_diffuse_reflection = has_lobe(LOBE_DIFFUSE_REFLECTION)
+            ? diffuse_weight * dielectric_bsdf * (1.0 - diffuse_transmission_mix)
+            : 0.0;
+        p_diffuse_transmission = has_lobe(LOBE_DIFFUSE_TRANSMISSION)
+            ? diffuse_weight * dielectric_bsdf * diffuse_transmission_mix
+            : 0.0;
+        p_fuzz_reflection = has_lobe(LOBE_DIFFUSE_REFLECTION)
+            ? fuzz_weight * dielectric_bsdf * (1.0 - diffuse_transmission_mix)
+            : 0.0;
+        p_specular_reflection = (has_lobe(LOBE_SPECULAR_REFLECTION) || has_lobe(LOBE_DELTA_REFLECTION))
+            ? specular_weight * (metallic_brdf + dielectric_bsdf)
+            : 0.0;
+        p_specular_reflection_transmission =
+            (has_lobe(LOBE_SPECULAR_REFLECTION)
+                || has_lobe(LOBE_DELTA_REFLECTION)
+                || has_lobe(LOBE_SPECULAR_TRANSMISSION)
+                || has_lobe(LOBE_DELTA_TRANSMISSION))
+            ? specular_bsdf
+            : 0.0;
 
-        result.lobe_value = lobe_result.value;
-        result.value = result.lobe_value / max(result.pdf, 1e-8);
-        result.approx_roughness = roughness;
-        result.lobe_pdf = result.pdf;
-
-        return result;
+        normalize_sampling_weights();
     }
 
-    // === Fuzz (Charlie) BRDF ===
-    BsdfLobeResult evaluate_fuzz_charlie(BsdfEvalData data)
-    {
-        BsdfLobeResult result;
-
-        if (data.ndotl <= 0.0 || data.ndotv <= 0.0)
-        {
-            return BsdfLobeResult::invalid();
-        }
-
-        // Simplified Charlie/sheen BRDF
-        float ndoth = saturate(data.half_vector.z);
-        float sheen = pow(ndoth, fuzz_roughness) * (1.0 + fuzz_roughness);
-
-        // View-dependent sheen intensity
-        float view_factor = pow(1.0 - data.ndotv, 3.0);
-        float light_factor = pow(1.0 - data.ndotl, 3.0);
-
-        result.value = fuzz_color * sheen * view_factor * light_factor * M_FRAC_1_PI;
-        result.pdf = data.ndotl * M_FRAC_1_PI;
-        result.weight = fuzz_weight;
-
-        return result;
-    }
-
-    BsdfSampleResult sample_fuzz_charlie(float3 wo, float2 urand)
-    {
-        BsdfSampleResult result;
-        result.selected_lobe = LOBE_FUZZ;
-
-        // Cosine-weighted sampling keeps the lobe PDF consistent with evaluate().
-        float phi = urand.x * M_TAU;
-        float cos_theta = sqrt(max(0.0, 1.0 - urand.y));
-        float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
-
-        result.wi = float3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
-        result.pdf = cos_theta * M_FRAC_1_PI;
-        result.lobe_value = fuzz_color * pow(cos_theta, fuzz_roughness) * M_FRAC_1_PI;
-        result.value = result.lobe_value / max(result.pdf, 1e-8);
-        result.approx_roughness = fuzz_roughness;
-        result.lobe_pdf = result.pdf;
-
-        return result;
-    }
-
-    // === Complete BSDF evaluation ===
-    BsdfEvalResult evaluate(BsdfEvalData data)
+    BsdfEvalResult evaluate(BsdfEvalData eval_data)
     {
         BsdfEvalResult result = BsdfEvalResult::invalid();
-        float total_weight = compute_total_weight();
-        if (total_weight <= 0.0)
-            return result;
+        float3 wi = eval_data.wo;
+        float3 wo = eval_data.wi;
 
-        if (has_lobe(LOBE_DIFFUSE_REFLECTION))
+        if (p_diffuse_reflection > 0.0)
         {
-            BsdfLobeResult diffuse = evaluate_diffuse_lambert(data);
-            result.diffuse_value = diffuse.value * diffuse_weight;
-            result.value += result.diffuse_value;
-            result.pdf += diffuse.pdf * lobe_selection_pdf(LOBE_DIFFUSE_REFLECTION, diffuse_weight);
+            float3 v = (1.0 - specular_transmission_mix) * (1.0 - diffuse_transmission_mix) * diffuse_reflection.eval(wi, wo);
+            result.diffuse_value += v;
+            result.value += v;
+        }
+        if (p_diffuse_transmission > 0.0)
+        {
+            float3 v = (1.0 - specular_transmission_mix) * diffuse_transmission_mix * diffuse_transmission.eval(wi, wo);
+            result.transmission_value += v;
+            result.value += v;
+        }
+        if (p_fuzz_reflection > 0.0)
+        {
+            float3 v = (1.0 - specular_transmission_mix) * (1.0 - diffuse_transmission_mix) * fuzz_reflection.eval(wi, wo);
+            result.fuzz_value += v;
+            result.diffuse_value += v;
+            result.value += v;
+        }
+        if (p_specular_reflection > 0.0)
+        {
+            float3 v = (1.0 - specular_transmission_mix) * specular_reflection.eval(wi, wo);
+            result.specular_value += v;
+            result.value += v;
+        }
+        if (p_specular_reflection_transmission > 0.0)
+        {
+            float3 v = specular_transmission_mix * specular_reflection_transmission.eval(wi, wo);
+            if (wo.z > 0.0)
+                result.specular_value += v;
+            else
+                result.transmission_value += v;
+            result.value += v;
         }
 
-        if (has_lobe(LOBE_SPECULAR_REFLECTION))
-        {
-            BsdfLobeResult specular = evaluate_specular_ggx(data);
-            result.specular_value = specular.value * specular_weight;
-            result.value += result.specular_value;
-            result.pdf += specular.pdf * lobe_selection_pdf(LOBE_SPECULAR_REFLECTION, specular_weight);
-        }
-
-        if (has_lobe(LOBE_FUZZ))
-        {
-            BsdfLobeResult fuzz = evaluate_fuzz_charlie(data);
-            result.fuzz_value = fuzz.value * fuzz_weight;
-            result.value += result.fuzz_value;
-            result.pdf += fuzz.pdf * lobe_selection_pdf(LOBE_FUZZ, fuzz_weight);
-        }
-
+        result.pdf = eval_pdf(wi, wo);
         return result;
     }
 
-    // === BSDF sampling with lobe selection ===
-    BsdfSampleResult sample(float3 wo, float3 urand)
+    float eval_pdf(float3 wi, float3 wo)
     {
-        // Compute lobe probabilities
-        float total_weight = compute_total_weight();
-        if (total_weight <= 0.0)
-        {
-            return BsdfSampleResult::invalid();
-        }
-
-        float diffuse_p = active_lobe_weight(LOBE_DIFFUSE_REFLECTION, diffuse_weight) / total_weight;
-        float specular_p = active_lobe_weight(LOBE_SPECULAR_REFLECTION, specular_weight) / total_weight;
-        float fuzz_p = active_lobe_weight(LOBE_FUZZ, fuzz_weight) / total_weight;
-
-        BsdfSampleResult result;
-        float lobe_xi = urand.z;
-
-        if (diffuse_p > 0.0 && lobe_xi < diffuse_p)
-        {
-            result = sample_diffuse_lambert(wo, urand.xy);
-        }
-        else if (specular_p > 0.0 && lobe_xi < diffuse_p + specular_p)
-        {
-            result = sample_specular_ggx_vndf(wo, urand.xy);
-        }
-        else if (fuzz_p > 0.0)
-        {
-            result = sample_fuzz_charlie(wo, urand.xy);
-        }
-        else
-        {
-            return BsdfSampleResult::invalid();
-        }
-
-        if (!result.is_valid())
-            return BsdfSampleResult::invalid();
-
-        BsdfEvalData eval_data = BsdfEvalData::create(wo, result.wi, float3(0, 0, 1), float3(0, 0, 1));
-        BsdfEvalResult eval = evaluate(eval_data);
-        if (eval.pdf <= 0.0 || !any(eval.value > 0.0))
-            return BsdfSampleResult::invalid();
-
-        result.lobe_value = eval.value;
-        result.pdf = eval.pdf;
-        result.value = eval.value / max(eval.pdf, 1e-8);
-
-        return result;
+        float pdf = 0.0;
+        if (p_diffuse_reflection > 0.0)
+            pdf += p_diffuse_reflection * diffuse_reflection.eval_pdf(wi, wo);
+        if (p_diffuse_transmission > 0.0)
+            pdf += p_diffuse_transmission * diffuse_transmission.eval_pdf(wi, wo);
+        if (p_fuzz_reflection > 0.0)
+            pdf += p_fuzz_reflection * fuzz_reflection.eval_pdf(wi, wo);
+        if (p_specular_reflection > 0.0)
+            pdf += p_specular_reflection * specular_reflection.eval_pdf(wi, wo);
+        if (p_specular_reflection_transmission > 0.0)
+            pdf += p_specular_reflection_transmission * specular_reflection_transmission.eval_pdf(wi, wo);
+        return pdf;
     }
 
-    // === Create from MaterialData ===
-    static StandardBSDF from_material(MaterialData mat)
+    void add_sample_pdf(inout float pdf, float3 wi, float3 wo, uint skip_lobe)
     {
-        StandardBSDF bsdf;
+        if (skip_lobe != (uint)LOBE_DIFFUSE_REFLECTION && p_diffuse_reflection > 0.0)
+            pdf += p_diffuse_reflection * diffuse_reflection.eval_pdf(wi, wo);
+        if (skip_lobe != (uint)LOBE_DIFFUSE_TRANSMISSION && p_diffuse_transmission > 0.0)
+            pdf += p_diffuse_transmission * diffuse_transmission.eval_pdf(wi, wo);
+        if (skip_lobe != 0x10000u && p_fuzz_reflection > 0.0)
+            pdf += p_fuzz_reflection * fuzz_reflection.eval_pdf(wi, wo);
+        if (skip_lobe != (uint)LOBE_SPECULAR_REFLECTION && p_specular_reflection > 0.0)
+            pdf += p_specular_reflection * specular_reflection.eval_pdf(wi, wo);
+        if (skip_lobe != 0x20000u && p_specular_reflection_transmission > 0.0)
+            pdf += p_specular_reflection_transmission * specular_reflection_transmission.eval_pdf(wi, wo);
+    }
 
-        // Extract weights from material
-        bsdf.diffuse_weight = saturate(1.0 - mat.metalness_factor) * saturate(1.0 - mat.transmission_weight);
-        bsdf.specular_weight = mat.specular_weight;
-        bsdf.transmission_weight = mat.transmission_weight;
-        bsdf.fuzz_weight = mat.fuzz_weight;
-        bsdf.coat_weight = 0.0;  // TODO: add coat support
+    BsdfSampleResult sample(float3 wi, float3 u)
+    {
+        BsdfSampleResult result = BsdfSampleResult::invalid();
 
-        // Extract material parameters
-        bsdf.roughness = mat.roughness_mult;
-        bsdf.anisotropy = mat.anisotropy;
-        bsdf.ior = mat.specular_ior;
-        bsdf.base_color = mat.base_color_mult.rgb;
-        bsdf.specular_f0 = mat.specular_color.rgb * dielectric_f0_from_ior(mat.specular_ior);
-        bsdf.fuzz_color = mat.fuzz_color.rgb;
-        bsdf.fuzz_roughness = mat.fuzz_roughness;
+        float3 wo = 0.0.xxx;
+        float pdf = 0.0;
+        float3 weight = 0.0.xxx;
+        uint lobe = (uint)LOBE_DIFFUSE_REFLECTION;
+        float lobe_p = 0.0;
+        bool valid = false;
 
-        // Configure active lobes
-        bsdf.active_lobes = (uint)LOBE_DIFFUSE_REFLECTION | (uint)LOBE_SPECULAR_REFLECTION;
-        if (mat.fuzz_weight > 0.0)
-            bsdf.active_lobes = bsdf.active_lobes | (uint)LOBE_FUZZ;
-        if (mat.transmission_weight > 0.0)
-            bsdf.active_lobes = bsdf.active_lobes | (uint)LOBE_SPECULAR_TRANSMISSION;
+        float u_select = u.z;
+        uint selected = 0u;
 
-        return bsdf;
+        if (u_select < p_diffuse_reflection)
+        {
+            u.z = clamp(u_select / max(p_diffuse_reflection, 1e-8), 0.0, BSDF_ONE_MINUS_EPSILON);
+            valid = diffuse_reflection.sample(wi, wo, pdf, weight, lobe, lobe_p, u);
+            weight /= max(p_diffuse_reflection, 1e-8);
+            weight *= (1.0 - specular_transmission_mix) * (1.0 - diffuse_transmission_mix);
+            pdf *= p_diffuse_reflection;
+            lobe_p *= p_diffuse_reflection;
+            selected = (uint)LOBE_DIFFUSE_REFLECTION;
+            add_sample_pdf(pdf, wi, wo, selected);
+        }
+        else if (u_select < p_diffuse_reflection + p_diffuse_transmission)
+        {
+            u.z = clamp((u_select - p_diffuse_reflection) / max(p_diffuse_transmission, 1e-8), 0.0, BSDF_ONE_MINUS_EPSILON);
+            valid = diffuse_transmission.sample(wi, wo, pdf, weight, lobe, lobe_p, u);
+            weight /= max(p_diffuse_transmission, 1e-8);
+            weight *= (1.0 - specular_transmission_mix) * diffuse_transmission_mix;
+            pdf *= p_diffuse_transmission;
+            lobe_p *= p_diffuse_transmission;
+            selected = (uint)LOBE_DIFFUSE_TRANSMISSION;
+            add_sample_pdf(pdf, wi, wo, selected);
+        }
+        else if (u_select < p_diffuse_reflection + p_diffuse_transmission + p_fuzz_reflection)
+        {
+            u.z = clamp((u_select - (p_diffuse_reflection + p_diffuse_transmission)) / max(p_fuzz_reflection, 1e-8), 0.0, BSDF_ONE_MINUS_EPSILON);
+            valid = fuzz_reflection.sample(wi, wo, pdf, weight, lobe, lobe_p, u);
+            weight /= max(p_fuzz_reflection, 1e-8);
+            weight *= (1.0 - specular_transmission_mix) * (1.0 - diffuse_transmission_mix);
+            pdf *= p_fuzz_reflection;
+            lobe_p *= p_fuzz_reflection;
+            selected = 0x10000u;
+            add_sample_pdf(pdf, wi, wo, selected);
+        }
+        else if (u_select < p_diffuse_reflection + p_diffuse_transmission + p_fuzz_reflection + p_specular_reflection)
+        {
+            u.z = clamp((u_select - (p_diffuse_reflection + p_diffuse_transmission + p_fuzz_reflection)) / max(p_specular_reflection, 1e-8), 0.0, BSDF_ONE_MINUS_EPSILON);
+            valid = specular_reflection.sample(wi, wo, pdf, weight, lobe, lobe_p, u);
+            weight /= max(p_specular_reflection, 1e-8);
+            weight *= (1.0 - specular_transmission_mix);
+            pdf *= p_specular_reflection;
+            lobe_p *= p_specular_reflection;
+            selected = (uint)LOBE_SPECULAR_REFLECTION;
+            add_sample_pdf(pdf, wi, wo, selected);
+        }
+        else if (p_specular_reflection_transmission > 0.0)
+        {
+            u.z = clamp((u_select - (p_diffuse_reflection + p_diffuse_transmission + p_fuzz_reflection + p_specular_reflection)) / max(p_specular_reflection_transmission, 1e-8), 0.0, BSDF_ONE_MINUS_EPSILON);
+            valid = specular_reflection_transmission.sample(wi, wo, pdf, weight, lobe, lobe_p, u);
+            weight /= max(p_specular_reflection_transmission, 1e-8);
+            weight *= specular_transmission_mix;
+            pdf *= p_specular_reflection_transmission;
+            lobe_p *= p_specular_reflection_transmission;
+            selected = 0x20000u;
+            add_sample_pdf(pdf, wi, wo, selected);
+        }
+
+        if (!valid)
+            return BsdfSampleResult::invalid();
+
+        if (lobe_has(lobe, LOBE_DELTA))
+            pdf = 0.0;
+
+        result.wi = wo;
+        result.value = weight;
+        result.pdf = pdf;
+        result.lobe_value = 0.0.xxx;
+        result.lobe_pdf = pdf;
+        result.approx_roughness = roughness;
+        result.selected_lobe = (LobeType)lobe;
+        return result;
     }
 
     static float dielectric_f0_from_ior(float ior)
     {
         const float f = (ior - 1.0) / (ior + 1.0);
         return f * f;
+    }
+
+    static StandardBSDFData data_from_surface(MaterialData material, GbufferData gbuffer)
+    {
+        StandardBSDFData data;
+        float metalness = saturate(gbuffer.metalness);
+        float dielectric_f0 = dielectric_f0_from_ior(max(1.0, material.specular_ior));
+        float3 base_color = max(0.0.xxx, gbuffer.albedo);
+
+        data.diffuse = base_color;
+        data.roughness = saturate(gbuffer.roughness);
+        data.specular = lerp(
+            dielectric_f0 * max(0.0, material.specular_weight) * max(0.0.xxx, material.specular_color.rgb),
+            base_color,
+            metalness);
+        data.metallic = metalness;
+        data.eta = 1.0 / max(1.0, material.specular_ior);
+        data.anisotropy = material.anisotropy;
+        data.transmission = base_color * max(0.0.xxx, material.transmission_color.rgb);
+        data.diffuse_transmission = 0.0;
+        data.specular_transmission = saturate(material.transmission_weight) * (1.0 - metalness);
+        data.fuzz_weight = max(0.0, material.fuzz_weight);
+        data.fuzz_color = max(0.0.xxx, material.fuzz_color.rgb);
+        data.fuzz_roughness = max(0.0, material.fuzz_roughness);
+        data.is_thin_surface = (material.material_flags & MATERIAL_FLAG_THIN_SURFACE) != 0;
+        return data;
+    }
+
+    static StandardBSDFData data_from_material(MaterialData material)
+    {
+        GbufferData gbuffer = GbufferData::create_zero();
+        gbuffer.albedo = material.base_color_mult.rgb;
+        gbuffer.roughness = material.roughness_mult;
+        gbuffer.metalness = material.metalness_factor;
+        return data_from_surface(material, gbuffer);
+    }
+
+    static StandardBSDF from_surface(MaterialData material, GbufferData gbuffer, float3 shading_normal_ws, float3 view_ws)
+    {
+        StandardBSDF bsdf;
+        bsdf.init(data_from_surface(material, gbuffer), shading_normal_ws, view_ws);
+        return bsdf;
+    }
+
+    static StandardBSDF from_surface(MaterialData material, GbufferData gbuffer)
+    {
+        return from_surface(material, gbuffer, gbuffer.normal, gbuffer.normal);
+    }
+
+    static StandardBSDF from_material(MaterialData material)
+    {
+        StandardBSDF bsdf;
+        bsdf.init(data_from_material(material), float3(0.0, 0.0, 1.0), float3(0.0, 0.0, 1.0));
+        return bsdf;
     }
 };
 

@@ -949,6 +949,8 @@ namespace diverse
 				update_material_texture_bindings(matprop, pbr_tex);
 				upload_material(&matprop);
 				material->set_flag(AssetFlag::UploadedGpu);
+				material->dirty_flag() = false;
+				material->set_textures_updated(false);
 				dirty_state.material_resources = true;
 				dirty_state.bindless_resources = true;
 			}
@@ -956,6 +958,8 @@ namespace diverse
 			{
 				update_material_texture_bindings(matprop, pbr_tex);
 				upload_material(&matprop);
+				material->dirty_flag() = false;
+				material->set_textures_updated(false);
 				dirty_state.material_resources = true;
 				dirty_state.bindless_resources = true;
 			}

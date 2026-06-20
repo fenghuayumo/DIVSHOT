@@ -30,6 +30,8 @@ namespace diverse
         pbr_material_textures.metallic = textures.metallic;
         pbr_material_textures.ao = textures.ao;
         pbr_material_textures.emissive = textures.emissive;
+        textures_updated = true;
+        dirty = true;
     }
 
     void Material::set_material_properites(const MaterialProperties& properties)
@@ -109,6 +111,7 @@ namespace diverse
         {
             pbr_material_textures.albedo = tex;
             textures_updated = true;
+            dirty = true;
         }
     }
 
@@ -121,6 +124,7 @@ namespace diverse
         {
             pbr_material_textures.normal = tex;
             textures_updated = true;
+            dirty = true;
         }
     }
 
@@ -133,6 +137,7 @@ namespace diverse
         {
             pbr_material_textures.roughness = tex;
             textures_updated = true;
+            dirty = true;
         }
     }
 
@@ -145,6 +150,7 @@ namespace diverse
         {
             pbr_material_textures.metallic = tex;
             textures_updated = true;
+            dirty = true;
         }
     }
 
@@ -157,6 +163,7 @@ namespace diverse
         {
             pbr_material_textures.ao = tex;
             textures_updated = true;
+            dirty = true;
         }
     }
 
@@ -169,6 +176,7 @@ namespace diverse
         {
             pbr_material_textures.emissive = tex;
             textures_updated = true;
+            dirty = true;
         }
     }
     bool PBRMataterialTextures::is_upload_2_gpu() const

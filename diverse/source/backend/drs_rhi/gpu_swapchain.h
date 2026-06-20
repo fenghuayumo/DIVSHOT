@@ -16,6 +16,7 @@ namespace diverse
         {
             std::shared_ptr<GpuTexture>	image;
             u32 image_index;
+            u64 acquire_semaphore_index = 0;
         };
         struct Swapchain
         {

@@ -40,20 +40,12 @@ struct GbufferData {
     GbufferDataPacked pack();
 };
 
-float roughness_to_perceptual_roughness(float r) {
-    return sqrt(r);
-}
-
-float perceptual_roughness_to_roughness(float r) {
-    return r * r;
-}
-
 GbufferDataPacked GbufferData::pack() {
     float4 res = 0.0.xxxx;
     res.x = asfloat(pack_color_888(albedo));
     res.y = pack_normal_11_10_11(normal);
 
-    float2 roughness_metalness = float2(roughness_to_perceptual_roughness(roughness), metalness);
+    float2 roughness_metalness = float2(saturate(roughness), saturate(metalness));
     res.z = asfloat(pack_2x16f_uint(roughness_metalness));
     res.w = asfloat(float3_to_rgb9e5(emissive));
 
@@ -68,7 +60,7 @@ GbufferData GbufferDataPacked::unpack() {
     res.normal = unpack_normal();
 
     float2 roughness_metalness = unpack_2x16f_uint(data0.z);
-    res.roughness = perceptual_roughness_to_roughness(roughness_metalness.x);
+    res.roughness = roughness_metalness.x;
     res.metalness = roughness_metalness.y;
     res.emissive = unpack_emissive();
 
