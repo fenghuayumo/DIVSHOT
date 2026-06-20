@@ -4,6 +4,7 @@
 #include "asset_id.h"
 #include "asset_handle.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <filesystem>
 #include <mutex>
@@ -114,8 +115,13 @@ namespace diverse
         std::shared_ptr<AssetFileWatcher> file_watcher;
 
         // Internal helper to update dependent metadata
+        std::shared_ptr<AssetMetadata> get_metadata_unlocked(const AssetId& id) const;
+        bool has_circular_dependency_unlocked(const AssetId& asset, const AssetId& depends_on) const;
         void update_dependent_metadata(const AssetId& id);
-        void increment_version_unlocked(const AssetId& id);
+        void increment_version_unlocked(
+            const AssetId& id,
+            std::vector<AssetId>& changed,
+            std::unordered_set<AssetId>& visited);
     };
 
     template<typename TAsset>

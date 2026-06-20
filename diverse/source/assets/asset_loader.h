@@ -188,40 +188,56 @@ namespace diverse
             loading_assets.insert(id);
         }
 
-        return thread_pool->enqueue([this, id, metadata]() -> LoadResult
+        try
         {
-            try
+            return thread_pool->enqueue([this, id, metadata]() -> LoadResult
             {
+                auto finish_loading = [this, id]()
+                {
+                    std::lock_guard lock(loading_mutex);
+                    loading_assets.erase(id);
+                };
+
+                try
+                {
                 if (!load_func)
                 {
+                    finish_loading();
                     return LoadResult::failed(id, "No load function registered");
                 }
 
                 auto asset = load_func(id, metadata);
                 if (!asset)
                 {
+                    finish_loading();
                     return LoadResult::failed(id, "Load function returned null asset");
                 }
 
                 if (on_loaded)
                     on_loaded(id, asset);
 
-                {
-                    std::lock_guard lock(loading_mutex);
-                    loading_assets.erase(id);
-                }
+                finish_loading();
 
                 return LoadResult::ok(id);
             }
             catch (const std::exception& e)
             {
-                {
-                    std::lock_guard lock(loading_mutex);
-                    loading_assets.erase(id);
-                }
+                finish_loading();
                 return LoadResult::failed(id, e.what());
             }
-        });
+            });
+        }
+        catch (const std::exception& e)
+        {
+            {
+                std::lock_guard lock(loading_mutex);
+                loading_assets.erase(id);
+            }
+
+            std::promise<LoadResult> promise;
+            promise.set_value(LoadResult::failed(id, e.what()));
+            return promise.get_future();
+        }
     }
 
     template<typename AssetType>

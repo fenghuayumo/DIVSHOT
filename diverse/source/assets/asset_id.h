@@ -13,13 +13,13 @@ namespace diverse
     {
         UUID id;
 
-        AssetId() = default;
+        AssetId() : id(UUID(0)) {}
         explicit AssetId(const UUID& uuid) : id(uuid) {}
 
         bool operator==(const AssetId& other) const { return id == other.id; }
         bool operator!=(const AssetId& other) const { return !(*this == other); }
 
-        bool is_valid() const { return id != UUID(); }
+        bool is_valid() const { return static_cast<uint64_t>(id) != 0; }
 
         // For use in hash maps
         struct Hash
@@ -32,7 +32,7 @@ namespace diverse
     };
 
     // Invalid asset ID constant
-    inline AssetId InvalidAssetId() { return AssetId(UUID()); }
+    inline AssetId InvalidAssetId() { return AssetId(UUID(0)); }
 
     // Generate a new unique asset ID
     inline AssetId GenerateAssetId()

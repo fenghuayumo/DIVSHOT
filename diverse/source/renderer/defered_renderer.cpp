@@ -939,48 +939,62 @@ namespace diverse
 
 	auto DeferedRenderer::upload_mesh_materials(ModelAsset* model, GpuSceneDirtyState& dirty_state)->int
 	{
-		int upload_material_num = 0;
-		auto& asset_sys = AssetSystem::get_instance();
-		auto& gpu_sys = asset_sys.gpu_system();
+		int ready_material_num = 0;
+		bool material_dirty = false;
+		auto& gpu_sys = AssetSystem::get_instance().gpu_system();
 		for (auto& slot : model->get_slots())
 		{
 			auto material = slot.get_material();
 			if (!material)
+			{
+				ready_material_num++;
 				continue;
+			}
+
 			if (!are_material_textures_bound(*material))
 				continue;
 
 			const AssetId material_id = ensure_material_asset_id(*material);
-			auto material_shared = asset_sys.get_asset<MaterialAsset>(material_id);
-			if (material_shared)
-				asset_sys.register_cpu_material(material_shared);
+			const auto previous_gpu = gpu_sys.get_material_gpu(material_id);
 
 			auto mat_gpu = gpu_sys.request_material(material_id, UploadPriority::Critical);
 			if (!mat_gpu.is_valid())
 				continue;
 
 			const u32 buffer_index = mat_gpu.material_buffer_index;
+			const bool gpu_material_changed =
+				!previous_gpu.is_valid() ||
+				previous_gpu.resident_version != mat_gpu.resident_version ||
+				previous_gpu.material_buffer_index != mat_gpu.material_buffer_index ||
+				previous_gpu.texture_bindless_indices != mat_gpu.texture_bindless_indices;
+
 			if (gpu_scene.mat_2_mat_buf_id.find(material_id) == gpu_scene.mat_2_mat_buf_id.end())
 			{
 				gpu_scene.mat_2_mat_buf_id[material_id] = buffer_index;
 				dirty_state.material_resources = true;
 				dirty_state.bindless_resources = true;
+				material_dirty = true;
 			}
 			else if (gpu_scene.mat_2_mat_buf_id[material_id] != buffer_index)
 			{
 				gpu_scene.mat_2_mat_buf_id[material_id] = buffer_index;
 				dirty_state.material_resources = true;
 				dirty_state.bindless_resources = true;
+				material_dirty = true;
 			}
-			else
+			else if (gpu_material_changed)
 			{
 				dirty_state.material_resources = true;
+				if (previous_gpu.texture_bindless_indices != mat_gpu.texture_bindless_indices)
+					dirty_state.bindless_resources = true;
+				material_dirty = true;
 			}
-			upload_material_num++;
+
+			ready_material_num++;
 		}
-		if (upload_material_num > 0)
+		if (material_dirty)
 			invalidate_pt_state();
-		return upload_material_num;
+		return ready_material_num;
 	}
 
 	auto DeferedRenderer::record_mesh_instance_gpu_state(ModelAsset* model, u32 entity_id, const maths::Transform& transform)->void

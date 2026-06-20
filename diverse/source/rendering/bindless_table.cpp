@@ -66,6 +66,10 @@ namespace diverse
             return {};
 
         std::lock_guard lock(mutex);
+        free_list.erase(
+            std::remove(free_list.begin(), free_list.end(), fixed_index),
+            free_list.end());
+
         auto& s = slots[fixed_index];
         if (!s.alive)
             ++live_slots;

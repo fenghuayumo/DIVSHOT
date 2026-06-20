@@ -59,6 +59,9 @@ namespace diverse
 
     void AssetRegistry::register_asset(const AssetId& id, const AssetMetadata& metadata)
     {
+        if (!id.is_valid())
+            return;
+
         std::lock_guard lock(mutex);
 
         // Check if asset already exists
@@ -66,12 +69,15 @@ namespace diverse
         if (it != assets.end())
         {
             const auto preserved_mtime = it->second->last_modified;
+            const auto old_path = it->second->source_path;
             *it->second = metadata;
             if (metadata.last_modified == std::filesystem::file_time_type{} &&
                 preserved_mtime != std::filesystem::file_time_type{})
             {
                 it->second->last_modified = preserved_mtime;
             }
+            if (!old_path.empty() && old_path != metadata.source_path)
+                path_to_id.erase(old_path.string());
         }
         else
         {
@@ -119,7 +125,11 @@ namespace diverse
     std::shared_ptr<AssetMetadata> AssetRegistry::get_metadata(const AssetId& id) const
     {
         std::lock_guard lock(mutex);
+        return get_metadata_unlocked(id);
+    }
 
+    std::shared_ptr<AssetMetadata> AssetRegistry::get_metadata_unlocked(const AssetId& id) const
+    {
         auto it = assets.find(id);
         if (it != assets.end())
         {
@@ -136,7 +146,7 @@ namespace diverse
         auto it = path_to_id.find(path_str);
         if (it != path_to_id.end())
         {
-            return get_metadata(it->second);
+            return get_metadata_unlocked(it->second);
         }
         return nullptr;
     }
@@ -178,8 +188,8 @@ namespace diverse
     {
         std::lock_guard lock(mutex);
 
-        auto asset_meta = get_metadata(asset);
-        auto dep_meta = get_metadata(depends_on);
+        auto asset_meta = get_metadata_unlocked(asset);
+        auto dep_meta = get_metadata_unlocked(depends_on);
 
         if (!asset_meta || !dep_meta)
         {
@@ -187,7 +197,7 @@ namespace diverse
         }
 
         // Check for circular dependency
-        if (has_circular_dependency(asset, depends_on))
+        if (has_circular_dependency_unlocked(asset, depends_on))
         {
             DS_LOG_WARN("Circular dependency detected between asset {} and {}", asset.id, depends_on.id);
             return;
@@ -212,8 +222,8 @@ namespace diverse
     {
         std::lock_guard lock(mutex);
 
-        auto asset_meta = get_metadata(asset);
-        auto dep_meta = get_metadata(depends_on);
+        auto asset_meta = get_metadata_unlocked(asset);
+        auto dep_meta = get_metadata_unlocked(depends_on);
 
         if (!asset_meta || !dep_meta)
         {
@@ -251,6 +261,12 @@ namespace diverse
 
     bool AssetRegistry::has_circular_dependency(const AssetId& asset, const AssetId& depends_on) const
     {
+        std::lock_guard lock(mutex);
+        return has_circular_dependency_unlocked(asset, depends_on);
+    }
+
+    bool AssetRegistry::has_circular_dependency_unlocked(const AssetId& asset, const AssetId& depends_on) const
+    {
         // Check if 'depends_on' transitively depends on 'asset'
         std::function<bool(const AssetId&, std::unordered_set<AssetId>&)> check_transitive;
         check_transitive = [&](const AssetId& current, std::unordered_set<AssetId>& visited) -> bool
@@ -266,7 +282,7 @@ namespace diverse
             }
             visited.insert(current);
 
-            auto metadata = get_metadata(current);
+            auto metadata = get_metadata_unlocked(current);
             if (!metadata)
             {
                 return false;
@@ -299,23 +315,36 @@ namespace diverse
 
     void AssetRegistry::increment_version(const AssetId& id)
     {
-        std::lock_guard lock(mutex);
-        increment_version_unlocked(id);
+        std::vector<AssetId> changed;
+        std::unordered_set<AssetId> visited;
+        {
+            std::lock_guard lock(mutex);
+            increment_version_unlocked(id, changed, visited);
+        }
+
+        for (const auto& changed_id : changed)
+            notify_asset_changed(changed_id);
     }
 
-    void AssetRegistry::increment_version_unlocked(const AssetId& id)
+    void AssetRegistry::increment_version_unlocked(
+        const AssetId& id,
+        std::vector<AssetId>& changed,
+        std::unordered_set<AssetId>& visited)
     {
+        if (visited.count(id))
+            return;
+        visited.insert(id);
+
         auto it = assets.find(id);
         if (it == assets.end())
             return;
 
         it->second->version++;
-
-        notify_asset_changed(id);
+        changed.push_back(id);
 
         std::vector<AssetId> dependents = it->second->dependents;
         for (const auto& dependent : dependents)
-            increment_version_unlocked(dependent);
+            increment_version_unlocked(dependent, changed, visited);
     }
 
     AssetState AssetRegistry::get_state(const AssetId& id) const
@@ -340,14 +369,16 @@ namespace diverse
 
     void AssetRegistry::notify_asset_changed(const AssetId& id)
     {
-        auto it = change_callbacks.find(id);
-        if (it != change_callbacks.end())
+        std::vector<AssetChangeCallback> callbacks;
         {
-            for (const auto& callback : it->second)
-            {
-                callback(id);
-            }
+            std::lock_guard lock(mutex);
+            auto it = change_callbacks.find(id);
+            if (it != change_callbacks.end())
+                callbacks = it->second;
         }
+
+        for (const auto& callback : callbacks)
+            callback(id);
     }
 
     void AssetRegistry::set_file_watcher(std::shared_ptr<AssetFileWatcher> watcher)
@@ -404,9 +435,11 @@ namespace diverse
 
         std::vector<AssetId> changed;
         changed.reserve(pending.size());
+        std::vector<AssetId> notifications;
 
         {
             std::lock_guard lock(mutex);
+            std::unordered_set<AssetId> visited;
             for (const auto& change : pending)
             {
                 auto it = assets.find(change.id);
@@ -415,12 +448,15 @@ namespace diverse
 
                 it->second->last_modified = change.mtime;
                 it->second->state = AssetState::LoadingCpu;
-                increment_version_unlocked(change.id);
+                increment_version_unlocked(change.id, notifications, visited);
                 changed.push_back(change.id);
 
                 DS_LOG_INFO("Hot reload: detected file change for {}", it->second->source_path.string());
             }
         }
+
+        for (const auto& id : notifications)
+            notify_asset_changed(id);
 
         return changed;
     }

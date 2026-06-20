@@ -29,6 +29,32 @@ namespace diverse
         {
             return (value + alignment - 1) & ~(alignment - 1);
         }
+
+        void subtract_usage(size_t& usage, size_t bytes)
+        {
+            usage = bytes > usage ? 0 : usage - bytes;
+        }
+
+        template<typename AssetType>
+        void upsert_lru(
+            std::vector<GpuLruEntry<AssetType>>& lru,
+            const AssetId& id,
+            uint64_t frame,
+            size_t memory_size,
+            ResidentPriority priority)
+        {
+            auto it = std::find_if(lru.begin(), lru.end(),
+                [&id](const GpuLruEntry<AssetType>& entry) { return entry.id == id; });
+            if (it != lru.end())
+            {
+                it->last_used_frame = frame;
+                it->memory_size = memory_size;
+                it->priority = priority;
+                return;
+            }
+
+            lru.push_back({ id, frame, memory_size, priority });
+        }
     }
 
     // StagingBuffer implementation
@@ -123,6 +149,9 @@ namespace diverse
 
     void GpuResourceSystem::queue_upload(const AssetId& id, AssetType type, UploadPriority priority)
     {
+        if (!id.is_valid() || type == AssetType::None)
+            return;
+
         std::lock_guard lock(upload_queue_mutex);
 
         UploadRequest request;
@@ -138,13 +167,18 @@ namespace diverse
     {
         current_frame = frame;
 
-        std::lock_guard lock(upload_queue_mutex);
-
-        while (!upload_queue.empty())
+        std::vector<UploadRequest> requests;
         {
-            auto request = upload_queue.top();
-            upload_queue.pop();
+            std::lock_guard lock(upload_queue_mutex);
+            while (!upload_queue.empty())
+            {
+                requests.push_back(upload_queue.top());
+                upload_queue.pop();
+            }
+        }
 
+        for (const auto& request : requests)
+        {
             switch (request.asset_type)
             {
                 case AssetType::Texture:
@@ -175,6 +209,14 @@ namespace diverse
         if (!metadata || metadata->type != AssetType::Texture)
             return;
 
+        const uint32_t version = registry.get_version(id);
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+            auto it = texture_gpu_cache.find(id);
+            if (it != texture_gpu_cache.end() && it->second.resident_version == version)
+                return;
+        }
+
         auto texture_asset = AssetSystem::get_instance().get_asset<TextureAsset>(id);
         if (!texture_asset)
             return;
@@ -185,44 +227,42 @@ namespace diverse
 
         const size_t gpu_memory_size = texture_asset->calculate_memory_size();
 
-        std::unique_lock lock(gpu_resources_mutex);
-
-        TextureGpu gpu;
-        gpu.texture = gpu_texture;
-        gpu.gpu_memory_size = gpu_memory_size;
-        gpu.resident_version = registry.get_version(id);
-
-        auto bindless_it = texture_bindless.find(id);
-        if (bindless_it == texture_bindless.end())
         {
-            auto handle = bindless->allocate_texture(gpu_texture.get());
-            gpu.srv = BindlessImageHandle(handle.index);
-            texture_bindless[id] = handle;
+            std::unique_lock lock(gpu_resources_mutex);
+
+            TextureGpu gpu;
+            gpu.texture = gpu_texture;
+            gpu.gpu_memory_size = gpu_memory_size;
+            gpu.resident_version = version;
+
+            auto bindless_it = texture_bindless.find(id);
+            if (bindless_it == texture_bindless.end())
+            {
+                auto handle = bindless->allocate_texture(gpu_texture.get());
+                gpu.srv = BindlessImageHandle(handle.index);
+                texture_bindless[id] = handle;
+            }
+            else
+            {
+                gpu.srv = BindlessImageHandle(bindless_it->second.index);
+                bindless->update_texture(bindless_it->second, gpu_texture.get());
+            }
+
+            texture_gpu_cache[id] = gpu;
+
+            GpuResourceEntry& entry = gpu_resources[id];
+            if (entry.is_resident)
+                subtract_usage(texture_memory_usage, entry.gpu_memory_size);
+            entry.resource = gpu_texture;
+            entry.gpu_version = gpu.resident_version;
+            entry.last_used_frame = current_frame;
+            entry.is_resident = true;
+            entry.gpu_memory_size = gpu_memory_size;
+            entry.priority = ResidentPriority::Normal;
+            texture_memory_usage += gpu_memory_size;
+
+            upsert_lru(texture_lru, id, current_frame, gpu_memory_size, ResidentPriority::Normal);
         }
-        else
-        {
-            gpu.srv = BindlessImageHandle(bindless_it->second.index);
-            bindless->update_texture(bindless_it->second, gpu_texture.get());
-        }
-
-        texture_gpu_cache[id] = gpu;
-
-        GpuResourceEntry& entry = gpu_resources[id];
-        entry.resource = gpu_texture;
-        entry.gpu_version = gpu.resident_version;
-        entry.last_used_frame = current_frame;
-        entry.is_resident = true;
-        entry.gpu_memory_size = gpu_memory_size;
-        entry.priority = ResidentPriority::Normal;
-        texture_memory_usage += gpu_memory_size;
-
-        // Add to LRU tracking
-        texture_lru.push_back({
-            id,
-            current_frame,
-            gpu_memory_size,
-            ResidentPriority::Normal
-        });
 
         registry.set_state(id, AssetState::ResidentGpu);
 
@@ -232,6 +272,14 @@ namespace diverse
 
     void GpuResourceSystem::process_mesh_upload(const AssetId& id)
     {
+        const uint32_t version = AssetRegistry::get_instance().get_version(id);
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+            auto it = mesh_gpu_cache.find(id);
+            if (it != mesh_gpu_cache.end() && it->second.resident_version == version)
+                return;
+        }
+
         auto mesh_asset = AssetSystem::get_instance().get_asset<MeshAsset>(id);
         if (!mesh_asset)
             return;
@@ -240,38 +288,36 @@ namespace diverse
         if (!upload_mesh_asset(*mesh_asset, device, upload))
             return;
 
-        std::unique_lock lock(gpu_resources_mutex);
+        {
+            std::unique_lock lock(gpu_resources_mutex);
 
-        MeshGpu gpu;
-        gpu.vertex_buffer = upload.vertex_buffer;
-        gpu.index_buffer = upload.index_buffer;
-        gpu.vertex_pos_nor_offset = upload.vertex_pos_nor_offset;
-        gpu.vertex_uv_offset = upload.vertex_uv_offset;
-        gpu.vertex_tangent_offset = upload.vertex_tangent_offset;
-        gpu.vertex_color_offset = upload.vertex_color_offset;
-        gpu.vertex_count = static_cast<uint32_t>(mesh_asset->get_vertex_count());
-        gpu.index_count = static_cast<uint32_t>(mesh_asset->get_index_count());
-        gpu.resident_version = AssetRegistry::get_instance().get_version(id);
-        gpu.vertex_buffer_size = upload.vertex_buffer_size;
-        gpu.index_buffer_size = upload.index_buffer_size;
-        mesh_gpu_cache[id] = gpu;
+            MeshGpu gpu;
+            gpu.vertex_buffer = upload.vertex_buffer;
+            gpu.index_buffer = upload.index_buffer;
+            gpu.vertex_pos_nor_offset = upload.vertex_pos_nor_offset;
+            gpu.vertex_uv_offset = upload.vertex_uv_offset;
+            gpu.vertex_tangent_offset = upload.vertex_tangent_offset;
+            gpu.vertex_color_offset = upload.vertex_color_offset;
+            gpu.vertex_count = static_cast<uint32_t>(mesh_asset->get_vertex_count());
+            gpu.index_count = static_cast<uint32_t>(mesh_asset->get_index_count());
+            gpu.resident_version = version;
+            gpu.vertex_buffer_size = upload.vertex_buffer_size;
+            gpu.index_buffer_size = upload.index_buffer_size;
+            mesh_gpu_cache[id] = gpu;
 
-        GpuResourceEntry& entry = gpu_resources[id];
-        entry.resource = upload.vertex_buffer;
-        entry.gpu_version = gpu.resident_version;
-        entry.last_used_frame = current_frame;
-        entry.is_resident = true;
-        entry.gpu_memory_size = gpu.vertex_buffer_size + gpu.index_buffer_size;
-        entry.priority = ResidentPriority::Normal;
-        buffer_memory_usage += entry.gpu_memory_size;
+            GpuResourceEntry& entry = gpu_resources[id];
+            if (entry.is_resident)
+                subtract_usage(buffer_memory_usage, entry.gpu_memory_size);
+            entry.resource = upload.vertex_buffer;
+            entry.gpu_version = gpu.resident_version;
+            entry.last_used_frame = current_frame;
+            entry.is_resident = true;
+            entry.gpu_memory_size = gpu.vertex_buffer_size + gpu.index_buffer_size;
+            entry.priority = ResidentPriority::Normal;
+            buffer_memory_usage += entry.gpu_memory_size;
 
-        // Add to LRU tracking
-        mesh_lru.push_back({
-            id,
-            current_frame,
-            entry.gpu_memory_size,
-            ResidentPriority::Normal
-        });
+            upsert_lru(mesh_lru, id, current_frame, entry.gpu_memory_size, ResidentPriority::Normal);
+        }
 
         AssetRegistry::get_instance().set_state(id, AssetState::ResidentGpu);
 
@@ -290,6 +336,14 @@ namespace diverse
         if (!material_asset)
             return;
 
+        const uint32_t version = registry.get_version(id);
+        {
+            std::shared_lock lock(gpu_resources_mutex);
+            auto it = material_gpu_cache.find(id);
+            if (it != material_gpu_cache.end() && it->second.resident_version == version)
+                return;
+        }
+
         auto resolve_texture = [this](const AssetHandle<TextureAsset>& handle, uint32_t default_id) -> uint32_t {
             if (!handle.is_valid())
                 return default_id;
@@ -298,7 +352,7 @@ namespace diverse
         };
 
         MaterialGpu gpu;
-        gpu.resident_version = registry.get_version(id);
+        gpu.resident_version = version;
         gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_ALBEDO, resolve_texture(material_asset->albedo, WHITE_TEX_ID));
         gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_NORMAL, resolve_texture(material_asset->normal, NORMAL_TEX_ID));
         gpu.set_bindless_index(MaterialGpu::TEXTURE_SLOT_METALLIC, resolve_texture(material_asset->metallic, WHITE_TEX_ID));
@@ -317,9 +371,9 @@ namespace diverse
             auto it = material_gpu_cache.find(id);
             if (it == material_gpu_cache.end())
             {
-                slot = material_count++;
-                if (slot >= material_capacity)
+                if (material_count >= material_capacity)
                     return;
+                slot = material_count++;
             }
             else
             {
@@ -351,6 +405,14 @@ namespace diverse
         if (!metadata || metadata->type != AssetType::PointCloud)
             return;
 
+        const uint32_t version = registry.get_version(id);
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+            auto it = point_cloud_gpu_cache.find(id);
+            if (it != point_cloud_gpu_cache.end() && it->second.resident_version == version)
+                return;
+        }
+
         auto point_asset = AssetSystem::get_instance().get_asset<PointCloudAsset>(id);
         if (!point_asset || point_asset->vertices.empty())
             return;
@@ -372,7 +434,7 @@ namespace diverse
 
         PointCloudGpu gpu;
         gpu.vertex_buffer = vertex_buffer;
-        gpu.resident_version = registry.get_version(id);
+        gpu.resident_version = version;
         gpu.gpu_memory_size = gpu_memory_size;
 
         uint32_t slot = 0;
@@ -388,6 +450,8 @@ namespace diverse
             point_cloud_gpu_cache[id] = gpu;
 
             GpuResourceEntry& entry = gpu_resources[id];
+            if (entry.is_resident)
+                subtract_usage(buffer_memory_usage, entry.gpu_memory_size);
             entry.resource = vertex_buffer;
             entry.gpu_version = gpu.resident_version;
             entry.last_used_frame = current_frame;
@@ -396,12 +460,7 @@ namespace diverse
             entry.priority = ResidentPriority::Normal;
             buffer_memory_usage += gpu_memory_size;
 
-            point_cloud_lru.push_back({
-                id,
-                current_frame,
-                gpu_memory_size,
-                ResidentPriority::Normal
-            });
+            upsert_lru(point_cloud_lru, id, current_frame, gpu_memory_size, ResidentPriority::Normal);
         }
 
         bind_point_cloud_to_slot(slot, gpu);
@@ -414,6 +473,15 @@ namespace diverse
         auto gaussian_asset = AssetSystem::get_instance().get_asset<GaussianAsset>(id);
         if (!gaussian_asset || gaussian_asset->pos.empty())
             return;
+
+        auto& registry = AssetRegistry::get_instance();
+        const uint32_t version = registry.get_version(id);
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+            auto it = gaussian_gpu_cache.find(id);
+            if (it != gaussian_gpu_cache.end() && it->second.resident_version == version)
+                return;
+        }
 
         auto packed = pack_gaussian_asset(*gaussian_asset);
         const GaussianBufferUpload* existing = nullptr;
@@ -437,7 +505,6 @@ namespace diverse
         if (!upload.gaussians_buf)
             return;
 
-        auto& registry = AssetRegistry::get_instance();
         uint32_t slot = 0;
         GaussianGpu gpu;
         {
@@ -448,17 +515,24 @@ namespace diverse
             else
                 slot = it->second.bindless_slot;
 
+            auto resource_it = gpu_resources.find(id);
+            if (resource_it != gpu_resources.end() && resource_it->second.is_resident)
+                subtract_usage(buffer_memory_usage, resource_it->second.gpu_memory_size);
+
             gaussian_buffer_uploads[id] = upload;
-            gpu = make_gaussian_gpu(upload, registry.get_version(id), slot);
+            gpu = make_gaussian_gpu(upload, version, slot);
             gaussian_gpu_cache[id] = gpu;
 
-            gaussian_lru.push_back({
-                id,
-                current_frame,
-                upload.gpu_memory_size,
-                ResidentPriority::Normal
-            });
+            GpuResourceEntry& entry = gpu_resources[id];
+            entry.resource = upload.gaussians_buf;
+            entry.gpu_version = gpu.resident_version;
+            entry.last_used_frame = current_frame;
+            entry.is_resident = true;
+            entry.gpu_memory_size = upload.gpu_memory_size;
+            entry.priority = ResidentPriority::Normal;
             buffer_memory_usage += upload.gpu_memory_size;
+
+            upsert_lru(gaussian_lru, id, current_frame, upload.gpu_memory_size, ResidentPriority::Normal);
         }
 
         bind_gaussian_to_slot(slot, gpu, nullptr);
@@ -511,6 +585,7 @@ namespace diverse
             return {};
 
         auto& registry = AssetRegistry::get_instance();
+        const uint32_t version = registry.get_version(asset_id);
         uint32_t slot = 0;
         GaussianGpu gpu;
         {
@@ -521,17 +596,24 @@ namespace diverse
             else
                 slot = it->second.bindless_slot;
 
+            auto resource_it = gpu_resources.find(asset_id);
+            if (resource_it != gpu_resources.end() && resource_it->second.is_resident)
+                subtract_usage(buffer_memory_usage, resource_it->second.gpu_memory_size);
+
             gaussian_buffer_uploads[asset_id] = upload;
-            gpu = make_gaussian_gpu(upload, registry.get_version(asset_id), slot);
+            gpu = make_gaussian_gpu(upload, version, slot);
             gaussian_gpu_cache[asset_id] = gpu;
 
-            gaussian_lru.push_back({
-                asset_id,
-                current_frame,
-                upload.gpu_memory_size,
-                ResidentPriority::Normal
-            });
+            GpuResourceEntry& entry = gpu_resources[asset_id];
+            entry.resource = upload.gaussians_buf;
+            entry.gpu_version = gpu.resident_version;
+            entry.last_used_frame = current_frame;
+            entry.is_resident = true;
+            entry.gpu_memory_size = upload.gpu_memory_size;
+            entry.priority = ResidentPriority::Normal;
             buffer_memory_usage += upload.gpu_memory_size;
+
+            upsert_lru(gaussian_lru, asset_id, current_frame, upload.gpu_memory_size, ResidentPriority::Normal);
         }
 
         bind_gaussian_to_slot(slot, gpu, model.splat_transforms.splat_transform_buffer.get());
@@ -615,39 +697,44 @@ namespace diverse
             return;
         }
 
-        std::unique_lock lock(gpu_resources_mutex);
-
-        // Sort LRU entries by last access (oldest first)
-        std::sort(texture_lru.begin(), texture_lru.end(),
-            [](const auto& a, const auto& b)
-            {
-                // Critical and High priority assets are never evicted
-                if (a.priority <= ResidentPriority::High) return false;
-                if (b.priority <= ResidentPriority::High) return true;
-                return a.last_used_frame < b.last_used_frame;
-            });
-
-        // Evict until under budget
-        for (const auto& entry : texture_lru)
         {
-            if (current <= target)
-            {
-                break;
-            }
+            std::unique_lock lock(gpu_resources_mutex);
 
-            auto it = gpu_resources.find(entry.id);
-            if (it != gpu_resources.end() &&
-                it->second.priority > ResidentPriority::High &&
-                it->second.is_resident)
-            {
-                // Defer release of GPU resource
-                defer_release(it->second.resource, current_frame + MAX_FRAMES_IN_FLIGHT, entry.id);
+            // Sort LRU entries by last access (oldest first)
+            std::sort(texture_lru.begin(), texture_lru.end(),
+                [](const auto& a, const auto& b)
+                {
+                    // Critical and High priority assets are never evicted
+                    if (a.priority <= ResidentPriority::High) return false;
+                    if (b.priority <= ResidentPriority::High) return true;
+                    return a.last_used_frame < b.last_used_frame;
+                });
+        }
 
-                // Mark as evicted
-                it->second.is_resident = false;
-                current -= it->second.gpu_memory_size;
+        std::vector<AssetId> evict_ids;
+        {
+            std::shared_lock lock(gpu_resources_mutex);
+            for (const auto& entry : texture_lru)
+            {
+                if (current <= target)
+                    break;
+
+                auto it = gpu_resources.find(entry.id);
+                if (it != gpu_resources.end() &&
+                    it->second.priority > ResidentPriority::High &&
+                    it->second.is_resident)
+                {
+                    if (std::find(evict_ids.begin(), evict_ids.end(), entry.id) == evict_ids.end())
+                    {
+                        evict_ids.push_back(entry.id);
+                        current -= it->second.gpu_memory_size;
+                    }
+                }
             }
         }
+
+        for (const auto& id : evict_ids)
+            retire_asset_gpu(id, current_frame);
     }
 
     void GpuResourceSystem::evict_buffers_to_budget()
@@ -656,33 +743,47 @@ namespace diverse
         size_t target = budget.total_buffer_budget_mb * 1024 * 1024 * budget.low_watermark;
         size_t current = calculate_total_buffer_usage();
 
-        std::unique_lock lock(gpu_resources_mutex);
-
-        std::sort(mesh_lru.begin(), mesh_lru.end(),
-            [](const auto& a, const auto& b)
-            {
-                if (a.priority <= ResidentPriority::High) return false;
-                if (b.priority <= ResidentPriority::High) return true;
-                return a.last_used_frame < b.last_used_frame;
-            });
-
-        for (const auto& entry : mesh_lru)
+        if (current <= target)
         {
-            if (current <= target)
-            {
-                break;
-            }
+            return;
+        }
 
-            auto it = gpu_resources.find(entry.id);
-            if (it != gpu_resources.end() &&
-                it->second.priority > ResidentPriority::High &&
-                it->second.is_resident)
+        {
+            std::unique_lock lock(gpu_resources_mutex);
+
+            std::sort(mesh_lru.begin(), mesh_lru.end(),
+                [](const auto& a, const auto& b)
+                {
+                    if (a.priority <= ResidentPriority::High) return false;
+                    if (b.priority <= ResidentPriority::High) return true;
+                    return a.last_used_frame < b.last_used_frame;
+                });
+        }
+
+        std::vector<AssetId> evict_ids;
+        {
+            std::shared_lock lock(gpu_resources_mutex);
+            for (const auto& entry : mesh_lru)
             {
-                defer_release(it->second.resource, current_frame + MAX_FRAMES_IN_FLIGHT, entry.id);
-                it->second.is_resident = false;
-                current -= it->second.gpu_memory_size;
+                if (current <= target)
+                    break;
+
+                auto it = gpu_resources.find(entry.id);
+                if (it != gpu_resources.end() &&
+                    it->second.priority > ResidentPriority::High &&
+                    it->second.is_resident)
+                {
+                    if (std::find(evict_ids.begin(), evict_ids.end(), entry.id) == evict_ids.end())
+                    {
+                        evict_ids.push_back(entry.id);
+                        current -= it->second.gpu_memory_size;
+                    }
+                }
             }
         }
+
+        for (const auto& id : evict_ids)
+            retire_asset_gpu(id, current_frame);
     }
 
     size_t GpuResourceSystem::calculate_total_texture_usage() const
@@ -870,8 +971,9 @@ namespace diverse
 
     TextureGpu GpuResourceSystem::request_texture(const AssetId& id, UploadPriority priority)
     {
+        (void)priority;
         {
-            std::shared_lock lock(gpu_resources_mutex);
+            std::unique_lock lock(gpu_resources_mutex);
             auto it = texture_gpu_cache.find(id);
             if (it != texture_gpu_cache.end())
             {
@@ -885,7 +987,6 @@ namespace diverse
                 return it->second;
             }
         }
-        queue_upload(id, AssetType::Texture, priority);
         process_texture_upload(id);
         flush_bindless_updates();
         std::shared_lock lock(gpu_resources_mutex);
@@ -895,8 +996,9 @@ namespace diverse
 
     MeshGpu GpuResourceSystem::request_mesh(const AssetId& id, UploadPriority priority)
     {
+        (void)priority;
         {
-            std::shared_lock lock(gpu_resources_mutex);
+            std::unique_lock lock(gpu_resources_mutex);
             auto it = mesh_gpu_cache.find(id);
             if (it != mesh_gpu_cache.end())
             {
@@ -910,7 +1012,6 @@ namespace diverse
                 return it->second;
             }
         }
-        queue_upload(id, AssetType::MeshModel, priority);
         process_mesh_upload(id);
         std::shared_lock lock(gpu_resources_mutex);
         auto found = mesh_gpu_cache.find(id);
@@ -919,6 +1020,7 @@ namespace diverse
 
     MaterialGpu GpuResourceSystem::request_material(const AssetId& id, UploadPriority priority)
     {
+        (void)priority;
         if (!id.is_valid())
             return MaterialGpu{};
 
@@ -931,8 +1033,9 @@ namespace diverse
 
     PointCloudGpu GpuResourceSystem::request_point_cloud(const AssetId& id, UploadPriority priority)
     {
+        (void)priority;
         {
-            std::shared_lock lock(gpu_resources_mutex);
+            std::unique_lock lock(gpu_resources_mutex);
             auto it = point_cloud_gpu_cache.find(id);
             if (it != point_cloud_gpu_cache.end())
             {
@@ -946,7 +1049,6 @@ namespace diverse
                 return it->second;
             }
         }
-        queue_upload(id, AssetType::PointCloud, priority);
         process_point_cloud_upload(id);
         std::shared_lock lock(gpu_resources_mutex);
         auto found = point_cloud_gpu_cache.find(id);
@@ -955,8 +1057,9 @@ namespace diverse
 
     GaussianGpu GpuResourceSystem::request_gaussian(const AssetId& id, UploadPriority priority)
     {
+        (void)priority;
         {
-            std::shared_lock lock(gpu_resources_mutex);
+            std::unique_lock lock(gpu_resources_mutex);
             auto it = gaussian_gpu_cache.find(id);
             if (it != gaussian_gpu_cache.end())
             {
@@ -970,7 +1073,6 @@ namespace diverse
                 return it->second;
             }
         }
-        queue_upload(id, AssetType::Gaussian, priority);
         process_gaussian_upload(id);
         std::shared_lock lock(gpu_resources_mutex);
         auto found = gaussian_gpu_cache.find(id);
@@ -1093,6 +1195,7 @@ namespace diverse
                     id);
             }
 
+            subtract_usage(texture_memory_usage, tex_it->second.gpu_memory_size);
             texture_gpu_cache.erase(tex_it);
         }
 
@@ -1115,7 +1218,52 @@ namespace diverse
                     id);
             }
 
+            subtract_usage(buffer_memory_usage, mesh_it->second.vertex_buffer_size + mesh_it->second.index_buffer_size);
             mesh_gpu_cache.erase(mesh_it);
+        }
+
+        const auto point_it = point_cloud_gpu_cache.find(id);
+        if (point_it != point_cloud_gpu_cache.end())
+        {
+            if (point_it->second.vertex_buffer)
+            {
+                defer_release(
+                    std::static_pointer_cast<rhi::GpuResource>(point_it->second.vertex_buffer),
+                    release_frame,
+                    id);
+            }
+
+            subtract_usage(buffer_memory_usage, point_it->second.gpu_memory_size);
+            point_cloud_gpu_cache.erase(point_it);
+        }
+
+        const auto gaussian_it = gaussian_gpu_cache.find(id);
+        if (gaussian_it != gaussian_gpu_cache.end())
+        {
+            const std::shared_ptr<rhi::GpuBuffer> buffers[] = {
+                gaussian_it->second.gaussians_buf,
+                gaussian_it->second.sh_0_buf,
+                gaussian_it->second.sh_n_buf,
+                gaussian_it->second.state_buf,
+                gaussian_it->second.points_key_buf,
+                gaussian_it->second.points_value_buf,
+                gaussian_it->second.splat_transforms
+            };
+
+            for (const auto& buffer : buffers)
+            {
+                if (buffer)
+                {
+                    defer_release(
+                        std::static_pointer_cast<rhi::GpuResource>(buffer),
+                        release_frame,
+                        id);
+                }
+            }
+
+            subtract_usage(buffer_memory_usage, gaussian_it->second.gpu_memory_size);
+            gaussian_gpu_cache.erase(gaussian_it);
+            gaussian_buffer_uploads.erase(id);
         }
 
         gpu_resources.erase(id);
@@ -1129,6 +1277,16 @@ namespace diverse
             std::remove_if(mesh_lru.begin(), mesh_lru.end(),
                 [&id](const GpuLruEntry<MeshAsset>& entry) { return entry.id == id; }),
             mesh_lru.end());
+
+        point_cloud_lru.erase(
+            std::remove_if(point_cloud_lru.begin(), point_cloud_lru.end(),
+                [&id](const GpuLruEntry<PointCloudAsset>& entry) { return entry.id == id; }),
+            point_cloud_lru.end());
+
+        gaussian_lru.erase(
+            std::remove_if(gaussian_lru.begin(), gaussian_lru.end(),
+                [&id](const GpuLruEntry<GaussianAsset>& entry) { return entry.id == id; }),
+            gaussian_lru.end());
     }
 
     void GpuResourceSystem::reload_asset(const AssetId& id)

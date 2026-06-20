@@ -20,6 +20,13 @@ namespace diverse
         Resident
     };
 
+    enum class PipelineStageResult : uint8_t
+    {
+        Failed = 0,
+        Pending,
+        Completed
+    };
+
     struct PipelineTask
     {
         AssetId asset_id;
@@ -31,7 +38,7 @@ namespace diverse
     class AssetPipeline
     {
     public:
-        using StageHandler = std::function<bool(const AssetId&, PipelineStage& next_stage)>;
+        using StageHandler = std::function<PipelineStageResult(const AssetId&, PipelineStage& next_stage)>;
 
         static AssetPipeline& get_instance();
 

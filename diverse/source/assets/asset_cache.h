@@ -8,6 +8,7 @@
 #include <memory>
 #include <functional>
 #include <cstdint>
+#include <algorithm>
 
 namespace diverse
 {
@@ -165,8 +166,10 @@ namespace diverse
         auto it = cache.find(id);
         if (it != cache.end())
         {
+            ++current_frame;
             it->second.access_count++;
-            it->second.last_access_time = 0.0f;  // Will be set by update()
+            it->second.last_accessed_frame = current_frame;
+            update_lru(id);
             return it->second.asset;
         }
         return nullptr;
@@ -178,10 +181,20 @@ namespace diverse
         std::unique_lock lock(mutex);
 
         auto& entry = cache[id];
+        if (entry.memory_size > 0)
+        {
+            total_memory_usage = entry.memory_size > total_memory_usage ?
+                0 : total_memory_usage - entry.memory_size;
+        }
+
+        ++current_frame;
+        remove_from_lru(id);
+
         entry.asset = asset;
         entry.state = LoadState::Loaded;
         entry.memory_size = asset ? asset->calculate_memory_size() : 0;
         entry.last_accessed_frame = current_frame;
+        entry.gpu_uploaded = false;
 
         total_memory_usage += entry.memory_size;
 
@@ -302,7 +315,8 @@ namespace diverse
         size_t freed = it->second.memory_size;
         it->second.asset.reset();
         it->second.state = LoadState::Evicted;
-        total_memory_usage -= freed;
+        it->second.memory_size = 0;
+        total_memory_usage = freed > total_memory_usage ? 0 : total_memory_usage - freed;
 
         return freed;
     }
@@ -345,6 +359,7 @@ namespace diverse
         auto it = cache.find(id);
         if (it != cache.end())
         {
+            ++current_frame;
             it->second.access_count++;
             it->second.last_accessed_frame = current_frame;
             update_lru(id);
@@ -378,9 +393,13 @@ namespace diverse
             if (entry.id == id)
             {
                 entry.last_access = current_frame;
-                break;
+                return;
             }
         }
+
+        auto it = cache.find(id);
+        if (it != cache.end())
+            lru_list.emplace_back(id, current_frame, it->second.memory_size);
     }
 
     template<typename AssetType>
@@ -401,7 +420,8 @@ namespace diverse
         if (it == cache.end())
             return false;
 
-        total_memory_usage -= it->second.memory_size;
+        total_memory_usage = it->second.memory_size > total_memory_usage ?
+            0 : total_memory_usage - it->second.memory_size;
         remove_from_lru(id);
         cache.erase(it);
         return true;

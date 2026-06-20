@@ -221,7 +221,10 @@ namespace diverse
             case AssetType::Texture:
             {
                 if (!texture_loader_ptr)
+                {
+                    registry().set_state(id, AssetState::Failed);
                     return;
+                }
                 auto future = texture_loader_ptr->load(id, *metadata);
                 std::lock_guard lock(async_load_mutex);
                 pending_async_loads[id] = PendingAsyncLoad{ std::move(future) };
@@ -265,7 +268,10 @@ namespace diverse
             registry().set_state(id, AssetState::Failed);
 
         for (const auto& id : completed)
-            pipeline().submit(id, PipelineStage::CpuOptimize);
+        {
+            if (pipeline().get_stage(id) == PipelineStage::Resident)
+                pipeline().submit(id, PipelineStage::CpuOptimize);
+        }
     }
 
     void AssetSystem::register_default_textures()
