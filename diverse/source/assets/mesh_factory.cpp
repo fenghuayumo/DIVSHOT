@@ -1,4 +1,5 @@
 #include "mesh_factory.h"
+#include "asset_id.h"
 #include "core/profiler.h"
 #include "core/ds_log.h"
 
@@ -8,10 +9,22 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 
-
 namespace diverse
 {
-    Mesh* CreateQuad(float x, float y, float width, float height)
+    namespace
+    {
+        std::shared_ptr<MeshAsset> make_mesh(std::vector<uint32_t> indices, std::vector<Vertex> data)
+        {
+            auto mesh = std::make_shared<MeshAsset>();
+            mesh->id = GenerateAssetId();
+            mesh->indices = std::move(indices);
+            mesh->vertices = std::move(data);
+            mesh->calculate_bounding_box();
+            return mesh;
+        }
+    }
+
+    std::shared_ptr<MeshAsset> create_quad(float x, float y, float width, float height)
     {
         DS_PROFILE_FUNCTION();
 
@@ -37,15 +50,15 @@ namespace diverse
             3,
             0,
         };
-        return new Mesh(indices, data);
+        return make_mesh(indices, data);
     }
 
-    Mesh* CreateQuad(const glm::vec2& position, const glm::vec2& size)
+    std::shared_ptr<MeshAsset> create_quad(const glm::vec2& position, const glm::vec2& size)
     {
-        return CreateQuad(position.x, position.y, size.x, size.y);
+        return create_quad(position.x, position.y, size.x, size.y);
     }
 
-    Mesh* CreateQuad()
+    std::shared_ptr<MeshAsset> create_quad()
     {
         DS_PROFILE_FUNCTION();
         std::vector<Vertex> data(4);
@@ -75,10 +88,10 @@ namespace diverse
             0,
         };
 
-        return new Mesh(indices, data);
+        return make_mesh(indices, data);
     }
 
-    Mesh* CreateCube()
+    std::shared_ptr<MeshAsset> create_cube()
     {
         //    v6----- v5
         //   /|      /|
@@ -209,10 +222,10 @@ namespace diverse
             20, 22, 23
         };
 
-        return new Mesh(indices, data);
+        return make_mesh(indices, data);
     }
 
-    Mesh* CreatePyramid()
+    std::shared_ptr<MeshAsset> create_pyramid()
     {
         DS_PROFILE_FUNCTION();
         std::vector<Vertex> data(18);
@@ -316,10 +329,10 @@ namespace diverse
             15, 12, 14
         };
 
-        return new Mesh(indices, data);
+        return make_mesh(indices, data);
     }
 
-    Mesh* CreateSphere(uint32_t xSegments, uint32_t ySegments)
+    std::shared_ptr<MeshAsset> create_sphere(uint32_t xSegments, uint32_t ySegments)
     {
         DS_PROFILE_FUNCTION();
         auto data = std::vector<Vertex>();
@@ -387,10 +400,10 @@ namespace diverse
             }
         }
 
-        return new Mesh(indices, data);
+        return make_mesh(indices, data);
     }
 
-    Mesh* CreatePlane(float width, float height, const glm::vec3& normal)
+    std::shared_ptr<MeshAsset> create_plane(float width, float height, const glm::vec3& normal)
     {
         DS_PROFILE_FUNCTION();
         glm::vec3 vec      = normal * 90.0f;
@@ -418,10 +431,10 @@ namespace diverse
             0, 1, 2,
             2, 3, 0
         };
-        return new Mesh(indices, data);
+        return make_mesh(indices, data);
     }
 
-    Mesh* CreateCapsule(float radius, float midHeight, int radialSegments, int rings)
+    std::shared_ptr<MeshAsset> create_capsule(float radius, float midHeight, int radialSegments, int rings)
         {
             DS_PROFILE_FUNCTION();
             int i, j, prevrow, thisrow, point;
@@ -572,10 +585,10 @@ namespace diverse
                 thisrow = point;
             }
 
-            return new Mesh(indices, data);
+            return make_mesh(indices, data);
         }
 
-    Mesh* CreateCylinder(float bottomRadius, float topRadius, float height, int radialSegments, int rings)
+    std::shared_ptr<MeshAsset> create_cylinder(float bottomRadius, float topRadius, float height, int radialSegments, int rings)
     {
         DS_PROFILE_FUNCTION();
         int i, j, prevrow, thisrow, point = 0;
@@ -712,27 +725,27 @@ namespace diverse
             };
         };
 
-        return new Mesh(indices, data);
+        return make_mesh(indices, data);
     }
 
-    Mesh* CreatePrimative(PrimitiveType type)
+    std::shared_ptr<MeshAsset> create_primitive_mesh(PrimitiveType type)
     {
         switch (type)
         {
         case PrimitiveType::Cube:
-            return CreateCube();
+            return create_cube();
         case PrimitiveType::Plane:
-            return CreatePlane(1.0f, 1.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+            return create_plane(1.0f, 1.0f, glm::vec3(0.0f, 1.0f, 0.0f));
         case PrimitiveType::Quad:
-            return CreateQuad();
+            return create_quad();
         case PrimitiveType::Sphere:
-            return CreateSphere();
+            return create_sphere();
         case PrimitiveType::Pyramid:
-            return CreatePyramid();
+            return create_pyramid();
         case PrimitiveType::Capsule:
-            return CreateCapsule();
+            return create_capsule();
         case PrimitiveType::Cylinder:
-            return CreateCylinder();
+            return create_cylinder();
         //case PrimitiveType::Terrain:
             //return CreateTerrain();
         }

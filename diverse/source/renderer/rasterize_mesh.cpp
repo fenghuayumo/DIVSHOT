@@ -1,6 +1,5 @@
 #include "rasterize_mesh.h"
 #include "defered_renderer.h"
-#include "assets/mesh.h"
 
 namespace diverse
 {

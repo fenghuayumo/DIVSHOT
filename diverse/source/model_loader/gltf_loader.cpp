@@ -3,16 +3,19 @@
 #undef __OPTIMIZE__
 #endif
 
-#include "assets/mesh_model.h"
-#include "assets/mesh.h"
-#include "assets/material.h"
+#include "assets/model_asset.h"
+#include "assets/material_asset.h"
+#include "assets/texture_importer.h"
+#include "assets/asset_system.h"
+#include "model_loader_utils.h"
 #include "animation/skeleton.h"
 #include "animation/animation.h"
 #include "backend/drs_rhi/gpu_texture.h"
 #include "maths/maths_basic_types.h"
 #include "maths/transform.h"
 #include "utility/string_utils.h"
-#include "assets/asset_manager.h"
+#include "utility/file_utils.h"
+#include "assets/asset_metadata.h"
 #include "core/profiler.h"
 #include "core/hash_map.h"
 #define TINYGLTF_IMPLEMENTATION
@@ -267,10 +270,10 @@ namespace diverse
         return value;
     }
 
-    std::vector<SharedPtr<Material>> LoadMaterials(tinygltf::Model& gltfModel,const std::string& basePath)
+    std::vector<std::shared_ptr<MaterialAsset>> LoadMaterials(tinygltf::Model& gltfModel,const std::string& basePath)
     {
         DS_PROFILE_FUNCTION();
-        std::vector<SharedPtr<Material>> loadedMaterials;
+        std::vector<std::shared_ptr<MaterialAsset>> loadedMaterials;
         loadedMaterials.reserve(gltfModel.materials.size());
         bool animated = false;
         if(!gltfModel.skins.empty())
@@ -278,7 +281,7 @@ namespace diverse
             animated = true;
         }
 
-        auto TextureName = [&](int index)
+        auto TextureName = [&](int index) -> AssetHandle<TextureAsset>
         {
             if(index >= 0 && index < static_cast<int>(gltfModel.textures.size()))
             {
@@ -295,11 +298,10 @@ namespace diverse
                         if (Image->width > 0 && Image->height > 0 && !Image->image.empty())
                         {
                             std::vector<u8> pixelData(Image->image.begin(), Image->image.end());
-                            return createSharedPtr<asset::Texture>(
-                                static_cast<uint32_t>(Image->width),
-                                static_cast<uint32_t>(Image->height),
-                                pixelData,
-                                PixelFormat::R8G8B8A8_UNorm);
+                            return import_and_register_texture(image_io::RawImage{
+                                PixelFormat::R8G8B8A8_UNorm,
+                                { static_cast<u32>(Image->width), static_cast<u32>(Image->height) },
+                                std::move(pixelData) });
                         }
 
                         // Fallback: read raw image bytes from bufferView and decode manually.
@@ -337,17 +339,16 @@ namespace diverse
                             {
                                 DS_LOG_WARN("Failed to decode embedded texture: source={}, error={}",
                                     tex.source, stbi_failure_reason());
-                                return SharedPtr<asset::Texture>();
+                                return AssetHandle<TextureAsset>();
                             }
 
                             std::vector<u8> textureData(decoded_data, decoded_data + img_width * img_height * 4);
                             stbi_image_free(decoded_data);
 
-                            return createSharedPtr<asset::Texture>(
-                                static_cast<uint32_t>(img_width),
-                                static_cast<uint32_t>(img_height),
-                                textureData,
-                                PixelFormat::R8G8B8A8_UNorm);
+                            return import_and_register_texture(image_io::RawImage{
+                                PixelFormat::R8G8B8A8_UNorm,
+                                { static_cast<u32>(img_width), static_cast<u32>(img_height) },
+                                std::move(textureData) });
                         }
 
                         DS_LOG_WARN("GLB embedded texture has no image data: source={}", tex.source);
@@ -358,12 +359,11 @@ namespace diverse
                         if (image_path.is_relative())
                             image_path = std::filesystem::path(basePath) / image_path;
                         image_path = tinygltf::resolve_existing_file_path(image_path);
-                        auto texture = ResourceManager<asset::Texture>::get().get_resource(image_path.string());
-                        return texture;
+                        return import_and_register_texture(image_path);
                     }
                 }
             }
-            return SharedPtr<asset::Texture>();
+            return AssetHandle<TextureAsset>();
         };
         auto texture_transform_to_matrix  = [](float r, const glm::vec2 & s, const glm::vec2 & o) -> std::array<f32, 6>
         {
@@ -379,17 +379,17 @@ namespace diverse
 
         for(tinygltf::Material& mat : gltfModel.materials)
         {
-            SharedPtr<Material> pbrMaterial = createSharedPtr<Material>();
-            PBRMataterialTextures textures;
+            auto material = std::make_shared<MaterialAsset>();
+            material->id = GenerateAssetId();
             MaterialProperties properties;
 
             const tinygltf::PbrMetallicRoughness& pbr = mat.pbrMetallicRoughness;
-            textures.albedo                           = TextureName(pbr.baseColorTexture.index);
-            textures.normal                           = TextureName(mat.normalTexture.index);
-            textures.ao                               = TextureName(mat.occlusionTexture.index);
-            textures.emissive                         = TextureName(mat.emissiveTexture.index);
-            textures.metallic                         = TextureName(pbr.metallicRoughnessTexture.index);
-            if (textures.metallic)
+            material->albedo                           = TextureName(pbr.baseColorTexture.index);
+            material->normal                           = TextureName(mat.normalTexture.index);
+            material->ao                               = TextureName(mat.occlusionTexture.index);
+            material->emissive                         = TextureName(mat.emissiveTexture.index);
+            material->metallic                         = TextureName(pbr.metallicRoughnessTexture.index);
+            if (material->metallic.is_valid())
                 properties.work_flow = PBR_WORKFLOW_METALLIC_ROUGHNESS;
             else
                 properties.work_flow = PBR_WORKFLOW_SEPARATE_TEXTURES;
@@ -436,7 +436,7 @@ namespace diverse
                         auto tex = gltfModel.textures[index];
                         auto img_path = tinygltf::resolve_existing_file_path(
                             std::filesystem::path(basePath) / gltfModel.images[tex.source].uri);
-                        textures.albedo = ResourceManager<asset::Texture>::get().get_resource(img_path.string());
+                        material->albedo = import_and_register_texture(img_path);
                         if (tex.extensions.count("KHR_texture_transform"))
                         {
                             auto offset_json = tex.extensions["KHR_texture_transform"].Get("offset");
@@ -458,7 +458,7 @@ namespace diverse
                         auto tex = gltfModel.textures[index];
                         auto img_path = tinygltf::resolve_existing_file_path(
                             std::filesystem::path(basePath) / gltfModel.images[tex.source].uri);
-                        textures.metallic  = ResourceManager<asset::Texture>::get().get_resource(img_path.string());
+                        material->metallic = import_and_register_texture(img_path);
                         if (tex.extensions.count("KHR_texture_transform"))
                         {
                             auto offset_json = tex.extensions["KHR_texture_transform"].Get("offset");
@@ -535,25 +535,26 @@ namespace diverse
                 properties.transmission_weight = static_cast<float>(ext_transmission->second.Get("transmissionFactor").Get<double>());
             }
 
-            pbrMaterial->set_textures(textures);
-            pbrMaterial->set_material_properites(properties);
-            pbrMaterial->set_name(mat.name);
+            material->properties = properties;
+            material->name = mat.name;
+            material->is_valid = true;
 
             if(mat.doubleSided)
-                pbrMaterial->set_render_flag(Material::RenderFlags::TWOSIDED);
+                material->render_flags |= BIT(5);
 
             if(mat.alphaMode != "OPAQUE")
-                pbrMaterial->set_render_flag(Material::RenderFlags::ALPHABLEND);
+                material->render_flags |= BIT(6);
 
-            loadedMaterials.push_back(pbrMaterial);
+            AssetSystem::get_instance().register_cpu_material(material);
+            loadedMaterials.push_back(material);
         }
 
         return loadedMaterials;
     }
 
-    std::vector<Mesh*> LoadMesh(const tinygltf::Model& model,const tinygltf::Mesh& mesh,const maths::Transform& parentTransform)
+    std::vector<std::shared_ptr<MeshAsset>> LoadMesh(const tinygltf::Model& model,const tinygltf::Mesh& mesh,const maths::Transform& parentTransform)
     {
-        std::vector<Mesh*> meshes;
+        std::vector<std::shared_ptr<MeshAsset>> meshes;
 
         for(auto& primitive : mesh.primitives)
         {
@@ -839,14 +840,19 @@ namespace diverse
             if(indices.empty())
                 continue;
 
-            if(!hasNormals)
-                Mesh::generate_normals(vertices.data(), uint32_t(vertices.size()), indices.data(), uint32_t(indices.size()));
-            if(!hasTangents || !hasBitangents)
-                Mesh::generate_tangents_bitangents(vertices.data(), uint32_t(vertices.size()), indices.data(), uint32_t(indices.size()));
+            if(!hasNormals || !hasTangents || !hasBitangents)
+            {
+                MeshAsset helper;
+                helper.vertices = vertices;
+                helper.indices = indices;
+                if(!hasNormals)
+                    helper.generate_normals();
+                if(!hasTangents || !hasBitangents)
+                    helper.generate_tangents_bitangents();
+                vertices = helper.vertices;
+            }
 
-            // Add mesh
-            Mesh* lMesh;
-
+            std::shared_ptr<MeshAsset> mesh_asset;
             if(hasJoints || hasWeights)
             {
                 for(size_t i = 0; i < vertices.size(); i++)
@@ -859,19 +865,20 @@ namespace diverse
                     animVertices[i].Bitangent = vertices[i].Bitangent;
                     animVertices[i].TexCoords = vertices[i].TexCoords;
                 }
-                lMesh = new Mesh(indices, animVertices);
+                mesh_asset = make_mesh_asset(indices, animVertices);
             }
             else
-                lMesh = new Mesh(indices, vertices);
+                mesh_asset = make_mesh_asset(indices, vertices);
 
-            meshes.emplace_back(lMesh);
+            AssetSystem::get_instance().register_cpu_mesh(mesh_asset);
+            meshes.emplace_back(std::move(mesh_asset));
         }
 
         return meshes;
     }
 
     std::mutex mesh_mutex;
-    void LoadNode(MeshModel* mainModel, int nodeIndex, const glm::mat4& parentTransform,const tinygltf::Model& model,const std::vector<SharedPtr<Material>>& materials)
+    void LoadNode(ModelAsset* mainModel, int nodeIndex, const glm::mat4& parentTransform,const tinygltf::Model& model,const std::vector<std::shared_ptr<MaterialAsset>>& materials)
     {
         DS_PROFILE_FUNCTION();
         if(nodeIndex < 0)
@@ -935,19 +942,19 @@ namespace diverse
             for(auto& mesh : meshes)
             {
                 auto subname = model.meshes[node.mesh].name;
-                auto lMesh   = SharedPtr<Mesh>(mesh);
-                lMesh->set_name(subname);
 
                 int materialIndex = model.meshes[node.mesh].primitives[subIndex].material;
+                std::shared_ptr<MaterialAsset> material;
                 if(materialIndex >= 0)
-                    lMesh->set_material(materials[materialIndex]);
+                    material = materials[materialIndex];
                 else
                 {
-                    auto pbrMaterial = createSharedPtr<Material>();
-                    pbrMaterial->set_name(subname.empty() ? std::format("mat_{}", subIndex) : subname);
-                    lMesh->set_material(pbrMaterial);
+                    material = create_default_material();
+                    material->name = subname.empty() ? std::format("mat_{}", subIndex) : subname;
+                    AssetSystem::get_instance().register_cpu_material(material);
                 }
-                mainModel->add_mesh(lMesh);
+                mesh->name = subname;
+                mainModel->add_slot(mesh, material);
                 subIndex++;
             }
         }
@@ -983,7 +990,7 @@ namespace diverse
         return glmMat;
     }
 
-    bool MeshModel::load_gltf(const std::string& path)
+    bool ModelAsset::load_gltf(const std::string& path)
     {
         DS_PROFILE_FUNCTION();
 

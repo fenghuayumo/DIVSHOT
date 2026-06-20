@@ -70,7 +70,7 @@ namespace diverse
 			archive(cereal::make_nvp("max_splats", max_splats));
 			archive(cereal::make_nvp("mip_antialiased", mip_antialiased));
 			if( !filePath.empty())
-				ModelRef = createSharedPtr<GaussianModel>(filePath);
+				ModelRef = GaussianModel::acquire(filePath);
 			else
 				ModelRef = createSharedPtr<GaussianModel>(max_splats); //from trainning image
 			ModelRef->splat_size = splat_size;

@@ -6,7 +6,7 @@
 #include "scene/component/environment.h"
 #include "scene/entity_manager.h"
 #include "scene/scene_graph.h"
-#include "assets/mesh_model.h"
+#include "assets/model_asset.h"
 #include "maths/transform.h"
 #include "utility/string_utils.h"
 #include "core/ds_log.h"
@@ -136,15 +136,15 @@ namespace diverse
             return resolved;
         }
 
-        SharedPtr<MeshModel> load_mesh_model_preserve_origin(
+        std::shared_ptr<ModelAsset> load_mesh_model_preserve_origin(
             const std::string& absolute_path,
-            std::unordered_map<std::string, SharedPtr<MeshModel>>& model_cache)
+            std::unordered_map<std::string, std::shared_ptr<ModelAsset>>& model_cache)
         {
             const auto found = model_cache.find(absolute_path);
             if (found != model_cache.end())
                 return found->second;
 
-            auto model = createSharedPtr<MeshModel>();
+            auto model = std::make_shared<ModelAsset>();
             model->load_model(absolute_path, true);
             model_cache.emplace(absolute_path, model);
             return model;
@@ -220,7 +220,7 @@ namespace diverse
             const json& nodes,
             Entity parent,
             SceneImportMeta& out_meta,
-            std::unordered_map<std::string, SharedPtr<MeshModel>>& model_cache)
+            std::unordered_map<std::string, std::shared_ptr<ModelAsset>>& model_cache)
         {
             if (!nodes.is_array())
                 return;
@@ -342,7 +342,7 @@ namespace diverse
             }
         }
 
-        std::unordered_map<std::string, SharedPtr<MeshModel>> model_cache;
+        std::unordered_map<std::string, std::shared_ptr<ModelAsset>> model_cache;
         if (document.contains("graph"))
             load_graph_recursive(scene, scene_directory, model_paths, document["graph"], {}, out_meta, model_cache);
 

@@ -11,6 +11,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <spdlog/fmt/bundled/format.h>
 #include "assets/embed_asset.h"
+#include "assets/ui_texture.h"
 
 namespace diverse
 {
@@ -1836,7 +1837,7 @@ namespace diverse
             {
                 auto icon_image = get_embed_texture(iconPath);
                 float dpi = Application::get().get_window_dpi();
-                ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(icon_image->gpu_texture)), ImVec2(icon_image->extent[0], icon_image->extent[1]) * dpi);
+                ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(icon_image))), ImVec2(icon_image->extent[0], icon_image->extent[1]) * dpi);
                 ImGui::SameLine();
             }
             if (ImGui::MenuItem(label, keyshort))
@@ -1850,7 +1851,7 @@ namespace diverse
             {
                 auto icon_image = get_embed_texture(iconPath);
                 float dpi = Application::get().get_window_dpi();
-                ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(icon_image->gpu_texture)), ImVec2(icon_image->extent[0], icon_image->extent[1]) * dpi);
+                ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(icon_image))), ImVec2(icon_image->extent[0], icon_image->extent[1]) * dpi);
                 ImGui::SameLine();
             }
             if (ImGui::MenuItem(label, keyshort))
@@ -1864,7 +1865,7 @@ namespace diverse
             {
                 auto icon_image = get_embed_texture(iconPath);
                 float dpi = Application::get().get_window_dpi();
-                ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(icon_image->gpu_texture)), ImVec2(icon_image->extent[0], icon_image->extent[1]) * dpi);
+                ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(icon_image))), ImVec2(icon_image->extent[0], icon_image->extent[1]) * dpi);
                 ImGui::SameLine();
             }
             if (ImGui::BeginMenu(label, enbaled))
@@ -1877,7 +1878,7 @@ namespace diverse
             {
                 auto icon_image = get_embed_texture(iconPath);
                 float dpi = Application::get().get_window_dpi();
-                ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(icon_image->gpu_texture)), ImVec2(icon_image->extent[0], icon_image->extent[1]) * dpi);
+                ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(icon_image))), ImVec2(icon_image->extent[0], icon_image->extent[1]) * dpi);
                 ImGui::SameLine();
             }
             if (ImGui::BeginMenu(label, enbaled))

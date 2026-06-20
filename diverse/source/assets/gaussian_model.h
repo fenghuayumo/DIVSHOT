@@ -1,10 +1,10 @@
 #pragma once
 #include "core/reference.h"
 #include "maths/bounding_box.h"
-#include "assets/asset.h"
 #include "splat_transform_palette.h"
 #include <glm/gtx/quaternion.hpp>
 #include <array>
+#include <string>
 
 #define NORMAL_STATE    0
 #define SELECT_STATE    1
@@ -63,12 +63,18 @@ namespace diverse
     //     glm::vec2 sh0;
     // };
     using PackedVertexColor = glm::uvec2;
-	struct GaussianModel : public Asset
+	struct GaussianModel
 	{
 	public:
         GaussianModel() = default;
 		GaussianModel(int max_splats);
 		GaussianModel(const std::string& filePath);
+
+		bool is_loaded() const { return loaded; }
+		bool is_invalid() const { return invalid; }
+		bool is_gpu_uploaded() const { return gpu_uploaded; }
+
+		static SharedPtr<GaussianModel> acquire(const std::string& path);
 
 		maths::BoundingBox& get_local_bounding_box()  { return local_bounding_box; }
 
@@ -115,9 +121,12 @@ namespace diverse
         auto    num_delete_gaussians() -> u32 { return num_delete; }
         auto    antialiased() -> bool& { return mip_antialiased; }
         void    create_gpu_buffer(rhi::GpuDevice* device, bool compact = false);
-        SET_ASSET_TYPE(AssetType::Splat);
     protected:
         void    update_data();
+    private:
+        bool loaded = false;
+        bool invalid = false;
+        bool gpu_uploaded = false;
     public:
         std::shared_ptr<rhi::GpuBuffer>	gaussians_buf;
         std::shared_ptr<rhi::GpuBuffer>	gaussians_sh_0_buf; //sh0 data, f16 store float data

@@ -3,7 +3,6 @@
 #include "maths/maths_utils.h"
 #include "maths/bounding_box.h"
 #include "engine/file_system.h"
-#include "assets/asset.h"
 #include "core/reference.h"
 #include "maths/transform.h"
 #include <cereal/cereal.hpp>
@@ -20,12 +19,16 @@ namespace diverse
         glm::vec3 position;
         uint32_t color;
     };
-    class PointCloud : public Asset
+    class PointCloud
     {
     public:
         PointCloud(const std::string& file_path);
         PointCloud();
-        SET_ASSET_TYPE(AssetType::PointCloud);
+
+        bool is_loaded() const { return loaded; }
+        bool is_invalid() const { return invalid; }
+        bool is_gpu_uploaded() const { return gpu_uploaded; }
+
     public:
         void    load(const std::string& path);
         bool    load_ply(const std::string& path);
@@ -40,8 +43,12 @@ namespace diverse
         std::string get_file_path() {return file_path;}
     public:
         static bool is_point_cloud_file(const std::string& file_path);
+        static SharedPtr<PointCloud> acquire(const std::string& path);
     protected:
         std::vector<PointCloudVertex> pcd_vertex;
         std::string file_path;
+        bool loaded = false;
+        bool invalid = false;
+        bool gpu_uploaded = false;
     };
 }

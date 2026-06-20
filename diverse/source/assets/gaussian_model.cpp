@@ -9,8 +9,31 @@
 #include "core/ds_log.h"
 #include <tinygsplat/tiny_gsplat.hpp>
 #include "utility/thread_pool.h"
+#include <mutex>
+#include <unordered_map>
 namespace diverse
 {
+	namespace
+	{
+		std::mutex s_gaussian_cache_mutex;
+		std::unordered_map<std::string, SharedPtr<GaussianModel>> s_gaussian_cache;
+	}
+
+	SharedPtr<GaussianModel> GaussianModel::acquire(const std::string& path)
+	{
+		if (path.empty())
+			return nullptr;
+
+		std::lock_guard lock(s_gaussian_cache_mutex);
+		auto it = s_gaussian_cache.find(path);
+		if (it != s_gaussian_cache.end())
+			return it->second;
+
+		auto model = createSharedPtr<GaussianModel>(path);
+		s_gaussian_cache[path] = model;
+		return model;
+	}
+
 	auto sigmoid = [](const float v) {
 		//return 1.0f / (1.0f + exp(-v));
 		if (v > 0) {
@@ -284,7 +307,7 @@ namespace diverse
 				gaussian_state_buf->unmap(device);
 			}
 		}
-		set_flag(AssetFlag::UploadedGpu);
+		gpu_uploaded = true;
 	}
 
 	void GaussianModel::update_data()
@@ -297,8 +320,9 @@ namespace diverse
 			minn = glm::min(minn, pos[i]);
 		}
 		local_bounding_box = maths::BoundingBox(minn,maxx);
-		set_flag(AssetFlag::Loaded);
-		set_flag(AssetFlag::UploadedGpu, false);
+		loaded = true;
+		invalid = false;
+		gpu_uploaded = false;
 		update_state();
 	}
 
@@ -521,14 +545,16 @@ namespace diverse
 		if (!load_ret)
 		{
 			DS_LOG_ERROR("loading gaussian model file {} failed!", filePath);
-			set_flag(AssetFlag::Invalid);
+			invalid = true;
+			loaded = false;
 			return;
 		}
 		}
 		catch (...)
 		{
 			DS_LOG_ERROR("loading gaussian model file {} failed!", filePath);
-			set_flag(AssetFlag::Invalid);
+			invalid = true;
+			loaded = false;
 			return;
 		}
 		auto numSplats = points.size();
@@ -600,8 +626,9 @@ namespace diverse
 			}
 			
 		});
-		set_flag(AssetFlag::Loaded);
-		set_flag(AssetFlag::UploadedGpu, false);
+		loaded = true;
+		invalid = false;
+		gpu_uploaded = false;
 	}
 
 	void GaussianModel::export_to_cpu()

@@ -1,16 +1,14 @@
-#include "assets/mesh_model.h"
-#include "assets/mesh.h"
-#include "assets/material.h"
-#include "engine/file_system.h"
-
-#include "backend/drs_rhi/gpu_texture.h"
+#include "assets/model_asset.h"
+#include "assets/material_asset.h"
+#include "assets/texture_importer.h"
+#include "model_loader_utils.h"
+#include "assets/mesh_geometry_utils.h"
 #include "maths/transform.h"
-#include "engine/application.h"
+#include "engine/file_system.h"
+#include "backend/drs_rhi/gpu_texture.h"
 #include "utility/string_utils.h"
-#include "assets/asset_manager.h"
 #include "core/profiler.h"
 #include <ModelLoaders/OpenFBX/ofbx.h>
-
 #include "utility/thread_pool.h"
 
 const uint32_t MAX_PATH_LENGTH = 260;
@@ -138,86 +136,71 @@ namespace diverse
         return aMesh->getGeometry()->getVertexCount() == 0;
     }
 
-    asset::Texture* LoadTexture(const ofbx::Material* material, ofbx::Texture::TextureType type)
+    AssetHandle<TextureAsset> LoadTexture(const ofbx::Material* material, ofbx::Texture::TextureType type)
     {
         const ofbx::Texture* ofbxTexture = material->getTexture(type);
-        asset::Texture* texture2D = nullptr;
-        if (ofbxTexture)
+        if (!ofbxTexture)
+            return {};
+
+        ofbx::DataView filename = ofbxTexture->getRelativeFileName();
+        if (filename == "")
+            filename = ofbxTexture->getFileName();
+
+        char filePath[MAX_PATH_LENGTH];
+        filename.toString(filePath);
+
+        std::string stringFilepath = std::string(filePath);
+        stringFilepath = m_FBXModelDirectory + "/" + stringutility::back_slashes_2_slashes(stringFilepath);
+
+        if (!FileSystem::file_exists(stringFilepath))
         {
-            std::string stringFilepath;
-            ofbx::DataView filename = ofbxTexture->getRelativeFileName();
-            if (filename == "")
-                filename = ofbxTexture->getFileName();
-
-            char filePath[MAX_PATH_LENGTH];
-            filename.toString(filePath);
-
-            stringFilepath = std::string(filePath);
-            stringFilepath = m_FBXModelDirectory + "/" + stringutility::back_slashes_2_slashes(stringFilepath);
-
-            bool fileFound = false;
-
-            fileFound = FileSystem::file_exists(stringFilepath);
-
-            if (!fileFound)
-            {
-                stringFilepath = stringutility::get_file_name(stringFilepath);
-                stringFilepath = m_FBXModelDirectory + "/" + stringFilepath;
-                fileFound = FileSystem::file_exists(stringFilepath);
-            }
-
-            if (!fileFound)
-            {
-                stringFilepath = stringutility::get_file_name(stringFilepath);
-                stringFilepath = m_FBXModelDirectory + "/textures/" + stringFilepath;
-                fileFound = FileSystem::file_exists(stringFilepath);
-            }
-
-            if (fileFound)
-            {
-                //texture2D = (stringFilepath, stringFilepath);
-                texture2D = createSharedPtr<asset::Texture>(stringFilepath).get();
-            }
+            stringFilepath = stringutility::get_file_name(stringFilepath);
+            stringFilepath = m_FBXModelDirectory + "/" + stringFilepath;
+        }
+        if (!FileSystem::file_exists(stringFilepath))
+        {
+            stringFilepath = stringutility::get_file_name(stringFilepath);
+            stringFilepath = m_FBXModelDirectory + "/textures/" + stringFilepath;
         }
 
-        return texture2D;
+        if (FileSystem::file_exists(stringFilepath))
+            return import_and_register_texture(stringFilepath);
+        return {};
     }
 
-    SharedPtr<Material> LoadMaterial(const ofbx::Material* material, bool animated)
+    std::shared_ptr<MaterialAsset> LoadMaterial(const ofbx::Material* material, bool animated)
     {
-        SharedPtr<Material> pbrMaterial = createSharedPtr<Material>();
+        (void)animated;
+        auto pbrMaterial = std::make_shared<MaterialAsset>();
+        pbrMaterial->id = GenerateAssetId();
+        pbrMaterial->is_valid = true;
 
-        PBRMataterialTextures textures;
         MaterialProperties properties;
-
         properties.base_color_mult = ToLumosVector(material->getDiffuseColor());
         properties.metalness_factor = material->getSpecularColor().r;
 
         float roughness = 1.0f - maths::Sqrt(float(material->getShininess()) / 100.0f);
         properties.roughness_mult = roughness;
 
-        textures.albedo = LoadTexture(material, ofbx::Texture::TextureType::DIFFUSE);
-        textures.normal = LoadTexture(material, ofbx::Texture::TextureType::NORMAL);
-        // textures.metallic = LoadTexture(material, ofbx::Texture::TextureType::REFLECTION);
-        textures.metallic = LoadTexture(material, ofbx::Texture::TextureType::SPECULAR);
-        textures.roughness = LoadTexture(material, ofbx::Texture::TextureType::SHININESS);
-        textures.emissive = LoadTexture(material, ofbx::Texture::TextureType::EMISSIVE);
-        textures.ao = LoadTexture(material, ofbx::Texture::TextureType::AMBIENT);
+        pbrMaterial->albedo = LoadTexture(material, ofbx::Texture::TextureType::DIFFUSE);
+        pbrMaterial->normal = LoadTexture(material, ofbx::Texture::TextureType::NORMAL);
+        pbrMaterial->metallic = LoadTexture(material, ofbx::Texture::TextureType::SPECULAR);
+        pbrMaterial->roughness = LoadTexture(material, ofbx::Texture::TextureType::SHININESS);
+        pbrMaterial->emissive = LoadTexture(material, ofbx::Texture::TextureType::EMISSIVE);
+        pbrMaterial->ao = LoadTexture(material, ofbx::Texture::TextureType::AMBIENT);
 
-        if (!textures.normal)
+        if (!pbrMaterial->normal.is_valid())
             properties.normal_map_factor = 0.0f;
-        if (!textures.metallic)
+        if (!pbrMaterial->metallic.is_valid())
             properties.metallic_map_factor = 0.0f;
-        if (!textures.roughness)
+        if (!pbrMaterial->roughness.is_valid())
             properties.roughness_map_factor = 0.0f;
-        if (!textures.emissive)
+        if (!pbrMaterial->emissive.is_valid())
             properties.emissive_map_factor = 0.0f;
-        if (!textures.ao)
+        if (!pbrMaterial->ao.is_valid())
             properties.ao_map_factor = 0.0f;
 
-        pbrMaterial->set_textures(textures);
-        pbrMaterial->set_material_properites(properties);
-
+        pbrMaterial->properties = properties;
         return pbrMaterial;
     }
 
@@ -248,7 +231,7 @@ namespace diverse
         return transform;
     }
 
-    SharedPtr<Mesh> LoadMesh(const ofbx::Mesh* fbxMesh, int32_t triangleStart, int32_t triangleEnd)
+    std::shared_ptr<MeshAsset> LoadMesh(const ofbx::Mesh* fbxMesh, int32_t triangleStart, int32_t triangleEnd)
     {
         const int32_t firstVertexOffset = triangleStart * 3;
         const int32_t lastVertexOffset = triangleEnd * 3;
@@ -310,19 +293,10 @@ namespace diverse
                 material = fbxMesh->getMaterial(0);
         }
 
-        SharedPtr<Material> pbrMaterial;
-        if (material)
-        {
-            pbrMaterial = LoadMaterial(material, false);
-        }
+        mesh_geometry::generate_tangents_bitangents(tempvertices.data(), uint32_t(vertexCount), indicesArray.data(), uint32_t(indicesArray.size()));
 
-        auto mesh = createSharedPtr<Mesh>(indicesArray, tempvertices);
-        mesh->set_name(fbxMesh->name);
-        if (material)
-            mesh->set_material(pbrMaterial);
-
-        Mesh::generate_tangents_bitangents(tempvertices.data(), uint32_t(vertexCount), indicesArray.data(), uint32_t(indicesArray.size()));
-
+        auto mesh = make_mesh_asset(indicesArray, tempvertices);
+        mesh->name = fbxMesh->name;
         return mesh;
     }
 
@@ -352,12 +326,12 @@ namespace diverse
         return FbxMatrixToLM(node->getGlobalTransform());
     }
 
-    bool MeshModel::load_fbx(const std::string& path)
+    bool ModelAsset::load_fbx(const std::string& path)
     {
         DS_PROFILE_FUNCTION();
         std::string err;
         std::string pathCopy = path;
-        pathCopy = stringutility::back_slashes_2_slashes(pathCopy);
+        stringutility::back_slashes_2_slashes(pathCopy);
         m_FBXModelDirectory = pathCopy.substr(0, pathCopy.find_last_of('/'));
 
         std::string name = m_FBXModelDirectory.substr(m_FBXModelDirectory.find_last_of('/') + 1);
@@ -399,16 +373,9 @@ namespace diverse
         }
 
         int meshCount = scene->getMeshCount();
-        std::vector<const ofbx::Mesh*> meshes;
-        // auto skeleton = ImportSkeleton(scene->getMesh());
-        // loadAnimation(fileName, scene, sceneBone, outRes, orientation);
-        meshes.resize(meshCount);
-        //for (int i = 0; i < meshCount; ++i)
-        std::mutex Mutex;
-        parallel_for<size_t>(0, meshCount, [this, &meshes, scene, &Mutex](size_t i){
+        std::mutex slot_mutex;
+        parallel_for<size_t>(0, meshCount, [this, scene, &slot_mutex](size_t i){
             const ofbx::Mesh* fbxMesh = (const ofbx::Mesh*)scene->getMesh(i);
-
-            meshes[i] = fbxMesh;
 
             const auto geometry = fbxMesh->getGeometry();
             const auto trianglesCount = geometry->getVertexCount() / 3;
@@ -416,16 +383,30 @@ namespace diverse
             if (IsMeshInvalid(fbxMesh))
                 return;
 
+            auto add_loaded_mesh = [&](const std::shared_ptr<MeshAsset>& mesh, int32_t triangle_start) {
+                if (!mesh)
+                    return;
+                std::shared_ptr<MaterialAsset> mat = create_default_material();
+                if (fbxMesh->getMaterialCount() > 0)
+                {
+                    const ofbx::Material* fbx_mat = nullptr;
+                    if (geometry->getMaterials())
+                        fbx_mat = fbxMesh->getMaterial(geometry->getMaterials()[triangle_start]);
+                    else
+                        fbx_mat = fbxMesh->getMaterial(0);
+                    if (fbx_mat)
+                        mat = LoadMaterial(fbx_mat, false);
+                }
+                std::lock_guard<std::mutex> lock(slot_mutex);
+                add_slot(mesh, mat);
+            };
+
             if (fbxMesh->getMaterialCount() < 2 || !geometry->getMaterials())
             {
-                auto mesh  = LoadMesh(fbxMesh, 0, trianglesCount - 1);
-                std::lock_guard<std::mutex> lock(Mutex);
-                this->meshes.push_back(mesh);
+                add_loaded_mesh(LoadMesh(fbxMesh, 0, trianglesCount - 1), 0);
             }
             else
             {
-                // Create mesh for each material
-
                 const auto materials = geometry->getMaterials();
                 int32_t rangeStart = 0;
                 int32_t rangeStartMaterial = materials[rangeStart];
@@ -433,21 +414,15 @@ namespace diverse
                 {
                     if (rangeStartMaterial != materials[triangleIndex])
                     {
-                        auto mesh = LoadMesh(fbxMesh, rangeStart, triangleIndex - 1);
-                        Mutex.try_lock();
-                        this->meshes.push_back(mesh);
-                        Mutex.unlock();
-                        // Start a new range
+                        add_loaded_mesh(LoadMesh(fbxMesh, rangeStart, triangleIndex - 1), rangeStart);
                         rangeStart = triangleIndex;
                         rangeStartMaterial = materials[triangleIndex];
                     }
                 }
-                auto mesh = LoadMesh(fbxMesh, rangeStart, trianglesCount - 1);
-                std::lock_guard<std::mutex> lock(Mutex);
-                this->meshes.push_back(mesh);
+                add_loaded_mesh(LoadMesh(fbxMesh, rangeStart, trianglesCount - 1), rangeStart);
             }
         });
-        return true;
+        return !slots.empty();
     }
 
 }

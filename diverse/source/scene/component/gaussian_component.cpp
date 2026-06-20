@@ -6,8 +6,7 @@ namespace diverse
 {
     GaussianComponent::GaussianComponent(const std::string& filePath)
     {
-        // load_from_library(path);
-        ModelRef =  createSharedPtr<GaussianModel>(filePath);
+        ModelRef = GaussianModel::acquire(filePath);
     }
 
     GaussianComponent::GaussianComponent()

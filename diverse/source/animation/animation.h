@@ -1,6 +1,6 @@
 #pragma once
-
 #include "assets/asset.h"
+#include "core/reference.h"
 #include <ozz/base/memory/unique_ptr.h>
 
 namespace ozz

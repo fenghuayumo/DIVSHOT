@@ -2,11 +2,33 @@
 #include "utility/string_utils.h"
 #include "engine/file_system.h"
 #include "core/profiler.h"
-#include "assets/asset_manager.h"
 #include "backend/drs_rhi/gpu_device.h"
+#include <mutex>
+#include <unordered_map>
 
 namespace diverse
 {
+    namespace
+    {
+        std::mutex s_point_cloud_cache_mutex;
+        std::unordered_map<std::string, SharedPtr<PointCloud>> s_point_cloud_cache;
+    }
+
+    SharedPtr<PointCloud> PointCloud::acquire(const std::string& path)
+    {
+        if (path.empty())
+            return nullptr;
+
+        std::lock_guard lock(s_point_cloud_cache_mutex);
+        auto it = s_point_cloud_cache.find(path);
+        if (it != s_point_cloud_cache.end())
+            return it->second;
+
+        auto cloud = createSharedPtr<PointCloud>(path);
+        s_point_cloud_cache[path] = cloud;
+        return cloud;
+    }
+
     PointCloud::PointCloud(const std::string& filePath)
         :file_path(filePath)
     {
@@ -31,7 +53,7 @@ namespace diverse
             | rhi::BufferUsageFlags::VERTEX_BUFFER
             | rhi::BufferUsageFlags::TRANSFER_DST);
         vertex_buffer = device->create_buffer(vertex_desc, "point_vert_buf", (u8*)pcd_vertex.data());
-        set_flag(AssetFlag::UploadedGpu);
+        gpu_uploaded = true;
     }
 
     void PointCloud::reset_center()
@@ -79,12 +101,14 @@ namespace diverse
             DS_LOG_ERROR("Unsupported File Type : {0}", fileExtension);
         if (!ret)
         {
-            set_flag(AssetFlag::Invalid);
+            invalid = true;
+            loaded = false;
             return;
         }
         reset_center();
-        set_flag(AssetFlag::Loaded);
-        set_flag(AssetFlag::UploadedGpu, false);
+        loaded = true;
+        invalid = false;
+        gpu_uploaded = false;
         DS_LOG_INFO("Loaded PointCloud - {0}", path);
     }
 }

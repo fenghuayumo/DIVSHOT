@@ -1,7 +1,8 @@
 #pragma once
 
 #include "editor_panel.h"
-#include <assets/asset_manager.h>
+#include <assets/ui_texture.h>
+#include <assets/cpu_assets.h>
 #include <core/string.h>
 #include <core/reference.h>
 #if __has_include(<filesystem>)
@@ -42,7 +43,7 @@ namespace diverse
         bool IsRenaming = false;
 
         String8 Path;
-        SharedPtr<asset::Texture> Thumbnail = nullptr;
+        std::shared_ptr<TextureAsset> Thumbnail = nullptr;
         FileType Type;
         uint64_t FileSize;
         String8 FileSizeString;
@@ -69,7 +70,6 @@ namespace diverse
         ResourcePanel(bool active = false);
         ~ResourcePanel()
         {
-            texture_library.destroy();
             ArenaRelease(arena);
         }
 
@@ -97,7 +97,6 @@ namespace diverse
             next_directory.reset();
             previous_directory.reset();
             bread_crumb_data.clear();
-            texture_library.destroy();
         }
 
         int get_parsed_asset_id(String8 extension)
@@ -182,19 +181,17 @@ namespace diverse
 
         std::unordered_map<String8, SharedPtr<DirectoryInformation>, String8Hash, cmp_str> directories;
         std::vector<SharedPtr<DirectoryInformation>> bread_crumb_data;
-        SharedPtr<asset::Texture> folder_icon;
-        SharedPtr<asset::Texture> file_icon;
-        SharedPtr<asset::Texture> archive_icon;
-        SharedPtr<asset::Texture> video_icon;
-        SharedPtr<asset::Texture> audio_icon;
-        SharedPtr<asset::Texture> model_icon;
-        SharedPtr<asset::Texture> font_icon;
-        SharedPtr<asset::Texture> splat_icon;
-        SharedPtr<asset::Texture> unknown_icon;
+        std::shared_ptr<TextureAsset> folder_icon;
+        std::shared_ptr<TextureAsset> file_icon;
+        std::shared_ptr<TextureAsset> archive_icon;
+        std::shared_ptr<TextureAsset> video_icon;
+        std::shared_ptr<TextureAsset> audio_icon;
+        std::shared_ptr<TextureAsset> model_icon;
+        std::shared_ptr<TextureAsset> font_icon;
+        std::shared_ptr<TextureAsset> splat_icon;
+        std::shared_ptr<TextureAsset> unknown_icon;
 
         SharedPtr<DirectoryInformation> current_selected;
-
-        ResourceManager<asset::Texture> texture_library;
 
         String8 copied_path;
         bool cut_file = false;

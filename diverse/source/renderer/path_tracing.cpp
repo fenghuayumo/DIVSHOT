@@ -2,7 +2,6 @@
 #include "drs_rg/simple_pass.h"
 #include <optional>
 #include <tuple>
-#include "assets/texture.h"
 #include "drs_rg/image_op.h"
 #include "sky_pass.h"
 

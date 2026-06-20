@@ -30,7 +30,7 @@ namespace diverse
 			std::string filePath;
 			archive(cereal::make_nvp("FilePath", filePath), cereal::make_nvp("point_size", point_size));
 			if( !filePath.empty())
-				ModelRef = createSharedPtr<PointCloud>(filePath);
+				ModelRef = PointCloud::acquire(filePath);
 		}
     };
 }

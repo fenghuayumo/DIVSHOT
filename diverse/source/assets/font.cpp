@@ -1,4 +1,5 @@
 #include "font.h"
+#include "ui_texture.h"
 #include "msdf_data.h"
 #include "engine/file_system.h"
 #include "backend/drs_rhi/gpu_buffer.h"
@@ -129,17 +130,17 @@ namespace diverse
         stream.write((char*)pixels, header.Width * header.Height * sizeof(float) * 4);
     }
 
-    static SharedPtr<asset::Texture> CreateCachedAtlas(AtlasHeader header, void* pixels)
+    static std::shared_ptr<TextureAsset> CreateCachedAtlas(AtlasHeader header, void* pixels)
     {
         DS_PROFILE_FUNCTION();
         std::vector<u8> data(header.Width * header.Height * 4 * sizeof(float));
         memcpy(data.data(), pixels, data.size());
-        asset::RawImage img = {PixelFormat::R32G32B32A32_Float , {header.Width, header.Height}, data };
-        return createSharedPtr<asset::Texture>(img);
+        image_io::RawImage img = { PixelFormat::R32G32B32A32_Float, { header.Width, header.Height }, std::move(data) };
+        return load_ui_texture_from_raw(img);
     }
 
     template <typename T, typename S, int N, GeneratorFunction<S, N> GEN_FN>
-    static SharedPtr<asset::Texture> CreateAndCacheAtlas(const std::string& fontName, float fontSize, const std::vector<GlyphGeometry>& glyphs, const FontGeometry& fontGeometry, const Configuration& config)
+    static std::shared_ptr<TextureAsset> CreateAndCacheAtlas(const std::string& fontName, float fontSize, const std::vector<GlyphGeometry>& glyphs, const FontGeometry& fontGeometry, const Configuration& config)
     {
         DS_PROFILE_FUNCTION();
         ImmediateAtlasGenerator<S, N, GEN_FN, BitmapAtlasStorage<T, N>> generator(config.width, config.height);
@@ -409,7 +410,7 @@ namespace diverse
         else
         {
             bool floatingPointFormat = true;
-            SharedPtr<asset::Texture> texture;
+            std::shared_ptr<TextureAsset> texture;
             switch (config.imageType)
             {
             case ImageType::MSDF:

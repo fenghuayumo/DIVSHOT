@@ -51,6 +51,7 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <cereal/version.hpp>
 #include <scene/component/mesh_model_component.h>
+#include <assets/model_asset.h>
 #include <scene/component/gaussian_component.h>
 #include <scene/component/gaussian_crop.h>
 #include <scene/component/point_cloud_component.h>
@@ -459,7 +460,7 @@ namespace diverse
     bool Editor::is_gaussian_file(const std::string& filePath)
     {
         DS_PROFILE_FUNCTION();
-        return MeshModel::is_gaussian_file(filePath);
+        return ModelAsset::is_gaussian_file(filePath);
     }
 
     bool Editor::is_image_file(const std::string& filePath)
@@ -502,7 +503,7 @@ namespace diverse
 
     bool Editor::is_mesh_model_file(const std::string& filePath)
     {
-        return MeshModel::is_mesh_model_file(filePath);
+        return ModelAsset::is_mesh_model_file(filePath);
     }
 
     bool Editor::is_text_file(const std::string& filePath)
@@ -605,7 +606,7 @@ namespace diverse
         return U8CStr2CStr(ICON_MDI_FILE);
     }
 
-    std::shared_ptr<asset::Texture> Editor::get_current_train_view_image()
+    std::shared_ptr<TextureAsset> Editor::get_current_train_view_image()
     {
         auto  image_panel = dynamic_cast<Img2DDataSetPanel*>(image_2d_panel.get());
         if (image_panel)
@@ -615,7 +616,7 @@ namespace diverse
         return nullptr;
     }
 
-    std::shared_ptr<asset::Texture> Editor::get_hovered_train_view()
+    std::shared_ptr<TextureAsset> Editor::get_hovered_train_view()
     {
         auto  image_panel = dynamic_cast<Img2DDataSetPanel*>(image_2d_panel.get());
         if (image_panel)
@@ -993,10 +994,13 @@ namespace diverse
             if( !Entity(entity,get_current_scene()).active() ) continue;
             const auto& [model, trans] = mesh_group.get<MeshModelComponent, maths::Transform>(entity);
             auto& worldTransform = trans.get_world_matrix();
-            const auto& meshes = model.ModelRef->get_meshes();
-            for (auto mesh : meshes)
+            const auto& slots = model.ModelRef->get_slots();
+            for (const auto& slot : slots)
             {
-                auto bbCopy = mesh->get_bounding_box().transformed(worldTransform);
+                auto mesh = slot.mesh.get();
+                if (!mesh)
+                    continue;
+                auto bbCopy = mesh->bounding_box.transformed(worldTransform);
                 float distance;
                 ray.intersects(bbCopy, distance);
 
@@ -1202,20 +1206,31 @@ namespace diverse
                         DebugRenderer::debug_draw(rect_light, *transform, glm::vec4(glm::vec3(rect_light->get_radiance()), 0.2f));
                     }
 
-                    #define drawdebugBox(T)                                                 \
+                    #define drawdebugBoxMesh()                                                  \
                     {                                                                       \
-                        auto model = registry.try_get<T>(select_ent);                      \
-                        if (transform && model && model->ModelRef && model->ModelRef->is_flag_set(AssetFlag::Loaded)) \
+                        auto model = registry.try_get<MeshModelComponent>(select_ent);      \
+                        if (transform && model && model->ModelRef && model->ModelRef->is_loaded()) \
                         {                                                                   \
                             auto& worldTransform = transform->get_world_matrix();           \
                             auto bbCopy = model->ModelRef->get_world_bounding_box(worldTransform); \
                             DebugRenderer::debug_draw(bbCopy, selectedColour, true);         \
                         }                                                                   \
                     }
-                    drawdebugBox(GaussianComponent);
-                    drawdebugBox(MeshModelComponent);
-                    drawdebugBox(PointCloudComponent);
-                    #undef drawdebugBox
+                    #define drawdebugBoxLegacy(T)                                             \
+                    {                                                                       \
+                        auto model = registry.try_get<T>(select_ent);                      \
+                        if (transform && model && model->ModelRef && model->ModelRef->is_loaded()) \
+                        {                                                                   \
+                            auto& worldTransform = transform->get_world_matrix();           \
+                            auto bbCopy = model->ModelRef->get_world_bounding_box(worldTransform); \
+                            DebugRenderer::debug_draw(bbCopy, selectedColour, true);         \
+                        }                                                                   \
+                    }
+                    drawdebugBoxLegacy(GaussianComponent);
+                    drawdebugBoxMesh();
+                    drawdebugBoxLegacy(PointCloudComponent);
+                    #undef drawdebugBoxMesh
+                    #undef drawdebugBoxLegacy
                 }
         }
     }

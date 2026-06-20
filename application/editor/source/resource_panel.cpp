@@ -14,6 +14,7 @@
 #include <imgui/imgui_renderer.h>
 
 #include "embed_resources.h"
+#include <assets/asset_system.h>
 
 #ifdef DS_PLATFORM_WINDOWS
 #include <Windows.h>
@@ -360,7 +361,6 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION();
 
-        texture_library.update((float)Engine::get().get_time_step().get_elapsed_seconds());
         if(ImGui::Begin(name.c_str(), &is_active))
         {
             FileIndex        = 0;
@@ -825,7 +825,7 @@ namespace diverse
                     else if(!texture_created)
                     {
                         texture_created = true;
-                        CurrentEnty->Thumbnail = texture_library.get_resource(ToStdString(CurrentEnty->Path));
+                        CurrentEnty->Thumbnail = load_ui_texture(ToStdString(CurrentEnty->Path));
                         textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : file_icon;
                     }
                     else
@@ -847,7 +847,7 @@ namespace diverse
                         if(std::filesystem::exists(std::filesystem::path(stdPath)))
                         {
                             texture_created = true;
-                            CurrentEnty->Thumbnail = texture_library.get_resource(stdPath);
+                            CurrentEnty->Thumbnail = load_ui_texture(stdPath);
                             textureId              = CurrentEnty->Thumbnail ? CurrentEnty->Thumbnail : file_icon;
                         }
                         else
@@ -1022,7 +1022,7 @@ namespace diverse
 
             if(ImGui::IsItemHovered() && current_dir->Children[dirIndex]->Thumbnail)
             {
-                ImGuiHelper::Tooltip(current_dir->Children[dirIndex]->Thumbnail->gpu_texture, { 512, 512 }, (const char*)(current_dir->Children[dirIndex]->Path.str));
+                ImGuiHelper::Tooltip(get_ui_gpu_texture(current_dir->Children[dirIndex]->Thumbnail), { 512, 512 }, (const char*)(current_dir->Children[dirIndex]->Path.str));
             }
             else
                 ImGuiHelper::Tooltip((const char*)(current_dir->Children[dirIndex]->Path.str));
@@ -1048,16 +1048,16 @@ namespace diverse
 
             ImGui::SetCursorPos({ cursorPos.x + padding, cursorPos.y + padding });
             ImGui::SetNextItemAllowOverlap();
-            ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(texture_library.get_default_resource("white")->gpu_texture)), {backgroundThumbnailSize.x - padding * 2.0f, backgroundThumbnailSize.y - padding * 2.0f}, {0, 0}, {1, 1}, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg) + ImVec4(0.04f, 0.04f, 0.04f, 0.04f));
+            const auto default_white_gpu = get_ui_gpu_texture(AssetSystem::get_instance().get_default_white_texture());
+            ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(default_white_gpu)), {backgroundThumbnailSize.x - padding * 2.0f, backgroundThumbnailSize.y - padding * 2.0f}, {0, 0}, {1, 1}, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg) + ImVec4(0.04f, 0.04f, 0.04f, 0.04f));
 
             ImGui::SetCursorPos({ cursorPos.x + thumbnailPadding * 0.75f, cursorPos.y + thumbnailPadding });
             ImGui::SetNextItemAllowOverlap();
-            // ImGui::Image(reinterpret_cast<ImTextureID>(textureId), { thumbnailSize, thumbnailSize }, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f));
-            ImGuiHelper::Image(textureId->gpu_texture, { thumbnailSize, thumbnailSize });
+            ImGuiHelper::Image(get_ui_gpu_texture(textureId), { thumbnailSize, thumbnailSize });
 
             const ImVec2 typeColorFrameSize = { scaledThumbnailSizeX, scaledThumbnailSizeX * 0.03f };
             ImGui::SetCursorPosX(cursorPos.x + padding);
-            ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(texture_library.get_default_resource("white")->gpu_texture)), typeColorFrameSize, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f), !CurrentEnty->IsFile ? ImVec4(0.0f, 0.0f, 0.0f, 0.0f) : CurrentEnty->FileTypeColour);
+            ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(default_white_gpu)), typeColorFrameSize, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f), !CurrentEnty->IsFile ? ImVec4(0.0f, 0.0f, 0.0f, 0.0f) : CurrentEnty->FileTypeColour);
 
             if (current_selected && current_selected->IsRenaming && highlight)
             {
@@ -1193,8 +1193,6 @@ namespace diverse
 
     void ResourcePanel::refresh()
     {
-        texture_library.destroy();
-
         Arena* temp         = ArenaAlloc(256);
         String8 currentPath = PushStr8Copy(temp, current_dir->Path);
 

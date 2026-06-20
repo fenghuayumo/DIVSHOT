@@ -36,6 +36,7 @@
 #include <stb/image_utils.h>
 #include <backend/drs_rhi/gpu_device.h>
 #include "embed_resources.h"
+#include <assets/ui_texture.h>
 
 namespace diverse
 {
@@ -199,7 +200,7 @@ namespace diverse
             auto imge_pos_Y = sceneViewPosition.y + sceneViewSize.y * 0.7;
             auto imge_pos_X = sceneViewPosition.x + sceneViewSize.x * 0.7;
             ImGui::SetCursorPos(ImVec2(imge_pos_X, imge_pos_Y));
-            auto train_view_tex = editor->get_current_train_view_image()->gpu_texture;
+            auto train_view_tex = get_ui_gpu_texture(editor->get_current_train_view_image());
             ImGuiHelper::Image(train_view_tex, glm::vec2(sceneViewSize.x, sceneViewSize.y) * 0.3, false);
         }
         draw_splat_edit_toolbox(sceneViewPosition,sceneViewSize);
@@ -279,7 +280,7 @@ namespace diverse
         {
             ImGuiHelper::ScopedStyle scopedStyle(ImGuiStyleVar_WindowPadding, ImVec2(4, 4));
             ImGui::BeginTooltip();
-            ImGui::TextUnformatted(editor->get_hovered_train_view()->file_path.c_str());
+            ImGui::TextUnformatted(editor->get_hovered_train_view()->source_path.string().c_str());
             ImGui::EndTooltip();
         }
 
@@ -706,7 +707,7 @@ namespace diverse
                     ImGui::PushStyleColor(ImGuiCol_Button, ImGuiHelper::GetSelectedColour());
 
                 auto picker_icon = get_embed_texture(resource_path + "svg_icon/select-picker.png");
-                if(ImGui::ImageButton("picker", Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(picker_icon->gpu_texture), icon_btn_size * dpi))
+                if(ImGui::ImageButton("picker", Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(picker_icon)), icon_btn_size * dpi))
                     splatEdit.set_edit_type(selected ? GaussianEdit::EditType::None : GaussianEdit::EditType::Rect);
                 if (selected)
                     ImGui::PopStyleColor();
@@ -719,7 +720,7 @@ namespace diverse
                 if (selected)
                     ImGui::PushStyleColor(ImGuiCol_Button, ImGuiHelper::GetSelectedColour());
                 auto brush_icon = get_embed_texture(resource_path + "svg_icon/select-brush.png");
-                if(ImGui::ImageButton("brush_select",Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(brush_icon->gpu_texture), icon_btn_size * dpi))
+                if(ImGui::ImageButton("brush_select",Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(brush_icon)), icon_btn_size * dpi))
                     splatEdit.set_edit_type(selected ? GaussianEdit::EditType::None : GaussianEdit::EditType::Brush);
                 if (selected)
                     ImGui::PopStyleColor();
@@ -731,7 +732,7 @@ namespace diverse
                     ImGui::PushStyleColor(ImGuiCol_Button, ImGuiHelper::GetSelectedColour());
 
                 auto poly_icon = get_embed_texture(resource_path + "svg_icon/select-poly.png");
-                if(ImGui::ImageButton("poly_select",Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(poly_icon->gpu_texture), icon_btn_size * dpi))
+                if(ImGui::ImageButton("poly_select",Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(poly_icon)), icon_btn_size * dpi))
                     splatEdit.set_edit_type(selected ? GaussianEdit::EditType::None : GaussianEdit::EditType::Polygon);
                 if (selected)
                     ImGui::PopStyleColor();
@@ -743,7 +744,7 @@ namespace diverse
                     ImGui::PushStyleColor(ImGuiCol_Button, ImGuiHelper::GetSelectedColour());
 
                 auto lasso_icon = get_embed_texture(resource_path + "svg_icon/select-lasso.png");
-                if(ImGui::ImageButton("lasso_select",Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(lasso_icon->gpu_texture), icon_btn_size * dpi))
+                if(ImGui::ImageButton("lasso_select",Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(lasso_icon)), icon_btn_size * dpi))
                     splatEdit.set_edit_type(selected ? GaussianEdit::EditType::None : GaussianEdit::EditType::Lasso);
                 if (selected)
                     ImGui::PopStyleColor();
@@ -770,7 +771,7 @@ namespace diverse
                     ImGui::PushStyleColor(ImGuiCol_Button, ImGuiHelper::GetSelectedColour());
 
                 auto sphere_icon = get_embed_texture(resource_path + "svg_icon/select-sphere.png");
-                if(ImGui::ImageButton("sphere_select", Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(sphere_icon->gpu_texture), icon_btn_size * dpi))
+                if(ImGui::ImageButton("sphere_select", Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(get_ui_gpu_texture(sphere_icon)), icon_btn_size * dpi))
                 {
                     splatEdit.set_edit_type(selected ? GaussianEdit::EditType::None : GaussianEdit::EditType::Sphere);
                     click_box_or_sphere = true;
@@ -916,8 +917,8 @@ namespace diverse
             if (!Entity(ent, current_scene).active())
                 continue;
             const auto& [model, trans] = mesh_group.get<MeshModelComponent, maths::Transform>(ent);
-            if(model.ModelRef->get_file_path().empty()) continue;
-            if (!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu) && !model.ModelRef->is_flag_set(AssetFlag::Invalid))
+            if(model.ModelRef->source_path.empty()) continue;
+            if (!model.ModelRef->is_loaded() && !model.ModelRef->is_invalid())
             {
                 auto pos = ImVec2(sceneViewPosition.x + sceneViewSize.x * 0.5, sceneViewPosition.y + sceneViewSize.y * 0.5);
                 const auto fg_col = ImVec4(0.455f, 0.198f, 0.301f, 0.86f);
@@ -932,7 +933,7 @@ namespace diverse
                 continue;
             const auto& [model, trans] = point_group.get<PointCloudComponent, maths::Transform>(ent);
             if(model.ModelRef->get_file_path().empty()) continue;
-            if (!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu) && !model.ModelRef->is_flag_set(AssetFlag::Invalid))
+            if (!model.ModelRef->is_gpu_uploaded() && !model.ModelRef->is_invalid())
             {
                 auto pos = ImVec2(sceneViewPosition.x + sceneViewSize.x * 0.5, sceneViewPosition.y + sceneViewSize.y * 0.5);
                 const auto fg_col = ImVec4(0.455f, 0.198f, 0.301f, 0.86f);
@@ -947,7 +948,7 @@ namespace diverse
                 continue;
             const auto& [model, trans] = group.get<GaussianComponent, maths::Transform>(gs_ent);
             if (model.ModelRef->get_file_path().empty()) continue;
-            if (!model.ModelRef->is_flag_set(AssetFlag::UploadedGpu) && !model.ModelRef->is_flag_set(AssetFlag::Invalid))
+            if (!model.ModelRef->is_gpu_uploaded() && !model.ModelRef->is_invalid())
             {
                 auto pos = ImVec2(sceneViewPosition.x + sceneViewSize.x * 0.5, sceneViewPosition.y + sceneViewSize.y * 0.5);
                 const auto fg_col = ImVec4(0.455f, 0.198f, 0.301f, 0.86f);
@@ -1347,8 +1348,8 @@ namespace diverse
                     auto& registry = editor->get_current_scene()->get_registry();
                     auto model = registry.try_get<MeshModelComponent>(entity);
                     //cached texture
-                    if (model)
-                        model->ModelRef->get_uv2pos_map(ImagePaint::get().get_paint_texture());
+                    // TODO: restore UV paint after ModelAsset::get_uv2pos_map migration
+                    DS_UNUSED(model);
                 }
                 edit_type = selected ? ImageEditOpType::None : ImageEditOpType::Paint;
             }
@@ -1411,22 +1412,13 @@ namespace diverse
                 {
                     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
                     {
-                        auto brush_buffer = brush_tool.brush_buffer();
-                        auto uv2pos = model->ModelRef->get_uv2pos_map(paint_texture);
-                        uv_map_intersect(
-                            editor->get_renderer(),
-                            brush_buffer, 
-                            uv2pos->gpu_texture,
-                            pick_buffer, 
-                            transform->get_world_matrix(),
-                            glm::uvec4(sceneViewSize.x, sceneViewSize.y, paint_tex_dim));
-                        std::vector<int> paint_points(paint_tex_dim.x * paint_tex_dim.y, -1);
-                        auto device = get_global_device();
-                        auto data = pick_buffer->map(device);
-                        memcpy(paint_points.data(),data, paint_points.size() * sizeof(int));
-                        pick_buffer->unmap(device);
-                        ImagePaintColorAdjustment paint_state = {glm::vec3(1,0,0),1.0f};
-                        UndoRedoSystem::get().add(std::make_shared<ImagePaintOperation>(paint_texture, paint_state, paint_points));
+                        // TODO: restore 3D texture paint after ModelAsset::get_uv2pos_map migration
+                        DS_UNUSED(brush_tool);
+                        DS_UNUSED(paint_texture);
+                        DS_UNUSED(pick_buffer);
+                        DS_UNUSED(transform);
+                        DS_UNUSED(sceneViewSize);
+                        DS_UNUSED(paint_tex_dim);
                     }
                 }
 

@@ -1,192 +1,151 @@
-#include "assets/mesh_model.h"
-#include "assets/material.h"
+#include "assets/model_asset.h"
+#include "assets/material_asset.h"
+#include "model_loader/model_loader_utils.h"
 #include "maths/transform.h"
-#include "backend/drs_rhi/gpu_texture.h"
 #include "utility/string_utils.h"
-#include "engine/application.h"
-#include "assets/asset_manager.h"
 #include "core/profiler.h"
+#include "core/ds_log.h"
 #include "utility/thread_pool.h"
 #include <algorithm>
-#include <future>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <ModelLoaders/tinyobjloader/tiny_obj_loader.h>
 
 namespace diverse
 {
-    SharedPtr<asset::Texture> load_material_textures(const std::string& typeName, const std::string& name, const std::string& directory)
+    namespace
     {
-        std::string filePath = directory + name;
-        filePath             = stringutility::back_slashes_2_slashes(filePath);
-        auto texture = ResourceManager<asset::Texture>::get().get_resource(filePath);
-        return texture;
+        AssetHandle<TextureAsset> load_texture_handle(const std::string& name, const std::string& directory)
+        {
+            std::string file_path = directory + name;
+            stringutility::back_slashes_2_slashes(file_path);
+            return import_and_register_texture(file_path);
+        }
     }
 
-    bool MeshModel::load_obj(const std::string& path)
+    bool ModelAsset::load_obj(const std::string& path)
     {
         DS_PROFILE_FUNCTION();
-        std::string resolvedPath = path;
+        std::string resolved_path = path;
+        stringutility::back_slashes_2_slashes(resolved_path);
+        const auto directory = stringutility::get_file_location(resolved_path);
+
         tinyobj::attrib_t attrib;
         std::string error;
         std::string warn;
         std::vector<tinyobj::shape_t> shapes;
         std::vector<tinyobj::material_t> materials;
 
-        resolvedPath = stringutility::back_slashes_2_slashes(resolvedPath);
-        const auto directory  = stringutility::get_file_location(resolvedPath);
-
-        std::string name = stringutility::get_file_name(resolvedPath);
-
-        bool ok = tinyobj::LoadObj(&attrib, &shapes, &materials,&warn, &error, resolvedPath.c_str(), directory.c_str(),true);
-
-        if(!ok)
+        bool ok = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, resolved_path.c_str(), directory.c_str(), true);
+        if (!ok)
         {
             DS_LOG_CRITICAL("{}", error);
             return false;
         }
-        if(!warn.empty())
+        if (!warn.empty())
             DS_LOG_WARN("{}", warn);
 
-        meshes.resize(shapes.size());
-        parallel_for<size_t>(0, shapes.size(), [&](uint32_t shape_idx){
-        //for(auto shape_idx = 0; shape_idx < shapes.size(); shape_idx++) {
+        slots.resize(shapes.size());
+        parallel_for<size_t>(0, shapes.size(), [&](uint32_t shape_idx) {
             auto& shape = shapes[shape_idx];
-            uint32_t uniqueVertexCount = 0;
-            const uint32_t numIndices  = static_cast<uint32_t>(shape.mesh.indices.size());
-            const uint32_t numVertices = numIndices; // attrib.vertices.size();// numIndices / 3.0f;
-            std::vector<Vertex> vertices(numVertices);
+            uint32_t unique_vertex_count = 0;
+            const uint32_t num_indices = static_cast<uint32_t>(shape.mesh.indices.size());
+            std::vector<Vertex> vertices(num_indices);
             std::vector<uint32_t> indices;
-            indices.reserve(numIndices);
+            indices.reserve(num_indices);
+            std::unordered_map<Vertex, uint32_t> unique_vertices;
 
-            std::unordered_map<Vertex, uint32_t> uniqueVertices;
-            const int materialId = !shape.mesh.material_ids.empty() ? shape.mesh.material_ids[0] : -1;
-            const tinyobj::material_t* material = (materialId >= 0 && materialId < static_cast<int>(materials.size())) ? &materials[materialId] : nullptr;
+            const int material_id = !shape.mesh.material_ids.empty() ? shape.mesh.material_ids[0] : -1;
+            const tinyobj::material_t* material = (material_id >= 0 && material_id < static_cast<int>(materials.size()))
+                ? &materials[material_id]
+                : nullptr;
 
-            maths::BoundingBox boundingBox;
-            for(uint32_t i = 0; i < shape.mesh.indices.size(); i++)
+            for (uint32_t i = 0; i < shape.mesh.indices.size(); i++)
             {
                 auto& index = shape.mesh.indices[i];
                 Vertex vertex;
 
-                if(index.vertex_index < 0 || (3 * index.vertex_index + 2) >= static_cast<int>(attrib.vertices.size()))
+                if (index.vertex_index < 0 || (3 * index.vertex_index + 2) >= static_cast<int>(attrib.vertices.size()))
                 {
-                    // Skip the rest of this triangle (3 consecutive face-vertices form a triangle)
                     i += 2 - (i % 3);
                     continue;
                 }
 
-                if(index.texcoord_index >= 0 && (2 * index.texcoord_index + 1) < static_cast<int>(attrib.texcoords.size()))
+                if (index.texcoord_index >= 0 && (2 * index.texcoord_index + 1) < static_cast<int>(attrib.texcoords.size()))
                 {
-                    vertex.TexCoords = (glm::vec2(
+                    vertex.TexCoords = glm::vec2(
                         attrib.texcoords[2 * index.texcoord_index + 0],
-                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1]));
+                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1]);
                 }
-                else
-                {
-                    vertex.TexCoords = glm::vec2(0.0f, 0.0f);
-                }
-                vertex.Position = (glm::vec3(
+
+                vertex.Position = glm::vec3(
                     attrib.vertices[3 * index.vertex_index + 0],
                     attrib.vertices[3 * index.vertex_index + 1],
-                    attrib.vertices[3 * index.vertex_index + 2]));
+                    attrib.vertices[3 * index.vertex_index + 2]);
 
-                boundingBox.merge(vertex.Position);
-
-                if(index.normal_index >= 0 && (3 * index.normal_index + 2) < static_cast<int>(attrib.normals.size()))
+                if (index.normal_index >= 0 && (3 * index.normal_index + 2) < static_cast<int>(attrib.normals.size()))
                 {
-                    vertex.Normal = (glm::vec3(
+                    vertex.Normal = glm::vec3(
                         attrib.normals[3 * index.normal_index + 0],
                         attrib.normals[3 * index.normal_index + 1],
-                        attrib.normals[3 * index.normal_index + 2]));
+                        attrib.normals[3 * index.normal_index + 2]);
                 }
 
-                glm::vec4 colour = glm::vec4(0.0f);
+                if (material)
+                    vertex.Colours = glm::vec4(material->diffuse[0], material->diffuse[1], material->diffuse[2], 1.0f);
 
-                if(material)
+                if (unique_vertices.count(vertex) == 0)
                 {
-                    colour = glm::vec4(material->diffuse[0], material->diffuse[1], material->diffuse[2], 1.0f);
+                    unique_vertices[vertex] = unique_vertex_count;
+                    vertices[unique_vertex_count] = vertex;
+                    unique_vertex_count++;
                 }
-
-                vertex.Colours = colour;
-
-                if(uniqueVertices.count(vertex) == 0)
-                {
-                    uniqueVertices[vertex] = uniqueVertexCount;
-                    vertices[uniqueVertexCount]  = vertex;
-                    uniqueVertexCount++;
-                }
-
-                indices.push_back(uniqueVertices[vertex]);
+                indices.push_back(unique_vertices[vertex]);
             }
-            vertices.resize(uniqueVertexCount);
-            if(vertices.empty() || indices.empty())
+
+            vertices.resize(unique_vertex_count);
+            if (vertices.empty() || indices.empty())
                 return;
 
-            if(attrib.normals.empty())
-               Mesh::generate_normals(vertices.data(), uniqueVertexCount, indices.data(), uint32_t(indices.size()));
-           
-            SharedPtr<Material> pbrMaterial = createSharedPtr<Material>();
+            auto mesh = std::make_shared<MeshAsset>();
+            mesh->id = GenerateAssetId();
+            mesh->name = shape.name;
+            mesh->vertices = std::move(vertices);
+            mesh->indices = std::move(indices);
+            if (attrib.normals.empty())
+                mesh->generate_normals();
+            mesh->generate_tangents_bitangents();
+            mesh->calculate_bounding_box();
 
-            PBRMataterialTextures textures;
+            auto material_asset = std::make_shared<MaterialAsset>();
+            material_asset->id = GenerateAssetId();
+            material_asset->name = shape.name.empty() ? std::format("mat_{}", shape_idx) : shape.name;
+            material_asset->is_valid = true;
 
-            if(material)
+            if (material)
             {
                 const tinyobj::material_t* mp = material;
+                if (!mp->diffuse_texname.empty())
+                    material_asset->albedo = load_texture_handle(mp->diffuse_texname, directory);
+                if (!mp->bump_texname.empty())
+                    material_asset->normal = load_texture_handle(mp->bump_texname, directory);
+                if (!mp->roughness_texname.empty())
+                    material_asset->roughness = load_texture_handle(mp->roughness_texname, directory);
+                if (!mp->metallic_texname.empty())
+                    material_asset->metallic = load_texture_handle(mp->metallic_texname, directory);
+                if (!mp->specular_highlight_texname.empty())
+                    material_asset->metallic = load_texture_handle(mp->specular_highlight_texname, directory);
 
-                if(mp->diffuse_texname.length() > 0)
-                {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Albedo", mp->diffuse_texname, directory);
-                    if(texture)
-                        textures.albedo = texture;
-                }
-
-                if(mp->bump_texname.length() > 0)
-                {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Normal", mp->bump_texname, directory);
-                    if(texture)
-                        textures.normal = texture; // pbrMaterial->SetNormalMap(texture);
-                }
-
-                if(mp->roughness_texname.length() > 0)
-                {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Roughness", mp->roughness_texname.c_str(), directory);
-                    if(texture)
-                        textures.roughness = texture;
-                }
-
-                if(mp->metallic_texname.length() > 0)
-                {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Metallic", mp->metallic_texname, directory);
-                    if(texture)
-                        textures.metallic = texture;
-                }
-
-                if(mp->specular_highlight_texname.length() > 0)
-                {
-                    SharedPtr<asset::Texture> texture = load_material_textures("Metallic", mp->specular_highlight_texname, directory);
-                    if(texture)
-                        textures.metallic = texture;
-                }
-                auto& material_props = pbrMaterial->get_properties();
-                material_props.base_color_mult = glm::vec4(mp->diffuse[0], mp->diffuse[1], mp->diffuse[2],1);
-                material_props.emissive = glm::vec3(mp->emission[0], mp->emission[1], mp->emission[2]);
-                material_props.metalness_factor = mp->metallic;
-                material_props.roughness_mult = mp->roughness;
+                material_asset->properties.base_color_mult = glm::vec4(mp->diffuse[0], mp->diffuse[1], mp->diffuse[2], 1.0f);
+                material_asset->properties.emissive = glm::vec3(mp->emission[0], mp->emission[1], mp->emission[2]);
+                material_asset->properties.metalness_factor = mp->metallic;
+                material_asset->properties.roughness_mult = mp->roughness;
             }
 
-            pbrMaterial->set_textures(textures);
-            auto matname = shape.name;
-            pbrMaterial->set_name(matname.empty() ? std::format("mat_{}", shape_idx) : matname);
-            auto mesh = createSharedPtr<Mesh>(indices, vertices);
-            mesh->set_name(shape.name);
-            mesh->set_material(pbrMaterial);
-            mesh->generate_tangents_bitangents(vertices.data(), uint32_t(vertices.size()), indices.data(), uint32_t(indices.size()));
-
-            meshes[shape_idx] = mesh;
-            // meshes.push_back(mesh);
+            slots[shape_idx] = { mesh, material_asset };
         });
-        meshes.erase(std::remove(meshes.begin(), meshes.end(), nullptr), meshes.end());
-        return true;
-    }
 
+        slots.erase(std::remove_if(slots.begin(), slots.end(),
+            [](const ModelMeshSlot& slot) { return !slot.mesh; }), slots.end());
+        return !slots.empty();
+    }
 }

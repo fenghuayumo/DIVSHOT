@@ -1,64 +1,53 @@
 #pragma once
-#include "assets/mesh_model.h"
+#include "assets/model_asset.h"
 #include "engine/file_system.h"
 #include <cereal/cereal.hpp>
+#include <memory>
 
 namespace diverse
 {
     struct MeshModelComponent
     {
-        MeshModelComponent(const SharedPtr<MeshModel>& modelRef);
+        MeshModelComponent(const std::shared_ptr<ModelAsset>& model_ref);
         MeshModelComponent(const std::string& path);
         MeshModelComponent(PrimitiveType primitive);
         MeshModelComponent();
 
         void load_primitive(PrimitiveType primitive)
         {
-            ModelRef = createSharedPtr<MeshModel>(primitive);
+            ModelRef = std::make_shared<ModelAsset>(primitive);
         }
+
         void load_from_library(const std::string& path);
-        SharedPtr<MeshModel> ModelRef;
+        std::shared_ptr<ModelAsset> ModelRef;
 
         template <typename Archive>
         void save(Archive& archive) const
         {
-            if(!ModelRef || ModelRef->get_meshes().size() == 0 || !ModelRef->is_flag_set(AssetFlag::Loaded))
+            if (!ModelRef || ModelRef->get_slots().empty() || !ModelRef->is_loaded())
                 return;
-            {
-                std::string newPath;
 
-                if(ModelRef->get_primitive_type() == PrimitiveType::File)
-                    FileSystem::get().absolute_path_2_fileSystem(ModelRef->get_file_path(), newPath);
-                else
-                    newPath = "Primitive";
+            std::string new_path;
+            if (ModelRef->primitive_type == PrimitiveType::File)
+                FileSystem::get().absolute_path_2_fileSystem(ModelRef->source_path, new_path);
+            else
+                new_path = "Primitive";
 
-                // For now this saved material will be overriden by materials in the model file
-                auto material = std::unique_ptr<Material>(ModelRef->get_meshes().front()->get_material().get());
-                archive(cereal::make_nvp("PrimitiveType", ModelRef->get_primitive_type()), cereal::make_nvp("FilePath", newPath), cereal::make_nvp("Material", material));
-                material.release();
-            }
+            archive(cereal::make_nvp("PrimitiveType", ModelRef->primitive_type),
+                    cereal::make_nvp("FilePath", new_path));
         }
 
         template <typename Archive>
         void load(Archive& archive)
         {
-            auto material = std::unique_ptr<Material>();
+            std::string file_path;
+            PrimitiveType primitive_type;
+            archive(cereal::make_nvp("PrimitiveType", primitive_type), cereal::make_nvp("FilePath", file_path));
 
-            std::string filePath;
-            PrimitiveType primitiveType;
-
-            archive(cereal::make_nvp("PrimitiveType", primitiveType), cereal::make_nvp("FilePath", filePath), cereal::make_nvp("Material", material));
-
-            if(primitiveType != PrimitiveType::File)
-            {
-                ModelRef = createSharedPtr<MeshModel>(primitiveType);
-                ModelRef->get_meshes().back()->set_material(SharedPtr<Material>(material.get()));
-                material.release();
-            }
+            if (primitive_type != PrimitiveType::File)
+                ModelRef = std::make_shared<ModelAsset>(primitive_type);
             else
-            {
-                load_from_library(filePath);
-            }
+                load_from_library(file_path);
         }
     };
 }

@@ -2,7 +2,6 @@
 #include "drs_rg/simple_pass.h"
 #include "defered_renderer.h"
 #include <optional>
-#include "assets/texture.h"
 #include "drs_rg/image_op.h"
 
 namespace diverse

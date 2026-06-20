@@ -1,13 +1,13 @@
 #pragma once
 #include "assets/asset.h"
-#include "assets/texture.h"
+#include "assets/cpu_assets.h"
 #include "core/reference.h"
+#include <memory>
 #include <string>
 
 namespace diverse
 {
     struct MSDFData;
-    class Texture;
 
     class Font : public Asset
     {
@@ -19,7 +19,7 @@ namespace diverse
 
         virtual ~Font();
 
-        SharedPtr<asset::Texture> get_font_atlas() const { return texture_atlas; }
+        std::shared_ptr<TextureAsset> get_font_atlas() const { return texture_atlas; }
         const MSDFData* get_msdf_data() const { return msdf_data; }
         const std::string& get_file_path() const { return file_path; }
 
@@ -33,7 +33,7 @@ namespace diverse
 
     private:
         std::string file_path;
-        SharedPtr<asset::Texture> texture_atlas;
+        std::shared_ptr<TextureAsset> texture_atlas;
         MSDFData* msdf_data = nullptr;
         uint8_t* font_data;
         uint32_t font_data_size;

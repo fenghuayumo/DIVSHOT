@@ -1,5 +1,8 @@
 #pragma once
 #include "backend/drs_rhi/gpu_device.h"
+#include "assets/asset_id.h"
+#include "assets/gpu_assets.h"
+#include "assets/asset_handle.h"
 #include "render_settings.h"
 #include "drs_rg/renderer.h"
 #include "scene/mesh_light.h"
@@ -32,11 +35,11 @@ namespace diverse
 	
 	struct GaussianModel;
 	class PointCloud;
-	class MeshModel;
-	class Material;
+	class ModelAsset;
+	class MaterialAsset;
+	class MeshAsset;
+	class TextureAsset;
 	struct MaterialProperties;
-	struct PBRMataterialTextures;
-	class  Mesh;
 	struct PostProcessRenderer;
 	struct TaaRenderer;
 	struct ImageLut;
@@ -120,7 +123,7 @@ namespace diverse
 	{
 		u32 entity_id = 0;
 		maths::Transform transform;
-		SharedPtr<MeshModel> model;
+		std::shared_ptr<ModelAsset> model;
 		bool active = false;
 	};
 
@@ -180,30 +183,22 @@ namespace diverse
 		GpuSceneDirtyState gpu_scene_dirty;
 	};
 
-	struct BindlessImageHandle
-	{
-		u32 handle;
-	};
-
 	struct GpuSceneUploadState
 	{
 		std::unordered_map<u32, glm::mat4x4> previous_transforms;
 		std::vector<InstanceTransform> instance_transforms;
 		std::vector<InstanceDynamicConstants> instance_dynamic_constants;
-		std::unordered_map<u32, Mesh*> mesh_buf_id_2_mesh;
 		std::vector<u32> ent_2_model_id;
-		std::unordered_map<MeshModel*, u32> model_2_blas_id;
-		std::unordered_map<MeshModel*, u32> model_2_mesh_buf_id;
+		std::unordered_map<AssetId, u32> model_2_blas_id;
+		std::unordered_map<AssetId, u32> model_2_mesh_buf_id;
 		std::unordered_map<GaussianModel*, u32> model_2_gs_buf_id;
 		std::unordered_map<PointCloud*, u32> model_2_point_buf_id;
 		std::vector<u8> rt_instance_masks;
-		std::unordered_map<Material*, u32> mat_2_mat_buf_id;
-		std::unordered_map<Mesh*, u32> mesh_2_mesh_buf_id;
-		std::unordered_map<rhi::GpuTexture*, u32> bindless_image_ids;
-		std::vector<MaterialProperties*> material_datas;
+		std::unordered_map<AssetId, u32> mat_2_mat_buf_id;
+		std::unordered_map<AssetId, u32> mesh_2_mesh_buf_id;
 		std::vector<std::shared_ptr<rhi::GpuRayTracingAcceleration>> mesh_blas;
-		u32 next_bindless_image_id = 0;
 		u32 mesh_buf_id = 0;
+		u32 material_buf_count = 0;
 	};
 
 	class DeferedRenderer
@@ -259,7 +254,7 @@ namespace diverse
 	public:
 		auto 	prepare_top_level_acceleration(rg::RenderGraph& rg) -> std::optional<rg::Handle<rhi::GpuRayTracingAcceleration>>;
 		auto 	build_ray_tracing_top_level_acceleration() -> void;
-		auto 	build_ray_tracing_buttom_level_acceleration(MeshModel* mesh)->void;
+		auto 	build_ray_tracing_buttom_level_acceleration(ModelAsset* mesh)->void;
 	protected:
 		auto	render_frame_packet(RenderFramePacket&& packet)->void;
 		auto	apply_environment_frame(const EnvironmentFrameParams& environment)->void;
@@ -268,14 +263,13 @@ namespace diverse
 		auto	upload_gaussian_gpu_buffers(const std::vector<RenderGSCommand>& gs_commands, GpuSceneDirtyState& dirty_state)->void;
 		auto	upload_point_cloud_gpu_buffers(const std::vector<RenderPointCommand>& point_commands, GpuSceneDirtyState& dirty_state)->void;
 		auto	upload_mesh_gpu_buffers(RenderFramePacket& packet)->void;
-		auto	upload_mesh_materials(MeshModel* model, GpuSceneDirtyState& dirty_state)->int;
-		auto	is_material_texture_bound(const SharedPtr<asset::Texture>& texture)->bool;
-		auto	are_material_textures_bound(const PBRMataterialTextures& textures)->bool;
-		auto	update_material_texture_bindings(MaterialProperties& material, const PBRMataterialTextures& textures)->void;
-		auto	record_mesh_instance_gpu_state(MeshModel* model, u32 entity_id, const maths::Transform& transform)->void;
-		auto	upload_mesh_model(class MeshModel* model)->void;
-		auto	upload_material(const struct MaterialProperties* material)->void;
-		auto	upload_image(const std::shared_ptr<rhi::GpuTexture>& image)-> BindlessImageHandle;
+		auto	upload_mesh_materials(ModelAsset* model, GpuSceneDirtyState& dirty_state)->int;
+		auto	is_material_texture_bound(const AssetHandle<TextureAsset>& handle)->bool;
+		auto	are_material_textures_bound(const MaterialAsset& material)->bool;
+		auto	update_material_texture_bindings(MaterialProperties& material, const MaterialAsset& mat)->void;
+		auto	record_mesh_instance_gpu_state(ModelAsset* model, u32 entity_id, const maths::Transform& transform)->void;
+		auto	upload_mesh_model(ModelAsset* model)->void;
+		auto	upload_material(const AssetId& material_id, const MaterialProperties& material)->void;
 		auto	defer_release(std::function<void()>&& release)->void;
 		auto	retire_deferred_releases(bool release_all = false)->void;
 		auto	prepare_render_graph_hybrid(
@@ -306,7 +300,6 @@ namespace diverse
 	public:
 	  	std::shared_ptr<rhi::GpuBuffer>     mesh_buffer;
         std::shared_ptr<rhi::GpuBuffer>     material_buffer;
-        std::shared_ptr<rhi::GpuBuffer>     bindless_texture_sizes;
 		std::shared_ptr<rhi::GpuRayTracingAcceleration> tlas;
 	protected:
 		std::shared_ptr<rg::Renderer>  rg_renderer;

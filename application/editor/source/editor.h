@@ -20,6 +20,8 @@
 namespace diverse
 { 
 
+    class TextureAsset;
+
 #define BIND_FILEBROWSER_FN(fn) [this](auto&&... args) -> decltype(auto) { \
     return this->fn(std::forward<decltype(args)>(args)...);                \
 }
@@ -311,8 +313,8 @@ namespace diverse
         void open_file();
         const char* get_iconfont_icon(const std::string& fileType);
         int&  get_current_train_view_id() { return current_train_view_id; }
-        auto  get_current_train_view_image()-> std::shared_ptr<asset::Texture>;
-        auto  get_hovered_train_view()-> std::shared_ptr<asset::Texture>;
+        auto  get_current_train_view_image()-> std::shared_ptr<TextureAsset>;
+        auto  get_hovered_train_view()-> std::shared_ptr<TextureAsset>;
         void  set_hovered_train_view(int id) {hovered_train_view_id = id;}
         SharedPtr<EditorPanel>                      histogram_panel;
         SharedPtr<class TexturePaintPanel>          texture_paint_Panel;

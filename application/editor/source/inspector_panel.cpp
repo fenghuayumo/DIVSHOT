@@ -23,7 +23,10 @@
 #include <scene/sun_controller.h>
 #include <renderer/defered_renderer.h>
 #include <renderer/render_settings.h>
-#include <assets/asset_manager.h>
+#include <assets/asset_system.h>
+#include <assets/ui_texture.h>
+#include <assets/mesh_geometry_utils.h>
+#include <assets/material_asset.h>
 #include <imgui/IconsMaterialDesignIcons.h>
 #include <imgui/imgui_manager.h>
 #include <imgui/imgui_renderer.h>
@@ -207,7 +210,7 @@ namespace MM
         ImGui::PopStyleVar();
     }
 
-    void TextureWidget(const char* label,diverse::Material* material, const diverse::asset::Texture* tex, bool flipImage,const std::function<void(const std::string&)>& callback, const ImVec2& imageButtonSize = ImVec2(64, 64), int propIndex = 0, bool defaultOpen = false)
+    void TextureWidget(const char* label, diverse::MaterialAsset* material, const diverse::TextureAsset* tex, bool flipImage, const std::function<void(const std::string&)>& callback, const ImVec2& imageButtonSize = ImVec2(64, 64), int propIndex = 0, bool defaultOpen = false)
     {
         using namespace diverse;
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Framed;
@@ -233,7 +236,8 @@ namespace MM
             bool showTexture = !(hoveringButton && (payload != NULL && payload->IsDataType("AssetFile")));
             if (tex && showTexture)
             {
-                if (ImGui::ImageButton((const char*)(tex->gpu_texture.get()), reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(tex->gpu_texture)), imageButtonSize, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f)))
+                auto gpu_tex = diverse::get_ui_gpu_texture(tex);
+                if (ImGui::ImageButton((const char*)(gpu_tex.get()), reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(gpu_tex)), imageButtonSize, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f)))
                 {
                     auto [file_path,_] = FileDialogs::openFile({ "jpg","png","tga" });
                     if (!file_path.empty())
@@ -247,9 +251,9 @@ namespace MM
                 {
                     ImGui::BeginTooltip();
                     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-                    ImGui::TextUnformatted(tex->file_path.c_str());
+                    ImGui::TextUnformatted(tex->source_path.string().c_str());
                     ImGui::PopTextWrapPos();
-                    ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(tex->gpu_texture)), imageButtonSize * 3.0f, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f));
+                    ImGui::Image(reinterpret_cast<ImTextureID>(Application::get().get_imgui_manager()->get_imgui_renderer()->add_texture(gpu_tex)), imageButtonSize * 3.0f, ImVec2(0.0f, flipImage ? 1.0f : 0.0f), ImVec2(1.0f, flipImage ? 0.0f : 1.0f));
                     ImGui::EndTooltip();
                 }
             }
@@ -336,7 +340,7 @@ namespace MM
 
                 }*/
             };
-            diverse::MaterialProperties* prop = &material->get_properties();
+            diverse::MaterialProperties* prop = &material->properties;
             if (propIndex == 0) //albedo
             {
                 dirty |= ImGui::ColorEdit4(diverse::ImGuiHelper::GenerateLabelID("Colour"), glm::value_ptr(prop->base_color_mult));
@@ -385,7 +389,7 @@ namespace MM
                 ImGui::EndPopup();
             }
             if (dirty)
-                material->dirty_flag() = true;
+                DS_UNUSED(dirty);
             ImGui::Columns(1);
 
             ImGui::Separator();
@@ -1124,28 +1128,41 @@ namespace MM
         }
         using namespace diverse;
         ImGui::Separator();
-        const auto& meshes = modelRef->get_meshes();
+        const auto& slots = modelRef->get_slots();
+        auto& asset_sys = AssetSystem::get_instance();
+        auto& registry = AssetRegistry::get_instance();
+        auto resolve_texture = [&](const AssetHandle<TextureAsset>& handle) -> std::shared_ptr<TextureAsset> {
+            return handle.is_valid() ? asset_sys.resolve(handle) : nullptr;
+        };
+        auto assign_texture = [&](MaterialAsset* mat, size_t slot, const std::string& path) {
+            auto tex = asset_sys.load_asset<TextureAsset>(path);
+            if (tex)
+                mat->set_texture_handle(slot, registry.get_handle<TextureAsset>(tex->id));
+        };
         ImGui::Indent();
         if(ImGui::TreeNodeEx("Meshes", ImGuiTreeNodeFlags_Framed))
         {
             int MeshIndex = 0;
 
-            for(auto mesh : meshes)
+            for(const auto& slot : slots)
             {
-                String8 meshName = !mesh->get_name().empty() ? Str8StdS(mesh->get_name()) : PushStr8F(Application::get().get_frame_arena(), "Mesh %i", MeshIndex);
+                auto mesh = slot.mesh.get();
+                if (!mesh)
+                    continue;
+
+                String8 meshName = !mesh->name.empty() ? Str8StdS(mesh->name) : PushStr8F(Application::get().get_frame_arena(), "Mesh %i", MeshIndex);
 
                 if(ImGui::TreeNodeEx((const char*)meshName.str, ImGuiTreeNodeFlags_Framed))
                 {
-                    auto stats = mesh->get_stats();
+                    auto stats = mesh_geometry::compute_stats(*mesh);
 
                     ImGui::Indent();
                     ImGui::Columns(2);
 
-                    diverse::ImGuiHelper::Property("Triangle Count", stats.TriangleCount,nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
-                    diverse::ImGuiHelper::Property("Vertex Count", stats.VertexCount, nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
-                    diverse::ImGuiHelper::Property("Index Count", stats.IndexCount, nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
-                    // diverse::ImGuiHelper::Property("Optimise Threshold", stats.OptimiseThreshold, 0.0f, 0.0f, 0.0f, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
-                    diverse::ImGuiHelper::PropertyConst("Material", mesh->get_material() ? mesh->get_material()->get_name().c_str() : "Empty");
+                    diverse::ImGuiHelper::Property("Triangle Count", stats.triangle_count, nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
+                    diverse::ImGuiHelper::Property("Vertex Count", stats.vertex_count, nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
+                    diverse::ImGuiHelper::Property("Index Count", stats.index_count, nullptr, diverse::ImGuiHelper::PropertyFlag::ReadOnly);
+                    diverse::ImGuiHelper::PropertyConst("Material", slot.material ? slot.material->name.c_str() : "Empty");
                     ImGui::Columns(1);
 
                     ImGui::Unindent();
@@ -1159,24 +1176,24 @@ namespace MM
         
         if(ImGui::TreeNodeEx("Materials", ImGuiTreeNodeFlags_Framed))
         {
-            diverse::Material* MaterialShown[1000];
+            MaterialAsset* MaterialShown[1000];
             uint32_t MaterialCount = 0;
-            for(auto mesh : meshes)
+            for(const auto& slot : slots)
             {
-                auto material       = mesh->get_material();
-                std::string matName = material ? material->get_name() : "";
+                auto material = slot.material.get();
+                std::string matName = material ? material->name : "";
 
                 bool materialFound = false;
                 for(uint32_t i = 0; i < MaterialCount; i++)
                 {
-                    if(MaterialShown[i] == material.get())
+                    if(MaterialShown[i] == material)
                         materialFound = true;
                 }
 
                 if(materialFound)
                     continue;
 
-                MaterialShown[MaterialCount++] = material.get();
+                MaterialShown[MaterialCount++] = material;
 
                 if(matName.empty())
                 {
@@ -1190,78 +1207,46 @@ namespace MM
                 if(!material)
                 {
                     ImGui::TextUnformatted("Empty Material");
-                    if(ImGui::Button("Add Material", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f)))
-                        mesh->set_material(diverse::createSharedPtr<diverse::Material>());
                 }
                 else if(ImGui::TreeNodeEx(matName.c_str(), ImGuiTreeNodeFlags_Framed))
                 {
                     using namespace diverse;
                     ImGui::Indent();
-                    //if(ImGui::Button("Save to file"))
-                    //{
-                    //    std::string filePath = "//assets/Meshes"; // Materials/" + matName + ".lmat";
-                    //    std::string physicalPath;
-                    //    if(FileSystem::get().resolve_physical_path(filePath, physicalPath))
-                    //    {
-                    //        physicalPath += "/materials/" + matName + ".dmat";
-                    //        std::stringstream storage;
-
-                    //        cereal::JSONOutputArchive output { storage };
-                    //        material->save(output);
-
-                    //        FileSystem::write_text_file(physicalPath, storage.str());
-                    //    }
-                    //}
                     bool flipImage = false;
+                    glm::vec2 textureSize = glm::vec2(32.0f, 32.0f);
+                    MaterialProperties* prop = &material->properties;
 
-                    bool twoSided     = material->get_render_flag(diverse::Material::RenderFlags::TWOSIDED);
-                    bool depthTested  = material->get_render_flag(diverse::Material::RenderFlags::DEPTHTEST);
-                    bool alphaBlended = material->get_render_flag(diverse::Material::RenderFlags::ALPHABLEND);
-                    bool castShadows  = !material->get_render_flag(diverse::Material::RenderFlags::NOSHADOW);
+                    TextureWidget("Albedo", material, resolve_texture(material->albedo).get(), flipImage,
+                        [&](const std::string& path) { assign_texture(material, MaterialGpu::TEXTURE_SLOT_ALBEDO, path); },
+                        textureSize * Application::get().get_window_dpi(), 0, true);
 
-                    ImGui::Columns(2);
-                    ImGui::Separator();
-
-                    ImGui::AlignTextToFramePadding();
-
-                   /* if(ImGuiHelper::Property("Alpha Blended", alphaBlended))
-                        material->set_render_flag(diverse::Material::RenderFlags::ALPHABLEND, alphaBlended);
-
-                    if(ImGuiHelper::Property("Two Sided", twoSided))
-                        material->set_render_flag(diverse::Material::RenderFlags::TWOSIDED, twoSided);
-
-                    if(ImGuiHelper::Property("Depth Tested", depthTested))
-                        material->set_render_flag(diverse::Material::RenderFlags::DEPTHTEST, depthTested);
-
-                    if(ImGuiHelper::Property("Cast Shadows", castShadows))
-                        material->set_render_flag(diverse::Material::RenderFlags::NOSHADOW, !castShadows);
-
-                    ImGuiHelper::Property("Alpha Cutoff", material->get_properties().alphaCutoff, 0.0f, 1.0f, 0.1f);*/
-
-                    ImGui::Columns(1);
-
-                    // diverse::MaterialProperties& prop = material->get_properties();
-                    auto colour                        = glm::vec4();
-                    auto& textures                     = material->get_textures();
-                    glm::vec2 textureSize              = glm::vec2(32.0f, 32.0f);
-                    diverse::MaterialProperties* prop = &material->get_properties();
-                    TextureWidget("Albedo", material.get(), textures.albedo.get(), flipImage,std::bind(&diverse::Material::set_albedo_texture, material, std::placeholders::_1), textureSize * Application::get().get_window_dpi(), 0, true);
-
-                    TextureWidget("Normal", material.get(), textures.normal.get(), flipImage, std::bind(&diverse::Material::set_normal_texture, material, std::placeholders::_1), textureSize * Application::get().get_window_dpi(), 1);
+                    TextureWidget("Normal", material, resolve_texture(material->normal).get(), flipImage,
+                        [&](const std::string& path) { assign_texture(material, MaterialGpu::TEXTURE_SLOT_NORMAL, path); },
+                        textureSize * Application::get().get_window_dpi(), 1);
 
                     if (prop->work_flow == PBR_WORKFLOW_METALLIC_ROUGHNESS)
                     {
-                        TextureWidget("MetallicRoughness", material.get(), textures.metallic.get(), flipImage, std::bind(&diverse::Material::set_metallic_texture, material, std::placeholders::_1), textureSize* Application::get().get_window_dpi(), 2);
+                        TextureWidget("MetallicRoughness", material, resolve_texture(material->metallic).get(), flipImage,
+                            [&](const std::string& path) { assign_texture(material, MaterialGpu::TEXTURE_SLOT_METALLIC, path); },
+                            textureSize * Application::get().get_window_dpi(), 2);
                     }
                     else
-                    { 
-                        TextureWidget("Metallic", material.get(), textures.metallic.get(), flipImage, std::bind(&diverse::Material::set_metallic_texture, material, std::placeholders::_1), textureSize * Application::get().get_window_dpi(), 2);
+                    {
+                        TextureWidget("Metallic", material, resolve_texture(material->metallic).get(), flipImage,
+                            [&](const std::string& path) { assign_texture(material, MaterialGpu::TEXTURE_SLOT_METALLIC, path); },
+                            textureSize * Application::get().get_window_dpi(), 2);
 
-                        TextureWidget("Roughness", material.get(), textures.roughness.get(), flipImage, std::bind(&diverse::Material::set_roughness_texture, material, std::placeholders::_1), textureSize * Application::get().get_window_dpi(), 3);
+                        TextureWidget("Roughness", material, resolve_texture(material->roughness).get(), flipImage,
+                            [&](const std::string& path) { assign_texture(material, MaterialGpu::TEXTURE_SLOT_ROUGHNESS, path); },
+                            textureSize * Application::get().get_window_dpi(), 3);
                     }
-                    TextureWidget("AO", material.get(), textures.ao.get(), flipImage, std::bind(&diverse::Material::set_ao_texture, material, std::placeholders::_1), textureSize * Application::get().get_window_dpi(), 4);
+                    TextureWidget("AO", material, resolve_texture(material->ao).get(), flipImage,
+                        [&](const std::string& path) { assign_texture(material, MaterialGpu::TEXTURE_SLOT_AO, path); },
+                        textureSize * Application::get().get_window_dpi(), 4);
 
-                    TextureWidget("Emissive", material.get(), textures.emissive.get(), flipImage, std::bind(&diverse::Material::set_emissive_texture, material, std::placeholders::_1), textureSize * Application::get().get_window_dpi(), 5);
+                    TextureWidget("Emissive", material, resolve_texture(material->emissive).get(), flipImage,
+                        [&](const std::string& path) { assign_texture(material, MaterialGpu::TEXTURE_SLOT_EMISSIVE, path); },
+                        textureSize * Application::get().get_window_dpi(), 5);
 
                     ImGui::Unindent();
                     ImGui::TreePop();

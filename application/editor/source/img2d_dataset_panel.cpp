@@ -1,5 +1,6 @@
 #include "img2d_dataset_panel.h"
 #include "editor.h"
+#include <assets/ui_texture.h>
 #include <scene/scene.h>
 #include <scene/entity_manager.h>
 #include <engine/input.h>
@@ -45,9 +46,9 @@ namespace diverse
             auto& current_train_view_id = editor->get_current_train_view_id();
             if(current_train_view_id >= 0 )
             {
-                auto game_view_tex = get_current_train_view_texture()->gpu_texture;
+                auto game_view_tex = get_ui_gpu_texture(get_current_train_view_texture());
                 ImGuiHelper::Image(game_view_tex, glm::vec2(sceneViewSize.x, sceneViewSize.y), false);
-                ImGui::Text("Camera ID: %s", train_view_texture[current_train_view_id]->file_path.c_str());
+                ImGui::Text("Camera ID: %s", train_view_texture[current_train_view_id]->source_path.string().c_str());
             }
             if(ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) )
             {
@@ -94,12 +95,12 @@ namespace diverse
     void Img2DDataSetPanel::on_new_scene(Scene* scene)
     {
     }
-    std::shared_ptr<asset::Texture> Img2DDataSetPanel::get_current_train_view_texture()
+    std::shared_ptr<TextureAsset> Img2DDataSetPanel::get_current_train_view_texture()
     {
         auto& current_train_view_id = editor->get_current_train_view_id();
 		return get_train_view_texture(current_train_view_id);
     }
-    std::shared_ptr<asset::Texture> Img2DDataSetPanel::get_train_view_texture(int id)
+    std::shared_ptr<TextureAsset> Img2DDataSetPanel::get_train_view_texture(int id)
     {
         if (id == -1) return nullptr;
         if (train_view_texture.find(id) != train_view_texture.end())
@@ -111,8 +112,12 @@ namespace diverse
         auto gsTrain = reg.try_get<GaussianTrainerScene>(editor->get_current_splat_entt());
         if(!gsTrain) return nullptr;
         auto splat_imge = gsTrain->getSplatImageView(id);
-        auto tex = std::make_shared<asset::Texture>(splat_imge.width, splat_imge.height, splat_imge.data, PixelFormat::R8G8B8A8_UNorm);
-        tex->file_path = splat_imge.name;
+        auto tex = load_ui_texture_from_raw(image_io::RawImage{
+            PixelFormat::R8G8B8A8_UNorm,
+            { splat_imge.width, splat_imge.height },
+            splat_imge.data});
+        if (tex)
+            tex->source_path = splat_imge.name;
         train_view_texture[id] = tex;
         return tex;
 #endif

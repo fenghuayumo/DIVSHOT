@@ -1,7 +1,7 @@
 #include "lut_renderer.h"
 #include "renderer/drs_rg/pass_api.h"
 #include "renderer/drs_rg/simple_pass.h"
-#include "assets/asset_manager.h"
+#include "assets/ui_texture.h"
 #include "engine/os.h"
 #include "assets/embeded/bluenoise_256_256.inl"
 
@@ -71,11 +71,11 @@ namespace diverse
     }
     auto BlueNoiseLutComputer::create(rhi::GpuDevice* device) -> std::shared_ptr<rhi::GpuTexture>
     {
-        auto exe_path = std::filesystem::path(OS::instance()->getExecutablePath()).parent_path();
-        auto texture = createSharedPtr<asset::Texture>(asset::RawImage{ PixelFormat::R8G8B8A8_UNorm, {bluenoise_256_256Width, bluenoise_256_256Height},std::vector<u8>(std::begin(bluenoise_256_256), std::end(bluenoise_256_256)) });
-        texture->upload_to_gpu(device);
-        return texture->gpu_texture;
-        //return std::make_shared<asset::Texture>(exe_path / "../resource/images/bluenoise/256_256/LDR_RGBA_0.png")->gpu_texture;
+        auto texture = load_ui_texture_from_raw(image_io::RawImage{
+            PixelFormat::R8G8B8A8_UNorm,
+            { bluenoise_256_256Width, bluenoise_256_256Height },
+            std::vector<u8>(std::begin(bluenoise_256_256), std::end(bluenoise_256_256)) });
+        return get_ui_gpu_texture(texture);
     }
 
     auto BlueNoiseLutComputer::compute(rg::RenderGraph& rg, rg::Handle<rhi::GpuTexture>& img) -> void

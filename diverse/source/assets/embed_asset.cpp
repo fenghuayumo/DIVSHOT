@@ -1,7 +1,7 @@
 #include "embed_asset.h"
+#include "ui_texture.h"
 #include "engine/file_system.h"
 #include "utility/string_utils.h"
-#include "assets/texture.h"
 #include "core/ds_log.h"
 #include <iomanip>
 #include <sstream>
@@ -39,7 +39,7 @@ struct EmbedTexture
     std::vector<uint8_t> data;
 };
 std::unordered_map<std::string, EmbedTexture> embeded_textures;
-std::unordered_map<std::string, SharedPtr<asset::Texture>> embeded_asset_textures;
+std::unordered_map<std::string, std::shared_ptr<TextureAsset>> embeded_asset_textures;
 struct RegisterTexture
 {
 	RegisterTexture(const std::string& name, const EmbedTexture& data)
@@ -66,9 +66,8 @@ struct RegisterTexture
 #include "embeded/export.inl"
 #include "embeded/import.inl"
 //#endif
-    SharedPtr<asset::Texture> get_embed_texture(const std::string& texture_path)
+    std::shared_ptr<TextureAsset> get_embed_texture(const std::string& texture_path)
     {
-        //get name from path 
         auto textureName = std::filesystem::path(texture_path).filename().string();
         textureName = stringutility::remove_file_extension(textureName);
         std::replace(textureName.begin(), textureName.end(), '-', '_');
@@ -77,21 +76,25 @@ struct RegisterTexture
             if(embeded_asset_textures.find(texture_path) == embeded_asset_textures.end())
             { 
                 DS_LOG_WARN("don't exist this embed texture {}", texture_path);
-                embeded_asset_textures[texture_path] = createSharedPtr<asset::Texture>(texture_path);
+                embeded_asset_textures[texture_path] = load_ui_texture(texture_path);
             }
             return embeded_asset_textures[texture_path];
         }
         auto texture = embeded_textures[textureName];
         if(embeded_asset_textures.find(texture_path) == embeded_asset_textures.end())
         {
-            auto icon = createSharedPtr<asset::Texture>(asset::RawImage{ PixelFormat::R8G8B8A8_UNorm, 
-                            {texture.width, texture.height}, texture.data });
+            auto icon = load_ui_texture_from_raw(image_io::RawImage{
+                PixelFormat::R8G8B8A8_UNorm,
+                {texture.width, texture.height},
+                texture.data});
+            if (icon)
+                icon->source_path = texture_path;
             embeded_asset_textures[texture_path] = icon;
         }
         return embeded_asset_textures[texture_path];
     }
 
-    std::unordered_map<std::string, SharedPtr<asset::Texture>>& get_embeded_asset_textures()
+    std::unordered_map<std::string, std::shared_ptr<TextureAsset>>& get_embeded_asset_textures()
     {
         return embeded_asset_textures;
     }

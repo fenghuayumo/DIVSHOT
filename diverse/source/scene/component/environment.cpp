@@ -1,6 +1,5 @@
 #include "environment.h"
-#include "assets/texture.h"
-#include "assets/asset_manager.h"
+#include "assets/image_io.h"
 #include "backend/drs_rhi/gpu_texture.h"
 #include "backend/drs_rhi/gpu_device.h"
 namespace diverse

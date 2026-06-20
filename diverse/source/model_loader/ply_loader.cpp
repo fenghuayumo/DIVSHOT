@@ -1,11 +1,12 @@
-#include "assets/mesh_model.h"
+#include "assets/model_asset.h"
 #include "assets/point_cloud.h"
-#include "assets/material.h"
+#include "assets/material_asset.h"
+#include "model_loader/model_loader_utils.h"
 #include "maths/transform.h"
 #include "backend/drs_rhi/gpu_texture.h"
 #include "utility/string_utils.h"
 #include "engine/application.h"
-#include "assets/asset_manager.h"
+#include "assets/texture_importer.h"
 #include "core/profiler.h"
 #include "utility/thread_pool.h"
 #include <future>
@@ -13,26 +14,24 @@
 
 namespace diverse
 {
-    bool MeshModel::is_mesh_model_file(const std::string& filepath)
+    bool ModelAsset::is_mesh_model_file(const std::string& filepath)
     {
         const std::string fileExtension = stringutility::get_file_extension(filepath);
-        if(fileExtension == "obj" || fileExtension == "gltf" || 
+        if (fileExtension == "obj" || fileExtension == "gltf" ||
             fileExtension == "glb" || fileExtension == "fbx" || fileExtension == "FBX")
             return true;
         if (fileExtension == "ply")
         {
             std::ifstream file_stream(filepath, std::ios::binary);
             if (!file_stream.is_open())
-            {
                 return false;
-            }
             tinyply::PlyFile ply_file;
             ply_file.parse_header(file_stream);
             try
             {
                 ply_file.request_properties_from_element("face", { "vertex_indices" }, 3);
             }
-            catch (const std::exception& e)
+            catch (const std::exception&)
             {
                 return false;
             }
@@ -41,27 +40,25 @@ namespace diverse
         return false;
     }
 
-    bool MeshModel::is_gaussian_file(const std::string& filepath)
+    bool ModelAsset::is_gaussian_file(const std::string& filepath)
     {
         std::string extension = stringutility::get_file_extension(filepath);
-
-        if ( extension == "splat" || extension == "dsplat" || extension == "dvsplat" || extension == "spz" || extension == "sog")
+        if (extension == "splat" || extension == "dsplat" || extension == "dvsplat" || extension == "spz" || extension == "sog")
             return true;
         if (extension == "ply")
         {
-            if(filepath.find(".compressed") != std::string::npos)   return true;
+            if (filepath.find(".compressed") != std::string::npos)
+                return true;
             std::ifstream file_stream(filepath, std::ios::binary);
             if (!file_stream.is_open())
-            {
                 return false;
-            }
             tinyply::PlyFile ply_file;
             ply_file.parse_header(file_stream);
             try
             {
-                ply_file.request_properties_from_element("vertex", { "f_dc_0","f_dc_1","f_dc_2" });
+                ply_file.request_properties_from_element("vertex", { "f_dc_0", "f_dc_1", "f_dc_2" });
             }
-            catch (const std::exception& e)
+            catch (const std::exception&)
             {
                 return false;
             }
@@ -72,7 +69,7 @@ namespace diverse
 
     bool PointCloud::is_point_cloud_file(const std::string& filepath)
     {
-        std::string extension = stringutility::get_file_extension(filepath);
+        const std::string extension = stringutility::get_file_extension(filepath);
         if (extension == "ply")
         {
             std::ifstream file_stream(filepath, std::ios::binary);
@@ -102,7 +99,7 @@ namespace diverse
         }
         return false;
     }
-    bool MeshModel::load_ply(const std::string& path)
+    bool ModelAsset::load_ply(const std::string& path)
     {
         DS_PROFILE_FUNCTION();
         //read mesh data 
@@ -182,20 +179,17 @@ namespace diverse
                     vertices_data[i].Colours = glm::vec4(color_data[i* cnt +0] / 255.0f,color_data[i* cnt +1] / 255.0f,color_data[i* cnt +2] / 255.0f, 1.0f);
                 }
             });
+            auto mesh = make_mesh_asset(index_data, vertices_data);
+            mesh->name = stringutility::get_file_name(path);
             if (normal_data.empty())
-                Mesh::generate_normals(vertices_data.data(), vertices_data.size(), index_data.data(), index_data.size());
+                mesh->generate_normals();
+            mesh->generate_tangents_bitangents();
 
-            SharedPtr<Material> pbrMaterial = createSharedPtr<Material>();
-
-            PBRMataterialTextures textures;
-            pbrMaterial->set_textures(textures);
-            pbrMaterial->set_name("defalut");
-            auto mesh = createSharedPtr<Mesh>(index_data, vertices_data);
-            mesh->set_name(stringutility::get_file_name(path));
-            mesh->set_material(pbrMaterial);
-            mesh->generate_tangents_bitangents(vertices_data.data(), uint32_t(vertices_data.size()), index_data.data(), uint32_t(index_data.size()));
-
-            meshes.push_back(mesh);
+            auto pbr_material = std::make_shared<MaterialAsset>();
+            pbr_material->id = GenerateAssetId();
+            pbr_material->name = "default";
+            pbr_material->is_valid = true;
+            add_slot(mesh, pbr_material);
         }
         else
             return false;

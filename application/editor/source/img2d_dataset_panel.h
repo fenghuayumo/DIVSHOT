@@ -1,7 +1,7 @@
 #pragma once
 #include "editor_panel.h"
 #include <imgui/imgui_ent_editor.h>
-#include <assets/texture.h>
+#include <assets/cpu_assets.h>
 namespace diverse
 {
 
@@ -15,9 +15,9 @@ namespace diverse
         void on_imgui_render() override;
         void on_update(float dt) override ;
         void on_new_scene(Scene* scene) override;
-        std::shared_ptr<asset::Texture> get_current_train_view_texture();
-        std::shared_ptr<asset::Texture> get_train_view_texture(int id);
+        std::shared_ptr<TextureAsset> get_current_train_view_texture();
+        std::shared_ptr<TextureAsset> get_train_view_texture(int id);
     protected:
-        std::unordered_map<int, std::shared_ptr<asset::Texture>>   train_view_texture;
+        std::unordered_map<int, std::shared_ptr<TextureAsset>>   train_view_texture;
     };
 }

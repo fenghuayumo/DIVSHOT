@@ -156,7 +156,7 @@ namespace diverse
             auto state = getOpState(gs_state);
             return state == SELECT_STATE;
         };
-        if(splat && splat->is_flag_set(AssetFlag::UploadedGpu))
+        if(splat && splat->is_gpu_uploaded())
             histogram.calc(splat->position().size(), valueFunc, selecFunc);
         update_histogram(sceneViewPosition, sceneViewSize);
         if (Input::get().get_mouse_clicked(InputCode::MouseKey::ButtonLeft))
