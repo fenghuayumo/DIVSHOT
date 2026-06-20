@@ -24,18 +24,16 @@
 #include "point_render.h"
 #include "lighting.h"
 #include "scene/entity.h"
+#include "scene/components/transform_component.h"
+#include "scene/components/global_transform_component.h"
 #include "scene/component/gaussian_component.h"
 #include "scene/component/mesh_model_component.h"
 #include "scene/component/components.h"
 #include "scene/component/point_cloud_component.h"
 #include "scene/component/gaussian_crop.h"
 #include "scene/component/environment.h"
-#include "scene/component/light/directional_light.h"
-#include "scene/component/light/point_light.h"
-#include "scene/component/light/spot_light.h"
-#include "scene/component/light/rect_light.h"
-#include "scene/component/light/cylinder_light.h"
-#include "scene/component/light/disk_light.h"
+#include "scene/components/light_component.h"
+#include "scene/systems/light_system.h"
 #include "assets/asset_handle.h"
 #include "assets/asset_system.h"
 #include "assets/model_asset.h"
@@ -160,22 +158,18 @@ namespace diverse
     
 	};
 
-	template<typename LightComponentT>
+	// Helper to append light to frame packet
 	auto append_frame_light(
 		RenderFramePacket& packet,
+		const LightShaderData& light_data,
 		entt::entity entity,
-		LightComponentT& light_component,
-		const maths::Transform& transform,
 		u64 type_salt) -> void
 	{
-		LightShaderData light = {};
-		light_component.get_render_light_data(transform, &light);
-
 		size_t stable_id = type_salt;
 		diverse::hash_combine(stable_id, static_cast<u32>(entity));
 		packet.primitive_lights.push_back(FrameLight{
 			static_cast<u64>(stable_id),
-			light
+			light_data
 		});
 	}
 
@@ -439,7 +433,8 @@ namespace diverse
 			if (!cameraView.empty())
 			{
 				camera = &cameraView.get<Camera>(cameraView.front());
-				camera_transform = registry.try_get<maths::Transform>(cameraView.front());
+				camera_transform = registry.try_get<::diverse::Transform>(cameraView.front());
+				camera_global_transform = registry.try_get<GlobalTransform>(cameraView.front());
 			}
 		}
 
@@ -455,7 +450,7 @@ namespace diverse
 		packet.frame_desc.render_extent = main_render_tex->desc.extent_2d();//swapchain_extent;
 		auto projection = camera->get_projection_matrix();
 		auto invProj = glm::inverse(projection);
-		auto invView = camera_transform->get_world_matrix();
+		auto invView = camera_global_transform->world_matrix;
 		auto view = glm::inverse(invView);
 
 		packet.frame_desc.camera_matrices = CameraMatrices{
@@ -470,11 +465,11 @@ namespace diverse
 		packet.camera_params.aperture = camera->get_aperture() * 0.001f;
 		packet.camera_params.camera_type = camera->get_camera_type() == Camera::CameraType::Fisheye ? 1u : 0u;
 		packet.grid_params = GridFrameParams{
-			true,
+			true,  // valid
 			camera->get_near(),
 			camera->get_far(),
-			camera_transform->get_world_position(),
-			camera_transform->get_forward_direction()
+			camera_global_transform ? glm::vec3(camera_global_transform->world_matrix[3]) : glm::vec3(0.0f),
+			camera_global_transform ? glm::normalize(glm::vec3(-camera_global_transform->world_matrix[2])) : glm::vec3(0.0f, 0.0f, 1.0f)
 		};
 
 		auto enviroment_view = current_scene->get_entity_manager()->get_entities_with_type<diverse::Environment>();
@@ -503,70 +498,99 @@ namespace diverse
 			}
 		}
 
-		auto dir_light_group = registry.group<DirectionalLightComponent>(entt::get<maths::Transform>);
-		for (auto entity : dir_light_group)
-		{
-			if (!Entity(entity, current_scene).active()) continue;
-			auto [dir_light, transform] = dir_light_group.get<DirectionalLightComponent, maths::Transform>(entity);
-			append_frame_light(packet, entity, dir_light, transform, 0xD1AEC710u);
-		}
+		// Collect lights using new LightSystem
+		constexpr size_t MAX_LIGHTS = 256;
+		static LightShaderData light_data_buffer[MAX_LIGHTS];
+		size_t light_count = LightSystem::prepare_render_data(registry, light_data_buffer, MAX_LIGHTS);
 
-		auto point_light_group = registry.group<PointLightComponent>(entt::get<maths::Transform>);
-		for (auto entity : point_light_group)
-		{
-			if (!Entity(entity, current_scene).active()) continue;
-			auto [point_light, transform] = point_light_group.get<PointLightComponent, maths::Transform>(entity);
-			append_frame_light(packet, entity, point_light, transform, 0x901A7100u);
-		}
+		// Append lights to frame packet with type-specific salts
+		u64 type_salts[] = {
+			0xD1AEC710u, // Directional
+			0x901A7100u, // Point
+			0x59077100u, // Spot
+			0x8EC71000u, // Rect
+			0xC711D000u, // Cylinder
+			0xD15C0000u  // Disk
+		};
+		size_t salt_index = 0;
 
-		auto spot_light_group = registry.group<SpotLightComponent>(entt::get<maths::Transform>);
-		for (auto entity : spot_light_group)
+		// Process directional lights
 		{
-			if (!Entity(entity, current_scene).active()) continue;
-			auto [spot_light, transform] = spot_light_group.get<SpotLightComponent, maths::Transform>(entity);
-			append_frame_light(packet, entity, spot_light, transform, 0x59077100u);
+			auto view = registry.view<LightCommon, DirectionalLight, GlobalTransform>();
+			for (auto entity : view)
+			{
+				if (!Entity(entity, current_scene).active()) continue;
+				if (salt_index < light_count)
+					append_frame_light(packet, light_data_buffer[salt_index++], entity, type_salts[0]);
+			}
 		}
-
-		auto rect_light_group = registry.group<RectLightComponent>(entt::get<maths::Transform>);
-		for (auto entity : rect_light_group)
+		// Process point lights
 		{
-			if (!Entity(entity, current_scene).active()) continue;
-			auto [rect_light, transform] = rect_light_group.get<RectLightComponent, maths::Transform>(entity);
-			append_frame_light(packet, entity, rect_light, transform, 0x8EC71000u);
+			auto view = registry.view<LightCommon, PointLight, GlobalTransform>();
+			for (auto entity : view)
+			{
+				if (!Entity(entity, current_scene).active()) continue;
+				if (salt_index < light_count)
+					append_frame_light(packet, light_data_buffer[salt_index++], entity, type_salts[1]);
+			}
 		}
-
-		auto cylinder_light_group = registry.group<CylinderLightComponent>(entt::get<maths::Transform>);
-		for (auto entity : cylinder_light_group)
+		// Process spot lights
 		{
-			if (!Entity(entity, current_scene).active()) continue;
-			auto [cylinder_light, transform] = cylinder_light_group.get<CylinderLightComponent, maths::Transform>(entity);
-			append_frame_light(packet, entity, cylinder_light, transform, 0xC711D000u);
+			auto view = registry.view<LightCommon, SpotLight, GlobalTransform>();
+			for (auto entity : view)
+			{
+				if (!Entity(entity, current_scene).active()) continue;
+				if (salt_index < light_count)
+					append_frame_light(packet, light_data_buffer[salt_index++], entity, type_salts[2]);
+			}
 		}
-
-		auto disk_light_group = registry.group<DiskLightComponent>(entt::get<maths::Transform>);
-		for (auto entity : disk_light_group)
+		// Process rect lights
 		{
-			if (!Entity(entity, current_scene).active()) continue;
-			auto [disk_light, transform] = disk_light_group.get<DiskLightComponent, maths::Transform>(entity);
-			append_frame_light(packet, entity, disk_light, transform, 0xD15C0000u);
+			auto view = registry.view<LightCommon, RectLight, GlobalTransform>();
+			for (auto entity : view)
+			{
+				if (!Entity(entity, current_scene).active()) continue;
+				if (salt_index < light_count)
+					append_frame_light(packet, light_data_buffer[salt_index++], entity, type_salts[3]);
+			}
+		}
+		// Process cylinder lights
+		{
+			auto view = registry.view<LightCommon, CylinderLight, GlobalTransform>();
+			for (auto entity : view)
+			{
+				if (!Entity(entity, current_scene).active()) continue;
+				if (salt_index < light_count)
+					append_frame_light(packet, light_data_buffer[salt_index++], entity, type_salts[4]);
+			}
+		}
+		// Process disk lights
+		{
+			auto view = registry.view<LightCommon, DiskLight, GlobalTransform>();
+			for (auto entity : view)
+			{
+				if (!Entity(entity, current_scene).active()) continue;
+				if (salt_index < light_count)
+					append_frame_light(packet, light_data_buffer[salt_index++], entity, type_salts[5]);
+			}
 		}
 
 		if( prev_camera_matrix && prev_camera_matrix->world_to_view != packet.frame_desc.camera_matrices.world_to_view )
 			reset_pt = true;
 
-		auto group = registry.group<GaussianComponent>(entt::get<maths::Transform>);
+		auto group = registry.group<GaussianComponent>(entt::get<GlobalTransform>);
 		bool skip_render = false;
 		for (auto gs_ent : group)
 		{
 			if (!Entity(gs_ent, current_scene).active())
 				continue;
 
-			const auto& [gs_com, trans] = group.get<GaussianComponent, maths::Transform>(gs_ent);
+			const auto& [gs_com, global_trans] = group.get<GaussianComponent, GlobalTransform>(gs_ent);
 			if(!gs_com.ModelRef->is_loaded() || !gs_com.participate_render) continue;
 			skip_render |= gs_com.skip_render;
 			auto offset = -gs_com.black_point + gs_com.brightness;
 			auto scale = 1.0f / (gs_com.white_point - gs_com.black_point);
-			packet.gs_commands.push_back(RenderGSCommand{ trans,
+			packet.gs_commands.push_back(RenderGSCommand{ global_trans,
 										gs_com.ModelRef,
 										(u32)gs_com.sh_degree,
 										packet.render_settings.select_color,
@@ -586,27 +610,32 @@ namespace diverse
 		}
 		packet.skip_gs_render = skip_render;
 		//pointcloud
-		auto pointcloud_group = registry.group<PointCloudComponent>(entt::get<maths::Transform>);
+		auto pointcloud_group = registry.group<PointCloudComponent, GlobalTransform>();
 		for(auto pcd : pointcloud_group)
 		{
 			if (!Entity(pcd, current_scene).active())
 				continue;
 
-			const auto& [pcd_com, trans] = pointcloud_group.get<PointCloudComponent, maths::Transform>(pcd);
+			const auto& [pcd_com, global_trans] = pointcloud_group.get<PointCloudComponent, GlobalTransform>(pcd);
 			if(!pcd_com.ModelRef->is_loaded() ) continue;
-			packet.point_commands.push_back(RenderPointCommand{ trans,
+			packet.point_commands.push_back(RenderPointCommand{ global_trans,
 										pcd_com.ModelRef});
 		}
-		auto meshgroup = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
+		auto meshgroup = registry.group<MeshModelComponent, GlobalTransform>();
 		// if (!tlas && gpu_scene.instance_transforms.size() > 0 && gpu_scene.ent_2_model_id.size() == meshgroup.size())
 		// 	build_ray_tracing_top_level_acceleration();
 		for (auto mesh_ent : meshgroup)
 		{
-			const auto& [model, trans] = meshgroup.get<MeshModelComponent, maths::Transform>(mesh_ent);
-			packet.mesh_frame_states.push_back(MeshFrameState{ (u32)mesh_ent, trans.get_world_matrix() });
+			const auto& [model, global_trans] = meshgroup.get<MeshModelComponent, GlobalTransform>(mesh_ent);
+			packet.mesh_frame_states.push_back(MeshFrameState{ (u32)mesh_ent, global_trans.world_matrix });
 			if (!model.ModelRef) continue;
 			auto mesh_active = Entity(mesh_ent, current_scene).active();
-			packet.mesh_requests.push_back(MeshDrawRequest{ (u32)mesh_ent, trans, model.ModelRef, mesh_active });
+			MeshDrawRequest req;
+			req.entity_id = (u32)mesh_ent;
+			req.transform = global_trans;
+			req.model = model.ModelRef;
+			req.active = mesh_active;
+			packet.mesh_requests.push_back(req);
 		}
 		return packet;
 	}
@@ -997,13 +1026,13 @@ namespace diverse
 		return ready_material_num;
 	}
 
-	auto DeferedRenderer::record_mesh_instance_gpu_state(ModelAsset* model, u32 entity_id, const maths::Transform& transform)->void
+	auto DeferedRenderer::record_mesh_instance_gpu_state(ModelAsset* model, u32 entity_id, const GlobalTransform& global_transform)->void
 	{
 		const AssetId model_id_key = ensure_model_asset_id(*model);
 		u32 model_id = gpu_scene.model_2_blas_id[model_id_key];
 		gpu_scene.ent_2_model_id.push_back(model_id);
 		gpu_scene.instance_transforms.push_back({});
-		auto world_transform = glm::transpose(transform.get_world_matrix());
+		auto world_transform = glm::transpose(global_transform.world_matrix);
 		gpu_scene.instance_transforms.back().transform = world_transform;
 		if (gpu_scene.previous_transforms.find(entity_id) == gpu_scene.previous_transforms.end())
 			gpu_scene.instance_transforms.back().previous_transform = world_transform;
@@ -1493,7 +1522,7 @@ namespace diverse
 		handle_resize(width, height);
 	}
 
-	auto DeferedRenderer::set_override_camera(Camera* camera, maths::Transform* overrideCameraTransform) -> void
+	auto DeferedRenderer::set_override_camera(Camera* camera, ::diverse::Transform* overrideCameraTransform) -> void
 	{
 		override_camera = camera;
 		override_camera_transform = overrideCameraTransform;

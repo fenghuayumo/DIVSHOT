@@ -14,12 +14,7 @@
 #include <scene/component/point_cloud_component.h>
 #include <scene/component/gaussian_crop.h>
 #include <scene/component/environment.h>
-#include <scene/component/light/directional_light.h>
-#include <scene/component/light/point_light.h>
-#include <scene/component/light/rect_light.h>
-#include <scene/component/light/spot_light.h>
-#include <scene/component/light/disk_light.h>
-#include <scene/component/light/cylinder_light.h>
+#include <scene/components/light_component.h>
 #include <scene/sun_controller.h>
 #include <renderer/defered_renderer.h>
 #include <renderer/render_settings.h>
@@ -488,95 +483,107 @@ namespace MM
         ImGui::Separator();
     }
 
-    template <> 
-    void ComponentEditorWidget<diverse::RectLightComponent>(entt::registry& reg, entt::registry::entity_type e)
-    {                                                                                          
-        using namespace diverse;                                                            
-        auto& light = reg.get<RectLightComponent>(e);                                                          
-        ImGui::PushItemWidth(-1);                                                            
-        ImGui::Columns(2);                                                                         
-        ImGuiHelper::Property("Intensity", light.get_intensity_ref(), 0.0f, 100.0f);    
-        ImGuiHelper::Property("Width", light.width_ref(), 0.01f, 100.0f, 1.0f);
-        ImGuiHelper::Property("Height", light.height_ref(), 0.01f, 100.0f, 1.0f);
-        // ImGuiHelper::Property("Radius", light.radius_ref(), 0.01f, 100.0f, 1.0f);
-        ImGuiHelper::Property("Color", light.get_radiance_ref(), ImGuiHelper::PropertyFlag::ColourProperty);
-        ImGui::Columns(1);
-        ImGui::PopItemWidth();    
-        ImGui::Separator();
-    }      
-    
     template <>
-    void ComponentEditorWidget<diverse::DiskLightComponent>(entt::registry& reg, entt::registry::entity_type e)
+    void ComponentEditorWidget<diverse::RectLight>(entt::registry& reg, entt::registry::entity_type e)
     {
         using namespace diverse;
-        auto& light = reg.get<DiskLightComponent>(e);
+        if (!reg.all_of<LightCommon>(e)) return;
+        auto& light_common = reg.get<LightCommon>(e);
+        auto& light = reg.get<RectLight>(e);
         ImGui::PushItemWidth(-1);
         ImGui::Columns(2);
-        ImGuiHelper::Property("Intensity", light.get_intensity_ref(), 0.0f, 100.0f);
-        ImGuiHelper::Property("Radius", light.radius_ref(), 0.0f, 100.0f, 0.1f);
-        ImGuiHelper::Property("Color", light.get_radiance_ref(), ImGuiHelper::PropertyFlag::ColourProperty);
+        ImGuiHelper::Property("Intensity", light_common.intensity, 0.0f, 100.0f);
+        ImGuiHelper::Property("Width", light.width, 0.01f, 100.0f, 1.0f);
+        ImGuiHelper::Property("Height", light.height, 0.01f, 100.0f, 1.0f);
+        ImGuiHelper::Property("Color", light_common.radiance, ImGuiHelper::PropertyFlag::ColourProperty);
         ImGui::Columns(1);
         ImGui::PopItemWidth();
         ImGui::Separator();
     }
 
     template <>
-    void ComponentEditorWidget<diverse::CylinderLightComponent>(entt::registry& reg, entt::registry::entity_type e)
+    void ComponentEditorWidget<diverse::DiskLight>(entt::registry& reg, entt::registry::entity_type e)
     {
         using namespace diverse;
-        auto& light = reg.get<CylinderLightComponent>(e);
+        if (!reg.all_of<LightCommon>(e)) return;
+        auto& light_common = reg.get<LightCommon>(e);
+        auto& light = reg.get<DiskLight>(e);
         ImGui::PushItemWidth(-1);
         ImGui::Columns(2);
-        ImGuiHelper::Property("Intensity", light.get_intensity_ref(), 0.0f, 100.0f);
-        ImGuiHelper::Property("Radius", light.radius_ref(), 0.01f, 100.0f, 0.1f);
-        ImGuiHelper::Property("Length", light.length_ref(), 0.1f, 100.0f, 0.1f);
-        ImGuiHelper::Property("Color", light.get_radiance_ref(), ImGuiHelper::PropertyFlag::ColourProperty);
+        ImGuiHelper::Property("Intensity", light_common.intensity, 0.0f, 100.0f);
+        ImGuiHelper::Property("Radius", light.radius, 0.0f, 100.0f, 0.1f);
+        ImGuiHelper::Property("Color", light_common.radiance, ImGuiHelper::PropertyFlag::ColourProperty);
         ImGui::Columns(1);
         ImGui::PopItemWidth();
         ImGui::Separator();
     }
 
     template <>
-    void ComponentEditorWidget<diverse::SpotLightComponent>(entt::registry& reg, entt::registry::entity_type e)
+    void ComponentEditorWidget<diverse::CylinderLight>(entt::registry& reg, entt::registry::entity_type e)
     {
         using namespace diverse;
-        auto& light = reg.get<SpotLightComponent>(e);
+        if (!reg.all_of<LightCommon>(e)) return;
+        auto& light_common = reg.get<LightCommon>(e);
+        auto& light = reg.get<CylinderLight>(e);
         ImGui::PushItemWidth(-1);
         ImGui::Columns(2);
-        ImGuiHelper::Property("Intensity", light.get_intensity_ref(), 0.0f, 100.0f);
-        ImGuiHelper::Property("Color", light.get_radiance_ref(), ImGuiHelper::PropertyFlag::ColourProperty);
-        ImGuiHelper::Property("InnerAngle", light.inner_angle_ref(), 0.0f, 360.0f);
-        ImGuiHelper::Property("OuterAngle", light.outer_angle_ref(), 0.0f, 360.0f);
-        ImGuiHelper::Property("Radius", light.radius_ref(), 0.01f, 100.0f);
+        ImGuiHelper::Property("Intensity", light_common.intensity, 0.0f, 100.0f);
+        ImGuiHelper::Property("Radius", light.radius, 0.01f, 100.0f, 0.1f);
+        ImGuiHelper::Property("Length", light.length, 0.1f, 100.0f, 0.1f);
+        ImGuiHelper::Property("Color", light_common.radiance, ImGuiHelper::PropertyFlag::ColourProperty);
         ImGui::Columns(1);
         ImGui::PopItemWidth();
         ImGui::Separator();
     }
 
     template <>
-    void ComponentEditorWidget<diverse::PointLightComponent>(entt::registry& reg, entt::registry::entity_type e)
+    void ComponentEditorWidget<diverse::SpotLight>(entt::registry& reg, entt::registry::entity_type e)
     {
         using namespace diverse;
-        auto& light = reg.get<PointLightComponent>(e);
+        if (!reg.all_of<LightCommon>(e)) return;
+        auto& light_common = reg.get<LightCommon>(e);
+        auto& light = reg.get<SpotLight>(e);
         ImGui::PushItemWidth(-1);
         ImGui::Columns(2);
-        ImGuiHelper::Property("Intensity", light.get_intensity_ref(), 0.0f, 100.0f);
-        ImGuiHelper::Property("Color", light.get_radiance_ref(), ImGuiHelper::PropertyFlag::ColourProperty);
-        ImGuiHelper::Property("Radius", light.radius, 0.0f,100.0f);
+        ImGuiHelper::Property("Intensity", light_common.intensity, 0.0f, 100.0f);
+        ImGuiHelper::Property("Color", light_common.radiance, ImGuiHelper::PropertyFlag::ColourProperty);
+        ImGuiHelper::Property("InnerAngle", light.inner_angle, 0.0f, 360.0f);
+        ImGuiHelper::Property("OuterAngle", light.outer_angle, 0.0f, 360.0f);
+        ImGuiHelper::Property("Radius", light.radius, 0.01f, 100.0f);
         ImGui::Columns(1);
         ImGui::PopItemWidth();
         ImGui::Separator();
     }
-    
+
     template <>
-    void ComponentEditorWidget<diverse::DirectionalLightComponent>(entt::registry& reg, entt::registry::entity_type e)
+    void ComponentEditorWidget<diverse::PointLight>(entt::registry& reg, entt::registry::entity_type e)
     {
         using namespace diverse;
-        auto& light = reg.get<DirectionalLightComponent>(e);
+        if (!reg.all_of<LightCommon>(e)) return;
+        auto& light_common = reg.get<LightCommon>(e);
+        auto& light = reg.get<PointLight>(e);
         ImGui::PushItemWidth(-1);
         ImGui::Columns(2);
-        ImGuiHelper::Property("Intensity", light.get_intensity_ref(), 0.0f, 100.0f);
-        ImGuiHelper::Property("Color", light.get_radiance_ref(), ImGuiHelper::PropertyFlag::ColourProperty);
+        ImGuiHelper::Property("Intensity", light_common.intensity, 0.0f, 100.0f);
+        ImGuiHelper::Property("Color", light_common.radiance, ImGuiHelper::PropertyFlag::ColourProperty);
+        ImGuiHelper::Property("Radius", light.radius, 0.0f, 100.0f);
+        ImGui::Columns(1);
+        ImGui::PopItemWidth();
+        ImGui::Separator();
+    }
+
+    template <>
+    void ComponentEditorWidget<diverse::DirectionalLight>(entt::registry& reg, entt::registry::entity_type e)
+    {
+        using namespace diverse;
+        if (!reg.all_of<LightCommon>(e)) return;
+        auto& light_common = reg.get<LightCommon>(e);
+        auto& light = reg.get<DirectionalLight>(e);
+        ImGui::PushItemWidth(-1);
+        ImGui::Columns(2);
+        ImGuiHelper::Property("Intensity", light_common.intensity, 0.0f, 100.0f);
+        ImGuiHelper::Property("Color", light_common.radiance, ImGuiHelper::PropertyFlag::ColourProperty);
+        ImGuiHelper::Property("AngularSize", light.angular_size, 0.0f, 180.0f);
         ImGui::Columns(1);
         ImGui::PopItemWidth();
         ImGui::Separator();
@@ -1469,12 +1476,13 @@ namespace diverse
         TRIVIAL_COMPONENT(Camera, "Camera");
         TRIVIAL_COMPONENT(Environment, "Environment");
         // TRIVIAL_COMPONENT(EditorCameraController, "Camera Controller");
-        // TRIVIAL_COMPONENT(PointLightComponent, "PointLightComponent");
-        // TRIVIAL_COMPONENT(RectLightComponent, "RectLightComponent");
-        // TRIVIAL_COMPONENT(DirectionalLightComponent, "DirectionalLightComponent");
-        // TRIVIAL_COMPONENT(SpotLightComponent, "SpotLightComponent");
-        // TRIVIAL_COMPONENT(DiskLightComponent, "DiskLightComponent");
-        // TRIVIAL_COMPONENT(CylinderLightComponent, "CylinderLightComponent");
+        TRIVIAL_COMPONENT(LightCommon, "LightCommon");
+        TRIVIAL_COMPONENT(DirectionalLight, "DirectionalLight");
+        TRIVIAL_COMPONENT(PointLight, "PointLight");
+        TRIVIAL_COMPONENT(SpotLight, "SpotLight");
+        TRIVIAL_COMPONENT(RectLight, "RectLight");
+        TRIVIAL_COMPONENT(DiskLight, "DiskLight");
+        TRIVIAL_COMPONENT(CylinderLight, "CylinderLight");
     }
     void InspectorPanel::on_imgui_render()
     {

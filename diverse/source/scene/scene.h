@@ -11,14 +11,21 @@ DISABLE_WARNING_POP
 
 namespace diverse
 {
-    class TimeStep;
-    class Event;
-    class Camera;
-    class EntityManager;
-    class Entity;
-    class SceneGraph;
-    class Event;
-    class WindowResizeEvent;
+
+// Forward declarations
+class TimeStep;
+class Event;
+class Camera;
+class EntityManager;
+class Entity;
+class SceneGraph;
+class WindowResizeEvent;
+
+// New component forward declarations
+struct Transform;
+struct GlobalTransform;
+struct Parent;
+class Children;
 
 
     class DS_EXPORT Scene
@@ -56,36 +63,32 @@ namespace diverse
         // The friendly name associated with this scene instance
         const std::string& get_scene_name() const
         {
-            return m_SceneName;
+            return scene_name;
         }
-        std::string& scene_name()
-        {
-			return m_SceneName;
-		}
         void set_name(const std::string& name)
         {
-            m_SceneName = name;
+            scene_name = name;
         }
 
         void set_screen_width(uint32_t width)
         {
-            m_ScreenWidth = width;
+            screen_width = width;
         }
         void set_screen_height(uint32_t height)
         {
-            m_ScreenHeight = height;
+            screen_height = height;
         }
 
         void set_screen_size(uint32_t width, uint32_t height);
 
         uint32_t get_screen_width() const
         {
-            return m_ScreenWidth;
+            return screen_width;
         }
 
         uint32_t get_screen_height() const
         {
-            return m_ScreenHeight;
+            return screen_height;
         }
 
         entt::registry& get_registry();
@@ -101,7 +104,7 @@ namespace diverse
         void destroy_entity(Entity entity);
         void save_prefab(Entity entity, const std::string& path);
 
-        EntityManager* get_entity_manager() { return m_EntityManager.get(); }
+        EntityManager* get_entity_manager() { return entity_manager.get(); }
 
         virtual void serialise(const std::string& filePath, bool binary = false);
         virtual void deserialise(const std::string& filePath, bool binary = false);
@@ -110,44 +113,44 @@ namespace diverse
         void save(Archive& archive) const
         {
             archive(cereal::make_nvp("Version", SceneSerialisationVersion));
-            archive(cereal::make_nvp("Scene Name", m_SceneName));
+            archive(cereal::make_nvp("Scene Name", scene_name));
         }
 
         template <typename Archive>
         void load(Archive& archive)
         {
             archive(cereal::make_nvp("Version", SceneSerialisationVersion));
-            archive(cereal::make_nvp("Scene Name", m_SceneName));
+            archive(cereal::make_nvp("Scene Name", scene_name));
         }
         
         maths::BoundingBox  get_world_bounding_box() const;
         int get_scene_version() const
         {
-            return m_SceneSerialisationVersion;
+            return scene_serialisation_version;
         }
         Entity get_keyFrame_entity();
 
         const bool& serialised() { return has_serialised;}
 
-        const SceneImportMeta& get_import_meta() const { return m_ImportMeta; }
-        void set_import_meta(const SceneImportMeta& meta) { m_ImportMeta = meta; }
-        void clear_import_meta() { m_ImportMeta = {}; }
+        const SceneImportMeta& get_import_meta() const { return import_meta; }
+        void set_import_meta(const SceneImportMeta& meta) { import_meta = meta; }
+        void clear_import_meta() { import_meta = {}; }
 
-        const std::string& get_source_file_path() const { return m_SourceFilePath; }
-        void set_source_file_path(const std::string& path) { m_SourceFilePath = path; }
+        const std::string& get_source_file_path() const { return source_file_path; }
+        void set_source_file_path(const std::string& path) { source_file_path = path; }
     protected:
-        std::string m_SceneName;
-        std::string m_SourceFilePath;
-        int m_SceneSerialisationVersion = 0;
+        std::string scene_name;
+        std::string source_file_path;
+        int scene_serialisation_version = 0;
 
-        UniquePtr<EntityManager> m_EntityManager;
-        UniquePtr<SceneGraph> m_SceneGraph;
+        UniquePtr<EntityManager> entity_manager;
+        UniquePtr<SceneGraph> scene_graph;
 
-        uint32_t m_ScreenWidth;
-        uint32_t m_ScreenHeight;
-        u32      current_edit_splat_ent_id;
-        bool     has_serialised = false;
-        SceneImportMeta m_ImportMeta;
+        uint32_t screen_width;
+        uint32_t screen_height;
+        u32 current_edit_splat_ent_id;
+        bool has_serialised = false;
+        SceneImportMeta import_meta;
     private:
         NONCOPYABLE(Scene)
 

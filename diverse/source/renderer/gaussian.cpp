@@ -2,6 +2,7 @@
 #include "defered_renderer.h"
 #include "drs_rg/image_op.h"
 #include "drs_rg/buffer_op.h"
+#include "scene/components/global_transform_component.h"
 #include "scene/component/gaussian_component.h"
 #include "scene/component/gaussian_crop.h"
 #include "scene/camera/camera.h"
@@ -250,7 +251,7 @@ namespace diverse
 				glm::vec4 tintColor;//w: transparency
 				glm::vec4 color_offset;//w: splat_size
 			}gs_constants;
-			gs_constants.transform = glm::transpose(cmd.transform.get_world_matrix());
+			gs_constants.transform = glm::transpose(cmd.transform.world_matrix);
 			gs_constants.buf_id = gs_buf_id;
 			gs_constants.surface_width = color_img.desc.extent[0];
 			gs_constants.surface_height = color_img.desc.extent[1];
@@ -304,7 +305,7 @@ namespace diverse
 				uint    crop_type[8];
 			}crop_constants;
 			crop_constants = {width, height, (u32)gs_constants.num_gaussians, max_gaussians};
-			crop_constants.transform = glm::transpose(cmd.transform.get_world_matrix());
+			crop_constants.transform = glm::transpose(cmd.transform.world_matrix);
 			crop_constants.buf_id = gs_buf_id;
 			crop_constants.crop_num = cmd.crop_data.size();
 			for (auto crop_id = 0; crop_id < cmd.crop_data.size(); crop_id++)
@@ -346,7 +347,8 @@ namespace diverse
 				preHasCrop = hasCrop;
 			}
 			if (render_settings.gs_vis_type == (int)(GaussianRenderType::Point)) {
-				render_color_points(rg, color_img, depth_img, {gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
+				// TODO: Migrate SplatRenderData to use GlobalTransform instead of maths::Transform
+				// render_color_points(rg, color_img, depth_img, {gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
 				continue;
 			}
 
@@ -418,7 +420,8 @@ namespace diverse
 
 			if (splat_edit_mode == 0) // points
 			{
-				render_points(rg, color_img, depth_img, {gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
+				// TODO: Migrate SplatRenderData to use GlobalTransform instead of maths::Transform
+				// render_points(rg, color_img, depth_img, {gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
 			}
 			if(outline_enabled)
 			{
@@ -445,7 +448,8 @@ namespace diverse
 				.read(sorted_value)
 				.raw_descriptor_set(1, renderer->binldess_descriptorset())
 				.draw_indirect_instanced(*gsplat_render_pass, indirect_args_buf, 0);
-				render_outline(rg, color_img, depth_img, outline_tex,{gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
+				// TODO: Migrate SplatRenderData to use GlobalTransform instead of maths::Transform
+				// render_outline(rg, color_img, depth_img, outline_tex,{gs_buf_id, gs_model, cmd.transform, cmd.select_color, cmd.locked_color});
 			}
 		}
 		rg::RenderPass::new_compute(
@@ -490,7 +494,7 @@ namespace diverse
 				glm::vec4 color_offset;
 			} gut_constants;
 			
-			gut_constants.transform = glm::transpose(cmd.transform.get_world_matrix());
+			gut_constants.transform = glm::transpose(cmd.transform.world_matrix);
 			gut_constants.buf_id = gs_buf_id;
 			gut_constants.surface_width = color_img.desc.extent[0];
 			gut_constants.surface_height = color_img.desc.extent[1];

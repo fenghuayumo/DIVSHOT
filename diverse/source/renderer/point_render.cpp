@@ -1,6 +1,7 @@
 #include "point_render.h"
 #include "defered_renderer.h"
 #include "drs_rg/image_op.h"
+#include "scene/components/global_transform_component.h"
 #include "scene/component/point_cloud_component.h"
 #include "utility/pack_utils.h"
 #include "maths/maths_utils.h"
@@ -63,7 +64,7 @@ namespace diverse
                 u32 surface_height;
                 uint buf_id;
             }gs_constants;
-            gs_constants.transform = glm::transpose(cmd.transform.get_world_matrix());
+            gs_constants.transform = glm::transpose(cmd.transform.world_matrix);
 			gs_constants.point_size = glm::clamp(render_settings.gs_point_size,0.0f,100.0f) / 2.0f;
             gs_constants.surface_width = color_img.desc.extent[0];
             gs_constants.surface_height = color_img.desc.extent[1];

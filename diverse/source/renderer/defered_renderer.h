@@ -8,6 +8,8 @@
 #include "scene/mesh_light.h"
 #include "maths/transform.h"
 #include "scene/camera/camera.h"
+#include "scene/components/transform_component.h"
+#include "scene/components/global_transform_component.h"
 #include "frame_constants.h"
 #include "gaussian.h"
 #include "debug_render_pass.h"
@@ -54,7 +56,7 @@ namespace diverse
 	class RasterizeMesh;
 	struct RenderGSCommand
 	{
-		maths::Transform transform;
+		GlobalTransform transform;
 		SharedPtr<GaussianModel> model;
 		u32 		   sh_degree;
 		glm::vec4 	   select_color;
@@ -83,7 +85,7 @@ namespace diverse
 
 	struct RenderPointCommand
 	{
-		maths::Transform transform;
+		GlobalTransform transform;
 		SharedPtr<PointCloud> model;
 	};
 	struct InstanceTransform
@@ -122,7 +124,7 @@ namespace diverse
 	struct MeshDrawRequest
 	{
 		u32 entity_id = 0;
-		maths::Transform transform;
+		GlobalTransform transform;
 		std::shared_ptr<ModelAsset> model;
 		bool active = false;
 	};
@@ -232,7 +234,7 @@ namespace diverse
 		.get(); }
 		auto	get_debug_draw_frame() const -> const DebugDrawFrame& { return debug_draw_frame; }
 
-		auto	set_override_camera(Camera* camera, maths::Transform* overrideCameraTransform)->void;
+		auto	set_override_camera(Camera* camera, ::diverse::Transform* overrideCameraTransform)->void;
 
 		auto	set_current_scene(Scene* scene) ->void{ current_scene = scene;}
 
@@ -242,7 +244,7 @@ namespace diverse
 		auto	get_render_depth()->std::shared_ptr<rhi::GpuTexture> {return depth_render_tex;}
 		auto	get_device() const -> rhi::GpuDevice* { return rg_renderer->device; }
 		auto	get_camera()->Camera* {return camera;}
-		auto	get_camera_transform()-> maths::Transform* {return camera_transform;}
+		auto	get_camera_transform()-> ::diverse::Transform* {return camera_transform;}
 		auto	get_frame_render_settings() const -> const RenderSettings& { return frame_render_settings; }
 		auto	binldess_descriptorset()-> rhi::DescriptorSet* {return bindless_descriptor_set.get();}
 		auto 	invalidate_pt_state()->void { reset_pt = true;}	
@@ -266,7 +268,7 @@ namespace diverse
 		auto	upload_mesh_materials(ModelAsset* model, GpuSceneDirtyState& dirty_state)->int;
 		auto	is_material_texture_bound(const AssetHandle<TextureAsset>& handle)->bool;
 		auto	are_material_textures_bound(const MaterialAsset& material)->bool;
-		auto	record_mesh_instance_gpu_state(ModelAsset* model, u32 entity_id, const maths::Transform& transform)->void;
+		auto	record_mesh_instance_gpu_state(ModelAsset* model, u32 entity_id, const GlobalTransform& transform)->void;
 		auto	upload_mesh_model(ModelAsset* model)->void;
 		auto	defer_release(std::function<void()>&& release)->void;
 		auto	retire_deferred_releases(bool release_all = false)->void;
@@ -294,7 +296,8 @@ namespace diverse
 		std::optional<CameraMatrices> prev_camera_matrix;
 		Scene* current_scene = nullptr;
 		Camera* camera = nullptr;
-		maths::Transform* camera_transform = nullptr;
+		::diverse::Transform* camera_transform = nullptr;
+		GlobalTransform* camera_global_transform = nullptr;
 	public:
 	  	std::shared_ptr<rhi::GpuBuffer>     mesh_buffer;
 		std::shared_ptr<rhi::GpuRayTracingAcceleration> tlas;
@@ -309,7 +312,7 @@ namespace diverse
 		std::shared_ptr<rhi::GpuTexture>	depth_render_tex;
 
 		Camera* override_camera = nullptr;
-		maths::Transform* override_camera_transform = nullptr;
+		::diverse::Transform* override_camera_transform = nullptr;
 		auto add_image_lut(const std::shared_ptr<ImageLut>& computer, u64 id)->void;
 
 	protected:

@@ -9,6 +9,7 @@
 #include <queue>
 #include <glm/vec2.hpp>
 #include "maths/transform.h"
+#include "scene/components/transform_component.h"
 #include "scene/scene_manager.h"
 #include "engine/file_system.h"
 #include <entt/entity/registry.hpp>
@@ -209,7 +210,7 @@ namespace diverse
         bool handle_renderer_resize(u32 width,u32 height);
         std::shared_ptr<rhi::GpuTexture>    get_main_render_texture();
         void                                set_main_render_texture(std::shared_ptr<rhi::GpuTexture> texture);
-        void                                set_override_camera(Camera* camera, maths::Transform* overrideCameraTransform);
+        void                                set_override_camera(Camera* camera, ::diverse::Transform* overrideCameraTransform);
 
         int                                 frame_number() const;
         void                                refresh_shaders();

@@ -10,7 +10,8 @@
 #include "events/event.h"
 #include "events/application_event.h"
 
-#include "maths/transform.h"
+#include "scene/components/transform_component.h"
+#include "scene/components/global_transform_component.h"
 #include "engine/file_system.h"
 #include "scene/component/components.h"
 #include "scene/component/time_line.h"
@@ -20,12 +21,8 @@
 #include "scene/component/point_cloud_component.h"
 #include "scene/component/mesh_model_component.h"
 #include "scene/component/environment.h"
-#include "scene/component/light/directional_light.h"
-#include "scene/component/light/point_light.h"
-#include "scene/component/light/rect_light.h"
-#include "scene/component/light/spot_light.h"
-#include "scene/component/light/disk_light.h"
-#include "scene/component/light/cylinder_light.h"
+#include "scene/components/light_component.h"
+#include "scene/camera/editor_camera.h"
 #include "scene_graph.h"
 
 #include <cereal/types/polymorphic.hpp>
@@ -187,33 +184,34 @@ namespace entt
 namespace diverse
 {
     Scene::Scene(const std::string& name)
-        : m_SceneName(name)
-        , m_ScreenWidth(0)
-        , m_ScreenHeight(0)
+        : scene_name(name)
+        , screen_width(0)
+        , screen_height(0)
     {
-        m_EntityManager = createUniquePtr<EntityManager>(this);
-        m_EntityManager->add_dependency<Camera, maths::Transform>();
-        m_EntityManager->add_dependency<GaussianComponent, maths::Transform>();
-        m_EntityManager->add_dependency<PointCloudComponent, maths::Transform>();
-        m_EntityManager->add_dependency<MeshModelComponent, maths::Transform>();
-        m_EntityManager->add_dependency<DirectionalLightComponent, maths::Transform>();
-        m_EntityManager->add_dependency<PointLightComponent, maths::Transform>();
-        m_EntityManager->add_dependency<SpotLightComponent, maths::Transform>();
-        m_EntityManager->add_dependency<RectLightComponent, maths::Transform>();
-        m_EntityManager->add_dependency<DiskLightComponent, maths::Transform>();
-        m_EntityManager->add_dependency<CylinderLightComponent, maths::Transform>();
-        m_SceneGraph = createUniquePtr<SceneGraph>();
-        m_SceneGraph->init(m_EntityManager->get_registry());
+        entity_manager = createUniquePtr<EntityManager>(this);
+        entity_manager->add_dependency<Camera, ::diverse::Transform>();
+        entity_manager->add_dependency<GaussianComponent, ::diverse::Transform>();
+        entity_manager->add_dependency<PointCloudComponent, ::diverse::Transform>();
+        entity_manager->add_dependency<MeshModelComponent, ::diverse::Transform>();
+        entity_manager->add_dependency<LightCommon, ::diverse::Transform>();
+        entity_manager->add_dependency<DirectionalLight, ::diverse::Transform>();
+        entity_manager->add_dependency<PointLight, ::diverse::Transform>();
+        entity_manager->add_dependency<SpotLight, ::diverse::Transform>();
+        entity_manager->add_dependency<RectLight, ::diverse::Transform>();
+        entity_manager->add_dependency<DiskLight, ::diverse::Transform>();
+        entity_manager->add_dependency<CylinderLight, ::diverse::Transform>();
+        scene_graph = createUniquePtr<SceneGraph>();
+        scene_graph->init(entity_manager->get_registry());
     }
 
     Scene::~Scene()
     {
-        m_EntityManager->clear();
+        entity_manager->clear();
     }
 
     entt::registry& Scene::get_registry()
     {
-        return m_EntityManager->get_registry();
+        return entity_manager->get_registry();
     }
 
     void Scene::on_init()
@@ -230,7 +228,7 @@ namespace diverse
     void Scene::delete_all_game_objects()
     {
         DS_PROFILE_FUNCTION();
-        m_EntityManager->clear();
+        entity_manager->clear();
     }
 
     void Scene::on_update(const TimeStep& timeStep)
@@ -238,35 +236,40 @@ namespace diverse
         DS_PROFILE_FUNCTION();
         const glm::vec2& mousePos = Input::get().get_mouse_position();
 
-        auto defaultCameraControllerView = m_EntityManager->get_entities_with_type<DefaultCameraController>();
-        auto cameraView = m_EntityManager->get_entities_with_type<Camera>();
+        auto defaultCameraControllerView = entity_manager->get_entities_with_type<EditorCameraController>();
+        auto cameraView = entity_manager->get_entities_with_type<Camera>();
         Camera* camera = nullptr;
-        maths::Transform* camera_transform = nullptr;
+        ::diverse::Transform* camera_transform = nullptr;
+        GlobalTransform* camera_global_transform = nullptr;
         if (!cameraView.empty())
         {
             camera = &cameraView.front().get_component<Camera>();
-            camera_transform = &cameraView.front().get_component<maths::Transform>();
+            camera_transform = cameraView.front().try_get_component<::diverse::Transform>();
+            camera_global_transform = cameraView.front().try_get_component<GlobalTransform>();
         }
 
         if (!defaultCameraControllerView.empty())
         {
-            auto& cameraController = defaultCameraControllerView.front().get_component<DefaultCameraController>();
-            camera_transform = defaultCameraControllerView.front().try_get_component<maths::Transform>();
-            if (Application::get().get_scene_active() && camera_transform && cameraController.get_controller())
+            auto& cameraController = defaultCameraControllerView.front().get_component<EditorCameraController>();
+            camera_transform = defaultCameraControllerView.front().try_get_component<::diverse::Transform>();
+            camera_global_transform = defaultCameraControllerView.front().try_get_component<GlobalTransform>();
+            if (Application::get().get_scene_active() && camera_transform && camera_global_transform)
             {
-                cameraController.get_controller()->set_camera(camera);
-                cameraController.get_controller()->handle_mouse(*camera_transform, (float)timeStep.get_seconds(), mousePos.x, mousePos.y);
-                cameraController.get_controller()->handle_keyboard(*camera_transform, (float)timeStep.get_seconds());
+                cameraController.set_camera(camera);
+                // TODO: Migrate EditorCameraController to use new ECS Transform component
+                // For now, camera controller handling is disabled during migration
+                // cameraController.handle_mouse(*camera_transform, (float)timeStep.get_seconds(), mousePos.x, mousePos.y);
+                // cameraController.handle_keyboard(*camera_transform, (float)timeStep.get_seconds());
             }
         }
 
-        auto environmentView = m_EntityManager->get_entities_with_type<Environment>();
+        auto environmentView = entity_manager->get_entities_with_type<Environment>();
         Environment* enviroment = nullptr;
         if (!environmentView.empty())
         {
             enviroment = &environmentView.front().get_component<Environment>();
         }
-        if (Application::get().get_scene_active() && enviroment && camera_transform)
+        if (Application::get().get_scene_active() && enviroment && camera_global_transform)
         {
             auto& input = Input::get();
             if (input.get_mouse_held(InputCode::ButtonLeft) && enviroment->mode == Environment::Mode::SunSky)
@@ -274,14 +277,16 @@ namespace diverse
                 auto delta = input.get_mouse_delta();
                 auto delta_x = (delta.x / (f32)2048) * 6.283;
                 auto delta_y = (delta.y / (f32)968) * 3.1415;
-                glm::quat ref_frame(camera_transform->get_world_orientation().w, 0.0f, camera_transform->get_world_orientation().y, 0.0f);
+                glm::quat ref_frame = camera_global_transform->rotation();
+                // Keep only Y component of rotation for reference frame
+                ref_frame = glm::quat(ref_frame.w, 0.0f, ref_frame.y, 0.0f);
                 ref_frame = glm::normalize(ref_frame);
                 auto& sun_controller = environmentView.front().get_component<SunController>();
                 sun_controller.view_space_rotate(ref_frame, delta_x, delta_y);
             }
         }
 
-        m_SceneGraph->update(m_EntityManager->get_registry());
+        scene_graph->update(entity_manager->get_registry());
 
     }
 
@@ -294,7 +299,7 @@ namespace diverse
 
     Entity Scene::get_keyFrame_entity()
     {
-        auto keyFrameView = m_EntityManager->get_entities_with_type<KeyFrameTimeLine>();
+        auto keyFrameView = entity_manager->get_entities_with_type<KeyFrameTimeLine>();
         if (!keyFrameView.empty())
         {
             return keyFrameView.front();
@@ -308,10 +313,10 @@ namespace diverse
         if (!Application::get().get_scene_active())
             return false;
 
-        auto cameraView = m_EntityManager->get_registry().view<Camera>();
+        auto cameraView = entity_manager->get_registry().view<Camera>();
         if (!cameraView.empty())
         {
-            m_EntityManager->get_registry().get<Camera>(cameraView.front()).set_aspect_ratio(static_cast<float>(e.GetWidth()) / static_cast<float>(e.GetHeight()));
+            entity_manager->get_registry().get<Camera>(cameraView.front()).set_aspect_ratio(static_cast<float>(e.GetWidth()) / static_cast<float>(e.GetHeight()));
         }
 
         return false;
@@ -319,32 +324,32 @@ namespace diverse
 
     void Scene::set_screen_size(uint32_t width, uint32_t height)
     {
-        m_ScreenWidth = width;
-        m_ScreenHeight = height;
+        screen_width = width;
+        screen_height = height;
 
-        auto cameraView = m_EntityManager->get_registry().view<Camera>();
+        auto cameraView = entity_manager->get_registry().view<Camera>();
         if (!cameraView.empty())
         {
-            m_EntityManager->get_registry().get<Camera>(cameraView.front()).set_aspect_ratio(static_cast<float>(m_ScreenWidth) / static_cast<float>(m_ScreenHeight));
+            entity_manager->get_registry().get<Camera>(cameraView.front()).set_aspect_ratio(static_cast<float>(screen_width) / static_cast<float>(screen_height));
         }
     }
 
-    maths::BoundingBox  Scene::get_world_bounding_box() const   
+    maths::BoundingBox  Scene::get_world_bounding_box() const
     {
-        auto group = m_EntityManager->get_registry().group<GaussianComponent>(entt::get<maths::Transform>);
+        auto group = entity_manager->get_registry().group<GaussianComponent>(entt::get<GlobalTransform>);
         maths::BoundingBox  box;
         for (auto entity : group)
         {
-            const auto& [model, trans] = group.get<GaussianComponent, maths::Transform>(entity);
-            auto& worldTransform = trans.get_world_matrix();
+            const auto& [model, global] = group.get<GaussianComponent, GlobalTransform>(entity);
+            auto& worldTransform = global.world_matrix;
             auto bbCopy = model.ModelRef->get_world_bounding_box(worldTransform);
             box.merge(bbCopy);
         }
-        auto model_group = m_EntityManager->get_registry().group<MeshModelComponent>(entt::get<maths::Transform>);
+        auto model_group = entity_manager->get_registry().group<MeshModelComponent>(entt::get<GlobalTransform>);
         for (auto entity : model_group)
         {
-            const auto& [model, trans] = model_group.get<MeshModelComponent, maths::Transform>(entity);
-            auto& worldTransform = trans.get_world_matrix();
+            const auto& [model, global] = model_group.get<MeshModelComponent, GlobalTransform>(entity);
+            auto& worldTransform = global.world_matrix;
             auto bbCopy = model.ModelRef->get_world_bounding_box(worldTransform);
             box.merge(bbCopy);
         }
@@ -352,26 +357,34 @@ namespace diverse
     }
 
 
-#define ALL_COMPONENTSV1 maths::Transform, NameComponent, ActiveComponent, Hierarchy, Camera, DefaultCameraController, GaussianComponent, KeyFrameTimeLine, Environment,MeshModelComponent,PointCloudComponent
+#define ALL_COMPONENTSV1 ::diverse::Transform, Parent, NameComponent, ActiveComponent, Camera, GaussianComponent, KeyFrameTimeLine, Environment, MeshModelComponent, PointCloudComponent, LightCommon, DirectionalLight, PointLight, SpotLight, RectLight, DiskLight, CylinderLight
 
-#define ALL_COMPONENTSENTTV1(input) get<maths::Transform>(input)    \
+#define ALL_COMPONENTSENTTV1(input) get<::diverse::Transform>(input)    \
+                                    .get<Parent>(input)    \
                                     .get<NameComponent>(input)      \
                                     .get<ActiveComponent>(input)    \
-                                    .get<Hierarchy>(input)          \
                                     .get<Camera>(input)             \
-                                    .get<DefaultCameraController>(input)    \
                                     .get<GaussianComponent>(input)          \
                                     .get<PointCloudComponent>(input)          \
-                                    .get<KeyFrameTimeLine>(input).get<Environment>(input).get<MeshModelComponent>(input)
+                                    .get<KeyFrameTimeLine>(input) \
+                                    .get<Environment>(input) \
+                                    .get<MeshModelComponent>(input) \
+                                    .get<LightCommon>(input) \
+                                    .get<DirectionalLight>(input) \
+                                    .get<PointLight>(input) \
+                                    .get<SpotLight>(input) \
+                                    .get<RectLight>(input) \
+                                    .get<DiskLight>(input) \
+                                    .get<CylinderLight>(input)
 
     void Scene::serialise(const std::string& filePath, bool binary)
     {
         DS_PROFILE_FUNCTION();
         DS_LOG_INFO("Scene saved - {0}", filePath);
         std::string path = filePath;
-        path += m_SceneName; // stringutility::remove_spaces(m_SceneName);
+        path += scene_name; // stringutility::remove_spaces(scene_name);
 
-        m_SceneSerialisationVersion = SceneSerialisationVersion;
+        scene_serialisation_version = SceneSerialisationVersion;
 
         if (binary)
         {
@@ -383,7 +396,7 @@ namespace diverse
                 // output finishes flushing its contents when it goes out of scope
                 cereal::BinaryOutputArchive output{ file };
                 output(*this);
-                auto& snap = entt::snapshot{ m_EntityManager->get_registry() }.get<entt::entity>(output).ALL_COMPONENTSENTTV1(output);
+                auto& snap = entt::snapshot{ entity_manager->get_registry() }.get<entt::entity>(output).ALL_COMPONENTSENTTV1(output);
                 Application::get().save_custom(output, snap);
             }
             file.close();
@@ -397,7 +410,7 @@ namespace diverse
                 // output finishes flushing its contents when it goes out of scope
                 cereal::JSONOutputArchive output{ storage };
                 output(*this);
-                auto& snap = entt::snapshot{ m_EntityManager->get_registry() }.get<entt::entity>(output).ALL_COMPONENTSENTTV1(output);
+                auto& snap = entt::snapshot{ entity_manager->get_registry() }.get<entt::entity>(output).ALL_COMPONENTSENTTV1(output);
                 Application::get().save_custom(output, snap);
             }
             FileSystem::write_text_file(path, storage.str());
@@ -408,10 +421,10 @@ namespace diverse
     void Scene::deserialise(const std::string& filePath, bool binary)
     {
         DS_PROFILE_FUNCTION();
-        m_EntityManager->clear();
-        m_SceneGraph->disable_on_construct(true, m_EntityManager->get_registry());
+        entity_manager->clear();
+        scene_graph->disable_on_construct(true, entity_manager->get_registry());
         std::string path = filePath;
-        path += m_SceneName; // stringutility::remove_spaces(m_SceneName);
+        path += scene_name; // stringutility::remove_spaces(scene_name);
         if (binary)
         {
             path += std::string(".bin");
@@ -427,7 +440,7 @@ namespace diverse
                 cereal::BinaryInputArchive input(file);
                 input(*this);
 
-                auto& entsnap = entt::snapshot_loader{ m_EntityManager->get_registry() }.get<entt::entity>(input).ALL_COMPONENTSENTTV1(input);
+                auto& entsnap = entt::snapshot_loader{ entity_manager->get_registry() }.get<entt::entity>(input).ALL_COMPONENTSENTTV1(input);
                 Application::get().load_custom(input, entsnap);
             }
             catch (...)
@@ -451,7 +464,7 @@ namespace diverse
                 istr.str(data);
                 cereal::JSONInputArchive input(istr);
                 input(*this);
-                auto& entsnap = entt::snapshot_loader{ m_EntityManager->get_registry() }.get<entt::entity>(input).ALL_COMPONENTSENTTV1(input);
+                auto& entsnap = entt::snapshot_loader{ entity_manager->get_registry() }.get<entt::entity>(input).ALL_COMPONENTSENTTV1(input);
                 Application::get().load_custom(input, entsnap);
             }
             catch (...)
@@ -459,7 +472,7 @@ namespace diverse
                 DS_LOG_ERROR("Failed to load scene - {0}", path);
             }
         }
-        m_SceneGraph->disable_on_construct(false, m_EntityManager->get_registry());
+        scene_graph->disable_on_construct(false, entity_manager->get_registry());
         Application::get().handle_new_scene(this);
         has_serialised = true;
     }
@@ -467,7 +480,7 @@ namespace diverse
     void Scene::update_scene_graph()
     {
         DS_PROFILE_FUNCTION();
-        m_SceneGraph->update(m_EntityManager->get_registry());
+        scene_graph->update(entity_manager->get_registry());
     }
 
     template <typename T>
@@ -488,19 +501,19 @@ namespace diverse
 
     Entity Scene::create_entity()
     {
-        return m_EntityManager->create();
+        return entity_manager->create();
     }
 
     Entity Scene::create_entity(const std::string& name)
     {
         DS_PROFILE_FUNCTION();
-        return m_EntityManager->create(name);
+        return entity_manager->create(name);
     }
 
     Entity Scene::get_entity_by_uuid(uint64_t id)
     {
         DS_PROFILE_FUNCTION();
-        return m_EntityManager->get_entity_by_uuid(id);
+        return entity_manager->get_entity_by_uuid(id);
     }
 
     namespace
@@ -508,18 +521,8 @@ namespace diverse
         void _DestroyEntity(entt::entity entity, entt::registry& registry)
         {
             DS_PROFILE_FUNCTION();
-            auto hierarchyComponent = registry.try_get<Hierarchy>(entity);
-            if (hierarchyComponent)
-            {
-                entt::entity child = hierarchyComponent->first();
-                while (child != entt::null)
-                {
-                    auto hierarchyComponent = registry.try_get<Hierarchy>(child);
-                    auto next = hierarchyComponent ? hierarchyComponent->next() : entt::null;
-                    _DestroyEntity(child, registry);
-                    child = next;
-                }
-            }
+            // New hierarchy system handles children destruction automatically
+            // through HierarchySystem::on_entity_destroy callback
             registry.destroy(entity);
         }
     }
@@ -538,23 +541,20 @@ namespace diverse
     void Scene::duplicate_entity(Entity entity, Entity parent)
     {
         DS_PROFILE_FUNCTION();
-        m_SceneGraph->disable_on_construct(true, m_EntityManager->get_registry());
+        scene_graph->disable_on_construct(true, entity_manager->get_registry());
 
-        Entity newEntity = m_EntityManager->create();
+        Entity newEntity = entity_manager->create();
 
-        CopyEntity<ALL_COMPONENTSV1>(newEntity.get_handle(), entity.get_handle(), m_EntityManager->get_registry());
+        CopyEntity<ALL_COMPONENTSV1>(newEntity.get_handle(), entity.get_handle(), entity_manager->get_registry());
         newEntity.get_component<IDComponent>().ID = UUID();
 
-        auto hierarchyComponent = newEntity.try_get_component<Hierarchy>();
-        if(hierarchyComponent)
+        // Clear parent reference in duplicated entity
+        if(newEntity.try_get_component<Parent>())
         {
-            hierarchyComponent->m_First  = entt::null;
-            hierarchyComponent->m_Parent = entt::null;
-            hierarchyComponent->m_Next   = entt::null;
-            hierarchyComponent->m_Prev   = entt::null;
+            newEntity.get_component<Parent>().value = entt::null;
         }
 
-        auto children  = entity.get_children_temp();
+        auto children = entity.get_children_temp();
         u32 childCount = entity.get_child_count();
 
         for(u32 i = 0; i < childCount; i++)
@@ -565,7 +565,7 @@ namespace diverse
         if(parent)
             newEntity.set_parent(parent);
 
-        m_SceneGraph->disable_on_construct(false, m_EntityManager->get_registry());
+        scene_graph->disable_on_construct(false, entity_manager->get_registry());
     }
 
 }

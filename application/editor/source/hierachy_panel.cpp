@@ -13,13 +13,11 @@
 #include <scene/component/components.h>
 #include <scene/component/environment.h>
 #include <scene/component/time_line.h>
-#include <scene/component/light/directional_light.h>
-#include <scene/component/light/point_light.h>
-#include <scene/component/light/rect_light.h>
-#include <scene/component/light/spot_light.h>
-#include <scene/component/light/disk_light.h>
-#include <scene/component/light/cylinder_light.h>
+#include <scene/components/light_component.h>
 #include <scene/component/mesh_model_component.h>
+#include <scene/components/parent_component.h>
+#include <scene/components/children_component.h>
+#include <scene/systems/hierarchy_system.h>
 
 #include <imGui/IconsMaterialDesignIcons.h>
 #include <utility/string_utils.h>
@@ -74,10 +72,10 @@ namespace diverse
         if (show)
         {
             ImGuiHelper::PushID();
-            auto hierarchyComponent = registry.try_get<Hierarchy>(node);
+            auto childrenComponent = registry.try_get<Children>(node);
             bool noChildren = true;
 
-            if (hierarchyComponent != nullptr && hierarchyComponent->first() != entt::null)
+            if (childrenComponent != nullptr && childrenComponent->size() > 0)
                 noChildren = false;
 
             ImGuiTreeNodeFlags nodeFlags = ((editor->is_selected(node)) ? ImGuiTreeNodeFlags_Selected : 0);
@@ -311,13 +309,8 @@ namespace diverse
                         entt::entity droppedEntityID = *(((entt::entity*)payload->Data) + i);
                         if (droppedEntityID != node)
                         {
-                            auto hierarchyComponent = registry.try_get<Hierarchy>(droppedEntityID);
-                            if (hierarchyComponent)
-                                Hierarchy::reparent(droppedEntityID, node, registry, *hierarchyComponent);
-                            else
-                            {
-                                registry.emplace<Hierarchy>(droppedEntityID, node);
-                            }
+                            // Use new HierarchySystem for reparenting
+                            HierarchySystem::reparent(registry, droppedEntityID, node);
                         }
                     }
 
@@ -405,36 +398,33 @@ namespace diverse
 
             if (!noChildren)
             {
-                entt::entity child = hierarchyComponent->first();
-                while (child != entt::null && registry.valid(child))
+                auto childrenComponent = registry.try_get<Children>(node);
+                if (childrenComponent)
                 {
-                    float HorizontalTreeLineSize = 20.0f * Application::get().get_window_dpi(); // chosen arbitrarily
-                    auto currentPos = ImGui::GetCursorScreenPos();
-                    ImGui::Indent(10.0f);
-
-                    auto childHerarchyComponent = registry.try_get<Hierarchy>(child);
-
-                    if (childHerarchyComponent)
+                    for (auto child : *childrenComponent)
                     {
-                        entt::entity firstChild = childHerarchyComponent->first();
-                        if (firstChild != entt::null && registry.valid(firstChild))
+                        if (!registry.valid(child))
+                            continue;
+
+                        float HorizontalTreeLineSize = 20.0f * Application::get().get_window_dpi(); // chosen arbitrarily
+                        auto currentPos = ImGui::GetCursorScreenPos();
+                        ImGui::Indent(10.0f);
+
+                        auto childChildrenComponent = registry.try_get<Children>(child);
+
+                        if (childChildrenComponent && childChildrenComponent->size() > 0)
                         {
                             HorizontalTreeLineSize *= 0.4f;
                         }
-                    }
-                    draw_node(child, registry);
-                    ImGui::Unindent(10.0f);
 
-                    const ImRect childRect = ImRect(currentPos, currentPos + ImVec2(0.0f, ImGui::GetFontSize() + (ImGui::GetStyle().FramePadding.y * 2)));
+                        draw_node(child, registry);
+                        ImGui::Unindent(10.0f);
 
-                    const float midpoint = (childRect.Min.y + childRect.Max.y) * 0.5f;
-                    drawList->AddLine(ImVec2(verticalLineStart.x, midpoint), ImVec2(verticalLineStart.x + HorizontalTreeLineSize, midpoint), TreeLineColor);
-                    verticalLineEnd.y = midpoint;
+                        const ImRect childRect = ImRect(currentPos, currentPos + ImVec2(0.0f, ImGui::GetFontSize() + (ImGui::GetStyle().FramePadding.y * 2)));
 
-                    if (registry.valid(child))
-                    {
-                        auto hierarchyComponent = registry.try_get<Hierarchy>(child);
-                        child = hierarchyComponent ? hierarchyComponent->next() : entt::null;
+                        const float midpoint = (childRect.Min.y + childRect.Max.y) * 0.5f;
+                        drawList->AddLine(ImVec2(verticalLineStart.x, midpoint), ImVec2(verticalLineStart.x + HorizontalTreeLineSize, midpoint), TreeLineColor);
+                        verticalLineEnd.y = midpoint;
                     }
                 }
             }
@@ -623,10 +613,10 @@ namespace diverse
                 {
                     if (registry.valid(entity))
                     {
-                        auto hierarchyComponent = registry.try_get<Hierarchy>(entity);
+                        auto parentComponent = registry.try_get<Parent>(entity);
                         auto keyframetimeline = registry.try_get<KeyFrameTimeLine>(entity);
                         auto splatedit = registry.try_get<GaussianEdit>(entity);
-                        if ((!splatedit) && (!keyframetimeline) && (!hierarchyComponent || hierarchyComponent->parent() == entt::null) )
+                        if ((!splatedit) && (!keyframetimeline) && (!parentComponent || parentComponent->value == entt::null) )
                             draw_node(entity, registry);
                     }
                 }
@@ -653,10 +643,9 @@ namespace diverse
                         for (size_t i = 0; i < count; i++)
                         {
                             entt::entity droppedEntityID = *(((entt::entity*)payload->Data) + i);
-                            auto hierarchyComponent = registry.try_get<Hierarchy>(droppedEntityID);
-                            if (hierarchyComponent)
+                            if (registry.all_of<Parent>(droppedEntityID))
                             {
-                                Hierarchy::reparent(droppedEntityID, entt::null, registry, *hierarchyComponent);
+                                HierarchySystem::reparent(registry, droppedEntityID, entt::null);
                             }
                         }
                     }

@@ -1,7 +1,13 @@
 #pragma once
-#include "maths/transform.h"
+#include "scene/components/transform_component.h"
+#include "scene/components/global_transform_component.h"
+#include "scene/components/parent_component.h"
+#include "scene/components/children_component.h"
+#include "scene/components/name_component.h"
+#include "scene/components/active_component.h"
 #include "scene/scene.h"
 #include "scene/scene_graph.h"
+#include "scene/systems/hierarchy_system.h"
 #include "core/profiler.h"
 #include "utility/string_utils.h"
 #include "core/uuid.h"
@@ -13,6 +19,10 @@ DISABLE_WARNING_POP
 
 namespace diverse
 {
+
+    // Forward declarations
+    class HierarchySystem;
+
     struct IDComponent
     {
         UUID ID;
@@ -40,8 +50,8 @@ namespace diverse
         Entity() = default;
 
         Entity(entt::entity handle, Scene* scene)
-            : m_EntityHandle(handle)
-            , m_Scene(scene)
+            : entity_handle(handle)
+            , scene(scene)
         {
         }
 
@@ -57,49 +67,49 @@ namespace diverse
             if (has_component<T>())
                 DS_LOG_WARN("Attempting to add Component twice");
 #endif
-            return m_Scene->get_registry().emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+            return scene->get_registry().emplace<T>(entity_handle, std::forward<Args>(args)...);
         }
 
         template <typename T, typename... Args>
         T& get_or_add_component(Args&&... args)
         {
             DS_PROFILE_FUNCTION_LOW();
-            return m_Scene->get_registry().get_or_emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+            return scene->get_registry().get_or_emplace<T>(entity_handle, std::forward<Args>(args)...);
         }
 
         template <typename T, typename... Args>
         void add_or_replace_component(Args&&... args)
         {
             DS_PROFILE_FUNCTION_LOW();
-            m_Scene->get_registry().emplace_or_replace<T>(m_EntityHandle, std::forward<Args>(args)...);
+            scene->get_registry().emplace_or_replace<T>(entity_handle, std::forward<Args>(args)...);
         }
 
         template <typename T>
         T& get_component()
         {
             DS_PROFILE_FUNCTION_LOW();
-            return m_Scene->get_registry().get<T>(m_EntityHandle);
+            return scene->get_registry().get<T>(entity_handle);
         }
 
         template <typename T>
         T* try_get_component()
         {
             DS_PROFILE_FUNCTION_LOW();
-            return m_Scene->get_registry().try_get<T>(m_EntityHandle);
+            return scene->get_registry().try_get<T>(entity_handle);
         }
 
         template <typename T>
         bool has_component()
         {
             DS_PROFILE_FUNCTION_LOW();
-            return m_Scene->get_registry().all_of<T>(m_EntityHandle);
+            return scene->get_registry().all_of<T>(entity_handle);
         }
 
         template <typename T>
         void remove_component()
         {
             DS_PROFILE_FUNCTION_LOW();
-            m_Scene->get_registry().remove<T>(m_EntityHandle);
+            scene->get_registry().remove<T>(entity_handle);
         }
 
         template <typename T>
@@ -115,7 +125,7 @@ namespace diverse
             DS_PROFILE_FUNCTION_LOW();
             bool active = true;
             if (has_component<ActiveComponent>())
-                active = m_Scene->get_registry().get<ActiveComponent>(m_EntityHandle).active;
+                active = scene->get_registry().get<ActiveComponent>(entity_handle).active;
 
             auto parent = get_parent();
             if (parent)
@@ -129,22 +139,28 @@ namespace diverse
             get_or_add_component<ActiveComponent>().active = isActive;
         }
 
-        maths::Transform& get_transform()
+        ::diverse::Transform& get_transform()
         {
             DS_PROFILE_FUNCTION_LOW();
-            return m_Scene->get_registry().get<maths::Transform>(m_EntityHandle);
+            return scene->get_registry().get<::diverse::Transform>(entity_handle);
         }
 
-        const maths::Transform& get_transform() const
+        const ::diverse::Transform& get_transform() const
         {
             DS_PROFILE_FUNCTION_LOW();
-            return m_Scene->get_registry().get<maths::Transform>(m_EntityHandle);
+            return scene->get_registry().get<::diverse::Transform>(entity_handle);
+        }
+
+        const glm::mat4& get_world_matrix() const
+        {
+            DS_PROFILE_FUNCTION_LOW();
+            return scene->get_registry().get<GlobalTransform>(entity_handle).world_matrix;
         }
 
         uint64_t get_id()
         {
             DS_PROFILE_FUNCTION_LOW();
-            return m_Scene->get_registry().get<IDComponent>(m_EntityHandle).ID;
+            return scene->get_registry().get<IDComponent>(entity_handle).ID;
         }
 
         const std::string& get_name()
@@ -164,37 +180,41 @@ namespace diverse
         void set_parent(Entity entity)
         {
             DS_PROFILE_FUNCTION_LOW();
-            bool acceptable = false;
-            auto hierarchyComponent = try_get_component<Hierarchy>();
-            if (hierarchyComponent != nullptr)
+            if (entity.entity_handle == entity_handle)
             {
-                acceptable = entity.m_EntityHandle != m_EntityHandle && (!entity.is_parent(*this)) && (hierarchyComponent->parent() != m_EntityHandle);
-            }
-            else
-                acceptable = entity.m_EntityHandle != m_EntityHandle;
-
-            if (!acceptable)
-            {
-                DS_LOG_WARN("Failed to parent entity!");
+                DS_LOG_WARN("Cannot parent entity to itself!");
                 return;
             }
 
-            if (hierarchyComponent)
-                Hierarchy::reparent(m_EntityHandle, entity.m_EntityHandle, m_Scene->get_registry(), *hierarchyComponent);
-            else
+            // Prevent circular reference
+            if (entity && entity.is_parent(*this))
             {
-                m_Scene->get_registry().emplace<Hierarchy>(m_EntityHandle, entity.m_EntityHandle);
+                DS_LOG_WARN("Cannot parent entity: would create circular reference!");
+                return;
             }
+
+            auto& registry = scene->get_registry();
+            if (registry.all_of<Parent>(entity_handle))
+            {
+                auto& current_parent = registry.get<Parent>(entity_handle);
+                if (current_parent.value == entity.entity_handle)
+                    return; // Already parented to this entity
+            }
+
+            // Use HierarchySystem to reparent
+            HierarchySystem::reparent(registry, entity_handle, entity.entity_handle);
         }
 
         Entity get_parent()
         {
             DS_PROFILE_FUNCTION_LOW();
-            auto hierarchyComp = try_get_component<Hierarchy>();
-            if (hierarchyComp)
-                return Entity(hierarchyComp->parent(), m_Scene);
-            else
-                return Entity(entt::null, nullptr);
+            auto& registry = scene->get_registry();
+            if (registry.all_of<Parent>(entity_handle))
+            {
+                auto& parent_comp = registry.get<Parent>(entity_handle);
+                return Entity(parent_comp.value, scene);
+            }
+            return Entity(entt::null, nullptr);
         }
 
         std::vector<Entity> get_children();
@@ -206,22 +226,22 @@ namespace diverse
 
         operator entt::entity() const
         {
-            return m_EntityHandle;
+            return entity_handle;
         }
 
         operator uint32_t() const
         {
-            return (uint32_t)m_EntityHandle;
+            return (uint32_t)entity_handle;
         }
 
         operator bool() const
         {
-            return m_EntityHandle != entt::null && m_Scene;
+            return entity_handle != entt::null && scene;
         }
 
         bool operator==(const Entity& other) const
         {
-            return m_EntityHandle == other.m_EntityHandle && m_Scene == other.m_Scene;
+            return entity_handle == other.entity_handle && scene == other.scene;
         }
 
         bool operator!=(const Entity& other) const
@@ -231,26 +251,26 @@ namespace diverse
 
         entt::entity get_handle() const
         {
-            return m_EntityHandle;
+            return entity_handle;
         }
 
         void destroy()
         {
             DS_PROFILE_FUNCTION_LOW();
-            m_Scene->get_registry().destroy(m_EntityHandle);
+            scene->get_registry().destroy(entity_handle);
         }
 
         bool valid()
         {
             DS_PROFILE_FUNCTION_LOW();
-            return m_Scene->get_registry().valid(m_EntityHandle) && m_Scene;
+            return scene->get_registry().valid(entity_handle) && scene;
         }
 
-        Scene* get_scene() const { return m_Scene; }
+        Scene* get_scene() const { return scene; }
 
     private:
-        entt::entity m_EntityHandle = entt::null;
-        Scene* m_Scene = nullptr;
+        entt::entity entity_handle = entt::null;
+        Scene* scene = nullptr;
 
         friend class EntityManager;
     };

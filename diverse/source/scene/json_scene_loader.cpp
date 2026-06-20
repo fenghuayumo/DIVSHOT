@@ -6,6 +6,7 @@
 #include "scene/component/environment.h"
 #include "scene/entity_manager.h"
 #include "scene/scene_graph.h"
+#include "scene/components/light_component.h"
 #include "assets/model_asset.h"
 #include "maths/transform.h"
 #include "utility/string_utils.h"
@@ -62,6 +63,16 @@ namespace diverse
             const float z = node[2].get<float>();
             const float w = node[3].get<float>();
             return glm::normalize(glm::quat(w, x, y, z));
+        }
+
+        glm::quat read_camera_rotation_quat(const json& node)
+        {
+            // External .scene.json cameras use -Z as forward. The editor camera
+            // controls and renderer treat +Z as forward, so preserve camera up
+            // while flipping the local forward axis.
+            static const glm::quat z_forward_conversion =
+                glm::angleAxis(glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
+            return glm::normalize(read_rotation_quat(node) * z_forward_conversion);
         }
 
         void apply_transform(maths::Transform& transform, const json& node)
@@ -204,13 +215,85 @@ namespace diverse
         {
             out_meta.has_camera = true;
             out_meta.camera_position = read_vec3(node["translation"], out_meta.camera_position);
-            out_meta.camera_rotation = read_rotation_quat(node["rotation"]);
+            out_meta.camera_rotation = read_camera_rotation_quat(node["rotation"]);
             if (node.contains("verticalFov"))
                 out_meta.camera_fov_deg = glm::degrees(node["verticalFov"].get<float>());
             if (node.contains("zNear"))
                 out_meta.camera_near = node["zNear"].get<float>();
             if (node.contains("zFar"))
                 out_meta.camera_far = node["zFar"].get<float>();
+        }
+
+        Entity create_light_entity(Scene& scene, const std::string& node_name, const std::string& light_type, const json& node, Entity parent)
+        {
+            Entity entity = scene.get_entity_manager()->create(node_name);
+            if (parent)
+                entity.set_parent(parent);
+
+            // Add common light component
+            auto& light_common = entity.add_component<LightCommon>();
+
+            // Parse common light properties
+            if (node.contains("intensity"))
+                light_common.intensity = node["intensity"].get<float>();
+
+            if (node.contains("color"))
+                light_common.radiance = read_vec3(node["color"], glm::vec3(1.0f));
+
+            if (node.contains("radiance"))
+                light_common.radiance = read_vec3(node["radiance"], glm::vec3(1.0f));
+
+            // Add type-specific component
+            if (light_type == "DirectionalLight")
+            {
+                auto& dir_light = entity.add_component<DirectionalLight>();
+                if (node.contains("angularSize"))
+                    dir_light.angular_size = node["angularSize"].get<float>();
+            }
+            else if (light_type == "PointLight")
+            {
+                auto& point_light = entity.add_component<PointLight>();
+                if (node.contains("radius"))
+                    point_light.radius = node["radius"].get<float>();
+            }
+            else if (light_type == "SpotLight")
+            {
+                auto& spot_light = entity.add_component<SpotLight>();
+                if (node.contains("radius"))
+                    spot_light.radius = node["radius"].get<float>();
+                if (node.contains("innerAngle"))
+                    spot_light.inner_angle = node["innerAngle"].get<float>();
+                if (node.contains("outerAngle"))
+                    spot_light.outer_angle = node["outerAngle"].get<float>();
+            }
+            else if (light_type == "RectLight")
+            {
+                auto& rect_light = entity.add_component<RectLight>();
+                if (node.contains("width"))
+                    rect_light.width = node["width"].get<float>();
+                if (node.contains("height"))
+                    rect_light.height = node["height"].get<float>();
+            }
+            else if (light_type == "DiskLight")
+            {
+                auto& disk_light = entity.add_component<DiskLight>();
+                if (node.contains("radius"))
+                    disk_light.radius = node["radius"].get<float>();
+            }
+            else if (light_type == "CylinderLight")
+            {
+                auto& cylinder_light = entity.add_component<CylinderLight>();
+                if (node.contains("radius"))
+                    cylinder_light.radius = node["radius"].get<float>();
+                if (node.contains("length"))
+                    cylinder_light.length = node["length"].get<float>();
+            }
+
+            // Apply transform
+            auto& transform = entity.get_component<maths::Transform>();
+            apply_transform(transform, node);
+
+            return entity;
         }
 
         void load_graph_recursive(
@@ -277,6 +360,12 @@ namespace diverse
                     setup_environment(scene, scene_directory, node);
                 else if (node_type == "PerspectiveCamera" || node_type == "PerspectiveCameraEx")
                     apply_camera_node(node, out_meta);
+                else if (node_type == "DirectionalLight" || node_type == "PointLight" ||
+                         node_type == "SpotLight" || node_type == "RectLight" ||
+                         node_type == "DiskLight" || node_type == "CylinderLight")
+                {
+                    create_light_entity(scene, node_name, node_type, node, parent);
+                }
 
                 if (has_children)
                 {

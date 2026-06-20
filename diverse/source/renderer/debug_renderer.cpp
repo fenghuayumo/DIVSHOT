@@ -573,20 +573,50 @@ namespace diverse
         DebugRenderer::draw_hair_line(vertices[2], vertices[6], colour);
         DebugRenderer::draw_hair_line(vertices[3], vertices[7], colour);
     }
-    void DebugRenderer::debug_draw(RectLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const RectLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
     {
-
-    }
-
-    void DebugRenderer::debug_draw(SpotLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
-    {
-        auto angle = light->get_outer_angle();//glm::radians(light->get_outer_angle());
+        // Draw rectangle representation
         auto position = transform.get_world_position();
         auto rotation = transform.get_world_orientation();
-        debug_draw_cone(20, 4, angle, light->get_intensity(), position, rotation, colour);
+
+        glm::vec3 half_size(light->width * 0.5f, light->height * 0.5f, 0.0f);
+        glm::vec3 vertices[8] = {
+            half_size,
+            {-half_size.x, half_size.y, 0.0f},
+            {-half_size.x, -half_size.y, 0.0f},
+            {half_size.x, -half_size.y, 0.0f},
+            {half_size.x, half_size.y, 0.01f},
+            {-half_size.x, half_size.y, 0.01f},
+            {-half_size.x, -half_size.y, 0.01f},
+            {half_size.x, -half_size.y, 0.01f}
+        };
+
+        for (auto& v : vertices)
+            v = position + (rotation * v);
+
+        DebugRenderer::draw_hair_line(vertices[0], vertices[1], colour);
+        DebugRenderer::draw_hair_line(vertices[1], vertices[2], colour);
+        DebugRenderer::draw_hair_line(vertices[2], vertices[3], colour);
+        DebugRenderer::draw_hair_line(vertices[3], vertices[0], colour);
+        DebugRenderer::draw_hair_line(vertices[4], vertices[5], colour);
+        DebugRenderer::draw_hair_line(vertices[5], vertices[6], colour);
+        DebugRenderer::draw_hair_line(vertices[6], vertices[7], colour);
+        DebugRenderer::draw_hair_line(vertices[7], vertices[4], colour);
+        DebugRenderer::draw_hair_line(vertices[0], vertices[4], colour);
+        DebugRenderer::draw_hair_line(vertices[1], vertices[5], colour);
+        DebugRenderer::draw_hair_line(vertices[2], vertices[6], colour);
+        DebugRenderer::draw_hair_line(vertices[3], vertices[7], colour);
     }
 
-    void DebugRenderer::debug_draw(DirectionalLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const SpotLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    {
+        auto angle = light->outer_angle;
+        auto position = transform.get_world_position();
+        auto rotation = transform.get_world_orientation();
+        debug_draw_cone(20, 4, angle, common->intensity, position, rotation, colour);
+    }
+
+    void DebugRenderer::debug_draw(const DirectionalLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
     {
         auto position = transform.get_world_position();
         auto rotation = transform.get_world_orientation();
@@ -598,11 +628,26 @@ namespace diverse
         draw_hair_line(position, position + direction * 2.0f, colour);
         debug_draw_cone(20, 4, 30.0f, 1.5f, position - direction * 1.5f, rotation, colour);
     }
-    void DebugRenderer::debug_draw(PointLightComponent* light, const maths::Transform& transform, const glm::vec4& colour)
+
+    void DebugRenderer::debug_draw(const PointLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
     {
         auto position = transform.get_world_position();
         auto rotation = transform.get_world_orientation();
-        debug_draw_sphere(light->get_radius(), position, colour);
+        debug_draw_sphere(light->radius, position, colour);
+    }
+
+    void DebugRenderer::debug_draw(const DiskLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    {
+        auto position = transform.get_world_position();
+        auto rotation = transform.get_world_orientation();
+        debug_draw_circle(30, light->radius, position, rotation, colour);
+    }
+
+    void DebugRenderer::debug_draw(const CylinderLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    {
+        auto position = transform.get_world_position();
+        auto rotation = transform.get_world_orientation();
+        debug_draw_capsule(position, rotation, light->length, light->radius, colour);
     }
 
     void DebugRenderer::debug_draw_circle(int numVerts, float radius, const glm::vec3& position, const glm::quat& rotation, const glm::vec4& colour)

@@ -1,14 +1,16 @@
-
 #include "core/reference.h"
 #include "core/ds_log.h"
 #include "core/core.h"
 #include "entity.h"
-#include "maths/transform.h"
+#include "scene/components/parent_component.h"
+#include "scene/components/children_component.h"
 #include "scene/scene_graph.h"
+#include "systems/hierarchy_system.h"
 #include "engine/application.h"
 
 namespace diverse
 {
+
     Entity* Entity::get_children_temp()
     {
         return get_children(Application::get().get_frame_arena());
@@ -16,36 +18,37 @@ namespace diverse
 
     u32 Entity::get_child_count()
     {
-        auto hierarchyComponent = try_get_component<Hierarchy>();
-        if(hierarchyComponent)
+        auto& registry = scene->get_registry();
+        if (registry.all_of<Children>(entity_handle))
         {
-            return hierarchyComponent->m_ChildCount;
+            auto& children = registry.get<Children>(entity_handle);
+            return static_cast<u32>(children.size());
         }
-
         return 0;
     }
 
     bool Entity::is_parent(Entity potentialParent)
     {
         DS_PROFILE_FUNCTION_LOW();
-        auto nodeHierarchyComponent = m_Scene->get_registry().try_get<Hierarchy>(m_EntityHandle);
-        if (nodeHierarchyComponent)
+        auto& registry = scene->get_registry();
+        entt::entity current = entity_handle;
+
+        while (current != entt::null && registry.valid(current))
         {
-            auto parent = nodeHierarchyComponent->parent();
-            while (parent != entt::null)
+            if (registry.all_of<Parent>(current))
             {
-                if (parent == potentialParent.m_EntityHandle)
+                auto& parent_comp = registry.get<Parent>(current);
+                if (parent_comp.value == potentialParent.entity_handle)
                 {
                     return true;
                 }
-                else
-                {
-                    nodeHierarchyComponent = m_Scene->get_registry().try_get<Hierarchy>(parent);
-                    parent = nodeHierarchyComponent ? nodeHierarchyComponent->parent() : entt::null;
-                }
+                current = parent_comp.value;
+            }
+            else
+            {
+                break;
             }
         }
-
         return false;
     }
 
@@ -53,29 +56,41 @@ namespace diverse
     {
         DS_PROFILE_FUNCTION_LOW();
         std::vector<Entity> children;
-        auto hierarchyComponent = try_get_component<Hierarchy>();
-        if (hierarchyComponent)
+        auto& registry = scene->get_registry();
+        if (registry.all_of<Children>(entity_handle))
         {
-            entt::entity child = hierarchyComponent->first();
-            while (child != entt::null && m_Scene->get_registry().valid(child))
+            auto& children_comp = registry.get<Children>(entity_handle);
+            for (auto child : children_comp)
             {
-                children.emplace_back(child, m_Scene);
-                hierarchyComponent = m_Scene->get_registry().try_get<Hierarchy>(child);
-                if (hierarchyComponent)
-                    child = hierarchyComponent->next();
+                if (registry.valid(child))
+                {
+                    children.emplace_back(child, scene);
+                }
             }
         }
-
         return children;
     }
 
     void Entity::clear_children()
     {
         DS_PROFILE_FUNCTION_LOW();
-        auto hierarchyComponent = try_get_component<Hierarchy>();
-        if (hierarchyComponent)
+        auto& registry = scene->get_registry();
+        if (registry.all_of<Children>(entity_handle))
         {
-            hierarchyComponent->m_First = entt::null;
+            // Destroy all children
+            auto& children_comp = registry.get<Children>(entity_handle);
+            std::vector<entt::entity> to_destroy;
+            for (auto child : children_comp)
+            {
+                if (registry.valid(child))
+                {
+                    to_destroy.push_back(child);
+                }
+            }
+            for (auto child : to_destroy)
+            {
+                registry.destroy(child);
+            }
         }
     }
 
@@ -84,41 +99,26 @@ namespace diverse
         DS_PROFILE_FUNCTION_LOW();
 
         Entity* children = nullptr;
-        u32 childIndex   = 0;
+        u32 childIndex = 0;
 
-        auto hierarchyComponent = try_get_component<Hierarchy>();
-        if(hierarchyComponent)
+        auto& registry = scene->get_registry();
+        if (registry.all_of<Children>(entity_handle))
         {
-            u32 childCount = 0;
-            // TODO: remove
+            auto& children_comp = registry.get<Children>(entity_handle);
+            u32 childCount = static_cast<u32>(children_comp.size());
+
+            children = PushArrayNoZero(arena, Entity, childCount);
+            for (auto child : children_comp)
             {
-                entt::entity child = hierarchyComponent->first();
-                while(child != entt::null && m_Scene->get_registry().valid(child))
+                if (registry.valid(child))
                 {
-                    childCount++;
-
-                    hierarchyComponent = m_Scene->get_registry().try_get<Hierarchy>(child);
-                    if(hierarchyComponent)
-                        child = hierarchyComponent->next();
+                    children[childIndex] = { child, scene };
+                    childIndex++;
                 }
-            }
-
-            hierarchyComponent               = try_get_component<Hierarchy>();
-            hierarchyComponent->m_ChildCount = childCount;
-
-            children           = PushArrayNoZero(arena, Entity, childCount);
-            entt::entity child = hierarchyComponent->first();
-            while(child != entt::null && m_Scene->get_registry().valid(child))
-            {
-                children[childIndex] = { child, m_Scene };
-                childIndex++;
-
-                hierarchyComponent = m_Scene->get_registry().try_get<Hierarchy>(child);
-                if(hierarchyComponent)
-                    child = hierarchyComponent->next();
             }
         }
 
         return children;
     }
+
 }

@@ -430,7 +430,7 @@ namespace diverse
         main_renderer->set_main_render_image(texture);
     }
 
-    void Application::set_override_camera(Camera* camera, maths::Transform* overrideCameraTransform)
+    void Application::set_override_camera(Camera* camera, ::diverse::Transform* overrideCameraTransform)
     {
         main_renderer->set_override_camera(camera, overrideCameraTransform);
     }

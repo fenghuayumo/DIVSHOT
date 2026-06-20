@@ -56,10 +56,8 @@
 #include <scene/component/gaussian_crop.h>
 #include <scene/component/point_cloud_component.h>
 #include <scene/component/environment.h>
-#include <scene/component/light/directional_light.h>
-#include <scene/component/light/point_light.h>
-#include <scene/component/light/rect_light.h>
-#include <scene/component/light/spot_light.h>
+#include <scene/components/light_component.h>
+#include <scene/components/global_transform_component.h>
 #include <renderer/render_settings.h>
 // #define IMOGUIZMO_RIGHT_HANDED
 #include <imoguizmo/imoguizmo.hpp>
@@ -218,9 +216,12 @@ namespace diverse
 #endif
         // Note: editor_camera entity will be created in handle_new_scene()
         // No need to initialize camera here as it will be component-based
-        component_icon_map[typeid(PointLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
-        component_icon_map[typeid(SpotLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
-        component_icon_map[typeid(RectLightComponent).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(PointLight).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(SpotLight).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(RectLight).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(DirectionalLight).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(DiskLight).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
+        component_icon_map[typeid(CylinderLight).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
         component_icon_map[typeid(Camera).hash_code()] = U8CStr2CStr(ICON_MDI_CAMERA);
         component_icon_map[typeid(maths::Transform).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_LINE);
         component_icon_map[typeid(GaussianComponent).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_POLYGON);
@@ -1188,22 +1189,42 @@ namespace diverse
                 if (registry.valid(select_ent)) // && Application::Get().GetEditorState() == EditorState::Preview)
                 {
                     auto transform = registry.try_get<maths::Transform>(select_ent);
-                    auto point_light = registry.try_get<PointLightComponent>(select_ent);
-                    if (point_light && transform)
+                    auto light_common = registry.try_get<LightCommon>(select_ent);
+
+                    auto point_light = registry.try_get<PointLight>(select_ent);
+                    if (point_light && transform && light_common)
                     {
-                        DebugRenderer::debug_draw(point_light, *transform, glm::vec4(glm::vec3(point_light->get_radiance()), 0.2f));
+                        DebugRenderer::debug_draw(point_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
-                    auto spot_light = registry.try_get<SpotLightComponent>(select_ent);
-                    if (spot_light && transform)
+                    auto spot_light = registry.try_get<SpotLight>(select_ent);
+                    if (spot_light && transform && light_common)
                     {
-                        DebugRenderer::debug_draw(spot_light, *transform, glm::vec4(glm::vec3(spot_light->get_radiance()), 0.2f));
+                        DebugRenderer::debug_draw(spot_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
-                    auto rect_light = registry.try_get<RectLightComponent>(select_ent);
-                    if (rect_light && transform)
+                    auto rect_light = registry.try_get<RectLight>(select_ent);
+                    if (rect_light && transform && light_common)
                     {
-                        DebugRenderer::debug_draw(rect_light, *transform, glm::vec4(glm::vec3(rect_light->get_radiance()), 0.2f));
+                        DebugRenderer::debug_draw(rect_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                    }
+
+                    auto dir_light = registry.try_get<DirectionalLight>(select_ent);
+                    if (dir_light && transform && light_common)
+                    {
+                        DebugRenderer::debug_draw(dir_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                    }
+
+                    auto disk_light = registry.try_get<DiskLight>(select_ent);
+                    if (disk_light && transform && light_common)
+                    {
+                        DebugRenderer::debug_draw(disk_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                    }
+
+                    auto cylinder_light = registry.try_get<CylinderLight>(select_ent);
+                    if (cylinder_light && transform && light_common)
+                    {
+                        DebugRenderer::debug_draw(cylinder_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     #define drawdebugBoxMesh()                                                  \
@@ -2895,7 +2916,10 @@ namespace diverse
             ImGui::AlignTextToFramePadding();
             ImGui::TextUnformatted("Name : ");
             ImGui::SameLine();
-            ImGuiHelper::InputText(current_scene->scene_name(), "##SceneName");
+            // Note: scene_name is now protected, use get_scene_name() for read-only access
+            ImGui::TextUnformatted(current_scene->get_scene_name().c_str());
+            // TODO: Implement scene rename functionality
+            // ImGuiHelper::InputText(current_scene->scene_name(), "##SceneName");
             if (ImGui::Button(U8CStr2CStr(ICON_MDI_FOLDER)))
             {
                 ImGui::CloseCurrentPopup();
@@ -2920,8 +2944,8 @@ namespace diverse
             const auto btnSizeX = 80;
             if (ImGui::Button("OK", ImVec2(btnSizeX, 0)))
             {
-                const auto path = std::filesystem::path(projectLocation + "/" + current_scene->scene_name());
-                Application::get().open_new_project(projectLocation, current_scene->scene_name());
+                const auto path = std::filesystem::path(projectLocation + "/" + current_scene->get_scene_name());
+                Application::get().open_new_project(projectLocation, current_scene->get_scene_name());
                 get_current_scene()->serialise(project_settings.ProjectRoot + "assets/scenes/", false);
                 //screenshot
                 ImGui::CloseCurrentPopup();
@@ -3221,9 +3245,9 @@ namespace diverse
                         }
 
                         Entity parent = Entity(m_SelectedEntity, scene_manager->get_current_scene()).get_parent();
-                        if (parent && parent.has_component<maths::Transform>())
+                        if (parent && parent.has_component<GlobalTransform>())
                         {
-                            glm::mat4 parentTransform = parent.get_transform().get_world_matrix();
+                            glm::mat4 parentTransform = parent.get_world_matrix();
                             model = glm::inverse(parentTransform) * model;
                         }
                         if (ImGuizmo::IsScaleType())
@@ -3272,11 +3296,11 @@ namespace diverse
 
                 Entity entity = { entityID, scene_manager->get_current_scene() };
 
-                if (!entity.has_component<maths::Transform>())
+                if (!entity.has_component<Transform>() || !entity.has_component<GlobalTransform>())
                     continue;
 
-                medianPointLocation += entity.get_transform().get_world_position();
-                medianPointScale += entity.get_transform().get_local_scale();
+                medianPointLocation += entity.get_component<GlobalTransform>().position();
+                medianPointScale += entity.get_transform().local_scale;
                 validcount++;
             }
             medianPointLocation /= validcount; // selected_entities.size();

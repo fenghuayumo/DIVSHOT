@@ -5,10 +5,7 @@
 #include "maths/frustum.h"
 #include "maths/transform.h"
 #include "maths/plane.h"
-#include "scene/component/light/rect_light.h"
-#include "scene/component/light/point_light.h"
-#include "scene/component/light/spot_light.h"
-#include "scene/component/light/directional_light.h"
+#include "scene/components/light_component.h"
 #include "scene/component/environment.h"
 #include <array>
 #include <vector>
@@ -161,10 +158,12 @@ namespace diverse
         static auto debug_draw(const maths::BoundingSphere& sphere, const glm::vec4& colour) -> void;
         static auto debug_draw(maths::Frustum& frustum, const glm::vec4& colour) -> void;
         static auto debug_draw(const maths::Ray& ray, const glm::vec4& colour = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), float distance = 1000.0f) -> void;
-        static auto debug_draw(RectLightComponent* light, const maths::Transform& transform, const glm::vec4& colour) -> void;
-        static auto debug_draw(PointLightComponent* light, const maths::Transform& transform, const glm::vec4& colour) -> void;
-        static auto debug_draw(SpotLightComponent* light, const maths::Transform& transform, const glm::vec4& colour) -> void;
-        static auto debug_draw(DirectionalLightComponent* light, const maths::Transform& transform, const glm::vec4& colour) -> void;
+        static auto debug_draw(const RectLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour) -> void;
+        static auto debug_draw(const PointLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour) -> void;
+        static auto debug_draw(const SpotLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour) -> void;
+        static auto debug_draw(const DirectionalLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour) -> void;
+        static auto debug_draw(const DiskLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour) -> void;
+        static auto debug_draw(const CylinderLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour) -> void;
         static auto debug_draw(Environment* light, const maths::Transform& transform, const glm::vec4& colour) -> void;
         static auto debug_draw_sphere(float radius, const glm::vec3& position, const glm::vec4& colour) -> void;
         static auto debug_draw_circle(int numVerts, float radius, const glm::vec3& position, const glm::quat& rotation, const glm::vec4& colour) -> void;

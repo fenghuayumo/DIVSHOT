@@ -122,7 +122,8 @@ namespace diverse
                 return;
             }
 
-            app.set_override_camera(camera, transform);
+            // TODO: Migrate editor to use new ECS Transform component
+            // app.set_override_camera(camera, transform);
         }
 
         static ImVec2 offset = { 0.0f, 0.0f };
@@ -568,7 +569,8 @@ namespace diverse
         DS_PROFILE_FUNCTION();
         //editor->GetSettings().aspect_ratio = 1.0f;
         current_scene = scene;
-        Application::get().set_override_camera(editor->get_camera(), editor->get_editor_camera_transform());
+        // TODO: Migrate editor to use new ECS Transform component
+        // Application::get().set_override_camera(editor->get_camera(), editor->get_editor_camera_transform());
     }
 
     void SceneViewPanel::draw_gizmos(float width, float height, float xpos, float ypos, Scene* scene)
