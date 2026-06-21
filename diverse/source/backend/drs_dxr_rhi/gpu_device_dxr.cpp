@@ -447,7 +447,7 @@ namespace diverse
             frame_index = (frame_index + 1) % 3; // Triple buffering
         }
 
-        auto SwapchainDXR::resize(u32 width, u32 height) -> void
+        auto SwapchainDXR::resize(u32 width, u32 height, bool /*force*/) -> void
         {
             desc.dims = { width, height };
         }

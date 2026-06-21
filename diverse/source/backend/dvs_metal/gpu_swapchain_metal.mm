@@ -79,7 +79,7 @@ namespace diverse
             }
         }
     
-        void  SwapchainMetal::resize(u32 width,u32 height)
+        void  SwapchainMetal::resize(u32 width,u32 height, bool /*force*/)
         {
             if( desc.dims[0] == width && desc.dims[1] == height) return;
             

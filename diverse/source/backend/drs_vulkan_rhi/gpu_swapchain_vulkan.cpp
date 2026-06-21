@@ -4,6 +4,7 @@
 #include "vk_surface.h"
 #include "gpu_texture_vulkan.h"
 #include "core/ds_log.h"
+#include <algorithm>
 
 namespace diverse
 {
@@ -71,14 +72,8 @@ namespace diverse
             {
                 if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR)
                 {
-                    //DS_LOG_ERROR("Could not acquire swapchain image");
-
-                    DS_LOG_ERROR("Acquire Image result : {0}", res == VK_ERROR_OUT_OF_DATE_KHR ? "Out of Date" : "SubOptimal");
-
-                    if (res == VK_ERROR_OUT_OF_DATE_KHR)
-                    {
-                        resize(desc.dims[0],desc.dims[1]);
-                    }
+                    needs_recreate_ = true;
+                    DS_LOG_WARN("Acquire Image result : {}", res == VK_ERROR_OUT_OF_DATE_KHR ? "Out of Date" : "SubOptimal");
                 }
             }
             return SwapchainImage();
@@ -126,7 +121,10 @@ namespace diverse
             if (res != VK_SUCCESS)
             {
                 if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR)
-                    DS_LOG_ERROR("Could not present image : ");
+                {
+                    needs_recreate_ = true;
+                    DS_LOG_WARN("Could not present image : {}", res == VK_ERROR_OUT_OF_DATE_KHR ? "Out of Date" : "SubOptimal");
+                }
             }
         }
 
@@ -182,6 +180,23 @@ namespace diverse
             }
             DS_LOG_INFO("Swapchain image count: {}", desired_image_count);
             auto surface_resolution = desc.dims;
+            if (surface_capabilities.currentExtent.width != UINT32_MAX)
+            {
+                surface_resolution = {
+                    surface_capabilities.currentExtent.width,
+                    surface_capabilities.currentExtent.height
+                };
+            }
+            else
+            {
+                surface_resolution[0] = std::max(
+                    surface_capabilities.minImageExtent.width,
+                    std::min(surface_resolution[0], surface_capabilities.maxImageExtent.width));
+                surface_resolution[1] = std::max(
+                    surface_capabilities.minImageExtent.height,
+                    std::min(surface_resolution[1], surface_capabilities.maxImageExtent.height));
+            }
+            desc.dims = surface_resolution;
             if (0 == surface_resolution[0] || 0 == surface_resolution[1]) {
                 assert(-1);
                 return;
@@ -298,14 +313,51 @@ namespace diverse
 
             next_semaphore = 0;
             current_frame_id = 0;
+            needs_recreate_ = false;
         }
 
-        void SwapchainVulkan::resize(u32 width, u32 height)
+        auto SwapchainVulkan::query_surface_extent() -> std::array<u32, 2>
         {
-            if( desc.dims[0] == width && desc.dims[1] == height) return;
+            VkSurfaceCapabilitiesKHR surface_capabilities;
+            auto res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+                device->physcial_device.handle, surface->surface, &surface_capabilities);
+            assert(res == VK_SUCCESS);
 
+            if (surface_capabilities.currentExtent.width != UINT32_MAX)
+            {
+                return {
+                    surface_capabilities.currentExtent.width,
+                    surface_capabilities.currentExtent.height
+                };
+            }
+
+            auto extent = desc.dims;
+            extent[0] = std::max(
+                surface_capabilities.minImageExtent.width,
+                std::min(extent[0], surface_capabilities.maxImageExtent.width));
+            extent[1] = std::max(
+                surface_capabilities.minImageExtent.height,
+                std::min(extent[1], surface_capabilities.maxImageExtent.height));
+            return extent;
+        }
+
+        void SwapchainVulkan::recreate()
+        {
+            std::lock_guard lock(host_mutex);
             vkDeviceWaitIdle(device->device);
-            desc.dims = {width,height};
+            desc.dims = query_surface_extent();
+            init(desc, nullptr);
+            vkDeviceWaitIdle(device->device);
+        }
+
+        void SwapchainVulkan::resize(u32 width, u32 height, bool force)
+        {
+            if (!force && desc.dims[0] == width && desc.dims[1] == height)
+                return;
+
+            std::lock_guard lock(host_mutex);
+            vkDeviceWaitIdle(device->device);
+            desc.dims = {width, height};
             init(desc, nullptr);
             vkDeviceWaitIdle(device->device);
         }

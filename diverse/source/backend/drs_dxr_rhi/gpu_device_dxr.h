@@ -152,7 +152,7 @@ namespace diverse
 
             auto acquire_next_image() -> SwapchainImage override;
             auto present_image(const SwapchainImage& swap_chain, CommandBuffer* present_cb) -> void override;
-            auto resize(u32 width, u32 height) -> void override;
+            auto resize(u32 width, u32 height, bool force = false) -> void override;
             auto current_buffer_index() -> u64 override { return 0; }
             auto current_frame_index() -> u64 override { return frame_index; }
             auto reset_frame_index() -> void override { frame_index = 0; }

@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "backend/drs_vulkan_rhi/gpu_swapchain_vulkan.h"
 #include "core/ds_log.h"
 #include "engine/thread_affinity.h"
 #include <algorithm>
@@ -57,6 +58,16 @@ namespace diverse
                 }
 
                 return std::chrono::duration<double, std::milli>(end_time - begin_time).count();
+            }
+
+            auto ensure_swapchain_ready(rhi::Swapchain* swapchain, Renderer& renderer) -> void
+            {
+                auto* vk_swapchain = dynamic_cast<rhi::SwapchainVulkan*>(swapchain);
+                if (!vk_swapchain || !vk_swapchain->needs_recreate())
+                    return;
+
+                renderer.wait_for_rhi_idle();
+                vk_swapchain->recreate();
             }
         }
 
@@ -133,7 +144,7 @@ namespace diverse
         auto RhiSubmitter::submit_and_present(const RecordedRhiFrame& frame) -> void
         {
             threading::assert_rhi_thread();
-            if (!device || !swap_chain || !frame.main_cmd_buf || !frame.presentation_cmd_buf)
+            if (!device || !swap_chain || !frame.main_cmd_buf || !frame.presentation_cmd_buf || !frame.swapchain_image.image)
                 return;
 
             device->submit_cmd(frame.main_cmd_buf.get());
@@ -177,6 +188,19 @@ namespace diverse
         {
             rhi_submitter.swap_chain = swapchain;
             auto recorded_frame = record_frame(rg, swapchain);
+            if (!recorded_frame.swapchain_image.image)
+            {
+                if (recorded_frame.accepted_sync)
+                    recorded_frame.accepted_sync->signal();
+                if (recorded_frame.submitted_sync)
+                    recorded_frame.submitted_sync->signal();
+                if (recorded_frame.device_frame)
+                    rhi_submitter.retire_frame(recorded_frame.device_frame);
+                dynamic_constants.advance_frame();
+                current_frame = nullptr;
+                return;
+            }
+
             submit_recorded_frame(recorded_frame);
 
             temporal_rg_state.retire_temporal(rg);
@@ -205,9 +229,29 @@ namespace diverse
             rg.record_main_cb(main_cb.get());
 
             main_cb->end();
+            ensure_swapchain_ready(swapchain, *this);
             auto swapchain_image = swapchain->acquire_next_image();
-
+            if (!swapchain_image.image)
+            {
+                ensure_swapchain_ready(swapchain, *this);
+                swapchain_image = swapchain->acquire_next_image();
+            }
             auto& presentation_cb = current_frame->presentation_cmd_buf;
+            if (!swapchain_image.image)
+            {
+                presentation_cb->end();
+                RecordedRhiFrame frame;
+                frame.device_frame = current_frame;
+                frame.main_cmd_buf = main_cb;
+                frame.presentation_cmd_buf = presentation_cb;
+                frame.accepted_sync = current_frame_accepted_sync;
+                frame.submitted_sync = current_frame_submitted_sync;
+                frame.record_begin_time = record_begin_time;
+                frame.record_end_time = std::chrono::steady_clock::now();
+                frame.frame_slot = current_recording_frame_slot;
+                return frame;
+            }
+
 //            presentation_cb->wait();
             device->record_image_barrier(presentation_cb.get(), rhi::ImageBarrier{
                 swapchain_image.image.get(),

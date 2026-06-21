@@ -257,7 +257,6 @@ namespace diverse
         io.DisplaySize = ImVec2(static_cast<float>(width), static_cast<float>(height));
         // io.DisplayFramebufferScale = ImVec2(e.GetDPIScale(), e.GetDPIScale());
         dpi_scale = e.GetDPIScale();
-        imgui_renderer->handle_resize(width, height);
 
         return false;
     }

@@ -12,7 +12,7 @@ namespace diverse
            	SwapchainMetal(struct GpuDeviceMetal& device,SwapchainDesc desc,void* window);
 			~SwapchainMetal();
 			void	init(SwapchainDesc desc,void* window_handle);
-			void	resize(u32 width,u32 height) override;
+			void	resize(u32 width,u32 height, bool force = false) override;
             auto acquire_next_image()-> SwapchainImage override;
             auto present_image(const SwapchainImage& swap_chain,struct CommandBuffer* present_cb)->void override;
             auto current_buffer_index()->u64 override { return (u64)next_img;}

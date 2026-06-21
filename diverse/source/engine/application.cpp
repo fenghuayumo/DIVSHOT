@@ -14,6 +14,7 @@
 #include "core/job_system.h"
 #include "events/application_event.h"
 #include "imgui/imgui_manager.h"
+#include "imgui/imgui_renderer.h"
 #include "utility/load_image.h"
 #include "utility/string_utils.h"
 #include "scene/scene_manager.h"
@@ -382,10 +383,13 @@ namespace diverse
         
         if (main_renderer)
         {
-            main_renderer->enqueue_render_command([renderer = main_renderer.get(), width, height]() {
+            IMGUIRenderer* imgui_renderer = imgui_manager ? imgui_manager->get_imgui_renderer() : nullptr;
+            main_renderer->enqueue_render_command([renderer = main_renderer.get(), width, height, imgui_renderer]() {
                 renderer->handle_window_resize(width, height);
+                if (imgui_renderer)
+                    imgui_renderer->handle_resize(width, height);
             });
-            main_renderer->flush_render_commands();
+            main_renderer->wait_for_render_idle();
         }
 
         return false;

@@ -24,7 +24,7 @@ namespace diverse
             Swapchain(){}
             virtual auto acquire_next_image()-> SwapchainImage = 0;
             virtual auto present_image(const SwapchainImage& swap_chain,struct CommandBuffer* present_cb)->void = 0;
-            virtual auto resize(u32 width, u32 height)->void = 0;
+            virtual auto resize(u32 width, u32 height, bool force = false) -> void = 0;
 
             virtual auto current_buffer_index()-> u64 = 0;
             virtual auto current_frame_index()->u64 = 0;

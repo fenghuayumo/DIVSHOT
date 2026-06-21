@@ -3,6 +3,7 @@
 #include "core/profiler.h"
 #include "vk_imgui_renderer.h"
 #include "backend/drs_vulkan_rhi/gpu_device_vulkan.h"
+#include "engine/thread_affinity.h"
 
 #include <imgui/imgui.h>
 
@@ -326,10 +327,12 @@ namespace diverse
     void VKIMGUIRenderer::handle_resize(uint32_t width, uint32_t height)
     {
         DS_PROFILE_FUNCTION();
+        threading::assert_render_thread();
         auto* wd = &g_WindowData;
         auto vkdevice = dynamic_cast<rhi::GpuDeviceVulkan*>(device);
         auto vkswapchain = dynamic_cast<rhi::SwapchainVulkan*>(swapchain);
         wd->Swapchain = vkswapchain->swapchain;
+        wd->ImageCount = static_cast<uint32_t>(vkswapchain->images.size());
         for (uint32_t i = 0; i < wd->ImageCount; i++)
         {
             auto scBuffer = dynamic_cast<rhi::GpuTextureVulkan*>(vkswapchain->images[i].get());

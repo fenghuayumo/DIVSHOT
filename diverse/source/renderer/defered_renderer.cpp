@@ -1518,7 +1518,9 @@ namespace diverse
 	auto DeferedRenderer::handle_window_resize(uint32_t width, uint32_t height)->void
 	{
 		threading::assert_render_thread();
-		rg_renderer->swap_chain->resize(width,height);
+		if (rg_renderer)
+			rg_renderer->wait_for_rhi_idle();
+		rg_renderer->swap_chain->resize(width, height, true);
 		handle_resize(width, height);
 	}
 
