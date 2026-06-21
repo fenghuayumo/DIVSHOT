@@ -14,6 +14,8 @@
 #include <scene/component/point_cloud_component.h>
 #include <scene/component/gaussian_crop.h>
 #include <scene/component/environment.h>
+#include <scene/components/transform_component.h>
+#include <scene/components/global_transform_component.h>
 #include <scene/components/light_component.h>
 #include <scene/sun_controller.h>
 #include <renderer/defered_renderer.h>
@@ -53,50 +55,49 @@ namespace MM
     }
 
     template <>
-    void ComponentEditorWidget<diverse::maths::Transform>(entt::registry& reg, entt::registry::entity_type e)
+    void ComponentEditorWidget<diverse::Transform>(entt::registry& reg, entt::registry::entity_type e)
     {
         DS_PROFILE_FUNCTION();
-        auto& transform = diverse::Editor::get_editor()->get_pivot()->get_transform();
-        auto gaussian = reg.try_get<diverse::GaussianComponent>(e);
-        static diverse::maths::Transform old_transform = transform;
-        glm::vec3 rotation = glm::degrees(transform.get_local_orientation());
-        auto position = transform.get_local_position();
-        auto scale = transform.get_local_scale();
+        auto& ent_transform = reg.get<diverse::Transform>(e);
+
+        glm::vec3 position = ent_transform.get_local_position();
+        glm::vec3 rotation = glm::degrees(glm::eulerAngles(ent_transform.get_local_orientation()));
+        glm::vec3 scale = ent_transform.get_local_scale();
         float itemWidth = (ImGui::GetContentRegionAvail().x - (ImGui::GetFontSize() * 3.0f)) / 3.0f;
         bool dirty = false;
 
         if (diverse::ImGuiHelper::PropertyVector3("Position", position, itemWidth, 0.0f))
-            dirty |= true;
-            
+            dirty = true;
+
         if (diverse::ImGuiHelper::PropertyVector3("Rotation", rotation, itemWidth, 0.0f))
-            dirty |= true;
+            dirty = true;
 
         if (diverse::ImGuiHelper::PropertyVector3("Scale", scale, itemWidth, 1.0f))
-            dirty |= true;
+            dirty = true;
+
         if (dirty)
         {
-            old_transform = transform;
-            transform.set_local_position(position);
-            transform.set_local_orientation(glm::radians(glm::vec3(rotation.x, rotation.y, rotation.z)));
-            transform.set_local_scale(scale);
-            transform.set_world_matrix(glm::mat4(1.0f));
-        }
-        auto& gs_edit = diverse::GaussianEdit::get();
-        if (!gs_edit.has_select_gaussians() && dirty)
-        {
-            auto& ent_transform = reg.get<diverse::maths::Transform>(e);
-            auto delta_matrix = transform.get_world_matrix() * glm::inverse(old_transform.get_world_matrix());
-            ent_transform.set_local_transform(delta_matrix * ent_transform.get_local_matrix());
-        }
-        if(gaussian && dirty)
-        {
-            if ( gaussian->ModelRef)
+            ent_transform.set_local_position(position);
+            ent_transform.set_local_orientation(glm::radians(rotation));
+            ent_transform.set_local_scale(scale);
+
+            if (auto* global = reg.try_get<diverse::GlobalTransform>(e))
+                global->dirty = true;
+
+            if (auto* editor = diverse::Editor::get_editor())
             {
-                // gs_edit.start_transform_op(transform);
-                // gs_edit.update_transform_op(old_transform, transform);
-                // gs_edit.end_transform_op(old_transform, transform, diverse::Editor::get_editor()->get_pivot());
+                const auto& selected = editor->get_selected();
+                if (!selected.empty() && selected.front() == e)
+                {
+                    auto& pivot_transform = editor->get_pivot()->get_transform();
+                    pivot_transform.set_local_position(position);
+                    pivot_transform.set_local_orientation(glm::radians(rotation));
+                    pivot_transform.set_local_scale(scale);
+                    pivot_transform.set_world_matrix(glm::mat4(1.0f));
+                }
             }
         }
+
         ImGui::Columns(1);
         ImGui::Separator();
     }
@@ -692,7 +693,7 @@ namespace MM
                 ImGui::Separator();
 
                 auto& transform = crop_data.transform;
-                glm::vec3 rotation = glm::degrees(transform.get_local_orientation());
+                glm::vec3 rotation = glm::degrees(glm::eulerAngles(transform.get_local_orientation()));
                 auto position = transform.get_local_position();
                 auto scale = transform.get_local_scale();
                 float itemWidth = (ImGui::GetContentRegionAvail().x - (ImGui::GetFontSize() * 3.0f)) / 3.0f;
@@ -703,7 +704,7 @@ namespace MM
                 {
                     if (diverse::ImGuiHelper::PropertyVector3("Rotation", rotation, itemWidth, 0.0f))
                     {
-                        transform.set_local_orientation(glm::radians(glm::vec3(rotation.x, rotation.y, rotation.z)));
+                        transform.set_local_orientation(glm::radians(rotation));
                     }
 
                     if (diverse::ImGuiHelper::PropertyVector3("Scale", scale, itemWidth, 1.0f))
@@ -923,8 +924,12 @@ namespace MM
                 if (ImGui::TreeNodeEx("FocusRegion", ImGuiTreeNodeFlags_Framed))
                 {
                    auto& splatEdit = GaussianEdit::get();
-                   auto gs_transform = reg.try_get<maths::Transform>(e);
-                   auto box = gaussian.ModelRef->get_world_bounding_box(gs_transform->get_local_matrix());
+                   glm::mat4 world_matrix(1.0f);
+                   if (auto* global = reg.try_get<diverse::GlobalTransform>(e))
+                       world_matrix = global->world_matrix;
+                   else if (auto* gs_transform = reg.try_get<diverse::Transform>(e))
+                       world_matrix = gs_transform->get_local_matrix();
+                   auto box = gaussian.ModelRef->get_world_bounding_box(world_matrix);
                    splatEdit.bouding_box() = box;
                    ImGui::Indent();
                    float itemWidth = (ImGui::GetContentRegionAvail().x - (ImGui::GetFontSize() * 3.0f)) / 3.0f;
@@ -1470,7 +1475,7 @@ namespace diverse
         Name += (ComponentName);                                             \
         entt_editor.registerComponent<ComponentType>(Name.c_str());         \
     }
-        TRIVIAL_COMPONENT(maths::Transform, "Transform");
+        TRIVIAL_COMPONENT(Transform, "Transform");
         TRIVIAL_COMPONENT(MeshModelComponent, "MeshModel");
         TRIVIAL_COMPONENT(GaussianComponent, "GaussianComponent");
         TRIVIAL_COMPONENT(PointCloudComponent, "PointCloudComponent");

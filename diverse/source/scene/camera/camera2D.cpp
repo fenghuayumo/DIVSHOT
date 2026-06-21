@@ -2,7 +2,7 @@
 #include "camera2D.h"
 #include "engine/input.h"
 #include "maths/maths_utils.h"
-#include "maths/transform.h"
+#include "scene/components/transform_component.h"
 #include "camera.h"
 
 #include <glm/vec2.hpp>
@@ -20,7 +20,7 @@ namespace diverse
 
     CameraController2D::~CameraController2D() = default;
 
-    void CameraController2D::handle_mouse(maths::Transform& transform, float dt, float xpos, float ypos)
+    void CameraController2D::handle_mouse(Transform& transform, float dt, float xpos, float ypos)
     {
         if(Input::get().get_mouse_held(InputCode::MouseKey::ButtonRight))
         {
@@ -33,7 +33,7 @@ namespace diverse
         previous_curser_pos = glm::vec2(xpos, ypos);
     }
 
-    void CameraController2D::handle_keyboard(maths::Transform& transform, float dt)
+    void CameraController2D::handle_keyboard(Transform& transform, float dt)
     {
         glm::vec3 up = glm::vec3(0, 1, 0), right = glm::vec3(1, 0, 0);
 
@@ -71,7 +71,7 @@ namespace diverse
         update_scroll(transform, Input::get().get_scroll_offset(), dt);
     }
 
-    void CameraController2D::update_scroll(maths::Transform& transform, float offset, float dt)
+    void CameraController2D::update_scroll(Transform& transform, float offset, float dt)
     {
         float multiplier = 2.0f;
         if(Input::get().get_key_held(InputCode::Key::LeftShift))

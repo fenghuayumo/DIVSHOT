@@ -60,6 +60,7 @@
 #include <scene/component/environment.h>
 #include <scene/components/light_component.h>
 #include <scene/components/global_transform_component.h>
+#include <scene/components/transform_component.h>
 #include <renderer/render_settings.h>
 // #define IMOGUIZMO_RIGHT_HANDED
 #include <imoguizmo/imoguizmo.hpp>
@@ -101,6 +102,23 @@ namespace diverse
 
         if (auto* global_transform = registry.try_get<GlobalTransform>(entity))
             global_transform->dirty = true;
+    }
+
+    static void sync_pivot_from_entity(entt::registry& registry, entt::entity entity, Pivot* pivot)
+    {
+        if (!pivot || entity == entt::null || !registry.valid(entity))
+            return;
+
+        if (auto* global = registry.try_get<GlobalTransform>(entity))
+        {
+            pivot->set_from_world_matrix(global->world_matrix);
+            return;
+        }
+
+        if (auto* transform = registry.try_get<Transform>(entity))
+        {
+            pivot->set_transform(*transform);
+        }
     }
 
     Editor::Editor()
@@ -238,7 +256,7 @@ namespace diverse
         component_icon_map[typeid(DiskLight).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
         component_icon_map[typeid(CylinderLight).hash_code()] = U8CStr2CStr(ICON_MDI_LIGHTBULB);
         component_icon_map[typeid(Camera).hash_code()] = U8CStr2CStr(ICON_MDI_CAMERA);
-        component_icon_map[typeid(maths::Transform).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_LINE);
+        component_icon_map[typeid(Transform).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_LINE);
         component_icon_map[typeid(GaussianComponent).hash_code()] = U8CStr2CStr(ICON_MDI_VECTOR_POLYGON);
         component_icon_map[typeid(GaussianCrop).hash_code()] = U8CStr2CStr(ICON_MDI_SQUARE);
         component_icon_map[typeid(Editor).hash_code()] = U8CStr2CStr(ICON_MDI_SQUARE);
@@ -289,7 +307,7 @@ namespace diverse
         ImOGuizmo::config.axisLengthScale = 0.4f;
         ImOGuizmo::config.hoverCircleRadiusScale = 1.414f;
         //create pivot
-        pivot = std::make_shared<Pivot>(maths::Transform());
+        pivot = std::make_shared<Pivot>();
         auto project_name = ToStdString(cmdline->option_string(Str8Lit("open_project")));
         if( !project_name.empty())
             project_open_callback(project_name);
@@ -1244,44 +1262,44 @@ namespace diverse
                     auto global_transform = registry.try_get<GlobalTransform>(select_ent);
                     auto light_common = registry.try_get<LightCommon>(select_ent);
 
-                    maths::Transform debug_transform;
+                    glm::mat4 debug_world_matrix(1.0f);
                     if (global_transform)
-                        debug_transform.set_world_matrix(global_transform->world_matrix);
+                        debug_world_matrix = global_transform->world_matrix;
 
                     auto point_light = registry.try_get<PointLight>(select_ent);
                     if (point_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(point_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(point_light, debug_world_matrix, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto spot_light = registry.try_get<SpotLight>(select_ent);
                     if (spot_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(spot_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(spot_light, debug_world_matrix, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto rect_light = registry.try_get<RectLight>(select_ent);
                     if (rect_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(rect_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(rect_light, debug_world_matrix, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto dir_light = registry.try_get<DirectionalLight>(select_ent);
                     if (dir_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(dir_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(dir_light, debug_world_matrix, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto disk_light = registry.try_get<DiskLight>(select_ent);
                     if (disk_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(disk_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(disk_light, debug_world_matrix, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto cylinder_light = registry.try_get<CylinderLight>(select_ent);
                     if (cylinder_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(cylinder_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(cylinder_light, debug_world_matrix, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     #define drawdebugBoxMesh()                                                  \
@@ -1481,7 +1499,7 @@ namespace diverse
 #ifdef DS_SPLAT_TRAIN
         // Iterate through ALL entities with GaussianTrainerScene component
         auto& reg = get_current_scene()->get_registry();
-        auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<maths::Transform, GaussianComponent>);
+        auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<Transform, GaussianComponent>);
         
         for (auto entity_handle : gsGroup)
         {
@@ -2100,11 +2118,9 @@ namespace diverse
             auto& gaussian_train = modelEntity.add_component< GaussianTrainerScene>(trainConfig,-1);
             gaussian_train.setModelPath(gs_output_path + "/" + newGSName + "." + format_str[cur_format]);
             set_selected(modelEntity.get_handle());
-            auto& transform = modelEntity.get_component<maths::Transform>();
-            //rotate x axis -80.9 degree and y axis 40.7 degree and z axsi 140.7
-            auto rotation = glm::vec3(180.0f, 0.0f, 0.0f);
-            transform.set_local_orientation(glm::radians(rotation));
-            transform.set_world_matrix(glm::mat4(1.0f));
+            auto& transform = modelEntity.get_component<Transform>();
+            transform.set_local_orientation(glm::angleAxis(glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
+            mark_entity_transform_dirty(get_current_scene(), modelEntity.get_handle());
             current_train_entity = modelEntity.get_handle();
             std::thread([&](){
                 try{
@@ -2418,32 +2434,34 @@ namespace diverse
 
         if (!registry.valid(entity))
             return;
-        if (std::find(selected_entities.begin(), selected_entities.end(), entity) != selected_entities.end())
+
+        const bool already_selected = std::find(selected_entities.begin(), selected_entities.end(), entity) != selected_entities.end();
+        sync_pivot_from_entity(registry, entity, pivot.get());
+
+        if (already_selected)
             return;
-        auto transform = registry.try_get<maths::Transform>(entity);
-        if(transform)
-        {
-            pivot->set_transform(*transform);
-        }
+
         auto splat = registry.try_get<GaussianComponent>(entity);
         if (splat)
         {
             current_splat_entity = entity;
             splatEdit.set_edit_splat(splat);
-            if(transform)
+            if (auto* transform = registry.try_get<Transform>(entity))
             {
-                splatEdit.set_splat_transform(transform);
+                splatEdit.set_splat_transform(get_current_scene(), entity, transform);
+                const glm::mat4 world_matrix = registry.try_get<GlobalTransform>(entity)
+                    ? registry.get<GlobalTransform>(entity).world_matrix
+                    : transform->get_local_matrix();
                 if(splatEdit.has_select_gaussians())
                 {
-                    auto center = splat->ModelRef->get_selection_bounding_box(transform->get_world_matrix()).center();
+                    auto center = splat->ModelRef->get_selection_bounding_box(world_matrix).center();
                     pivot->get_transform().set_local_position(center);
                 }
                 else
                 {
-                    auto center = splat->ModelRef->get_world_bounding_box(transform->get_world_matrix()).center();
+                    auto center = splat->ModelRef->get_world_bounding_box(world_matrix).center();
                     pivot->get_transform().set_local_position(center);
                 }
-                pivot->get_transform().set_world_matrix(glm::mat4(1.0f));
             }
 #ifdef DS_SPLAT_TRAIN
             if(registry.try_get<GaussianTrainerScene>(entity))
@@ -2753,7 +2771,7 @@ namespace diverse
 #ifdef DS_SPLAT_TRAIN
             {
                 auto& reg = get_current_scene()->get_registry();
-                auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<maths::Transform, GaussianComponent>);
+                auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<Transform, GaussianComponent>);
                 
                 // Only show training/pause buttons if there are entities with GaussianTrainerScene component
                 if (!gsGroup.empty())
@@ -3175,12 +3193,17 @@ namespace diverse
                 ImGuizmo::SetDrawlist();
                 ImGuizmo::SetOrthographic(current_camera->is_orthographic());
 
-                auto transform = registry.try_get<Transform>(m_SelectedEntity);
+                auto* transform = registry.try_get<Transform>(m_SelectedEntity);
                 if (transform != nullptr)
                 {
-                    auto& pivot_transform = pivot->get_transform();
-                    glm::mat4 model = pivot_transform.get_world_matrix();
-                    // glm::mat4 model = transform->get_world_matrix();
+                    static Transform old_transform;
+                    static bool imguizmo_manipulated = false;
+
+                    if (!ImGuizmo::IsUsing() && !imguizmo_manipulated)
+                        sync_pivot_from_entity(registry, m_SelectedEntity, pivot.get());
+
+                    glm::mat4 model = pivot->get_world_matrix();
+
                     float snapAmount[3] = { settings.snap_amount, settings.snap_amount, settings.snap_amount };
                     glm::mat4 deltaMatrix = glm::mat4(1.0f);
 
@@ -3191,52 +3214,46 @@ namespace diverse
                         glm::value_ptr(model),
                         glm::value_ptr(deltaMatrix),
                         settings.snap_quizmo ? snapAmount : nullptr);
-                    static maths::Transform old_transform;
-                    static bool imguizmo_manipulated = false;
+
                     if (ImGuizmo::IsUsing())
                     {
                         auto& splatEdit = GaussianEdit::get();
                         if (Input::get().get_mouse_clicked(InputCode::ButtonLeft))
                         {
-                            old_transform = pivot_transform;
-                            splatEdit.start_transform_op(pivot_transform);
+                            old_transform = pivot->get_transform();
+                            splatEdit.start_transform_op(pivot->get_transform());
                         }
 
                         Entity parent = Entity(m_SelectedEntity, scene_manager->get_current_scene()).get_parent();
+                        glm::mat4 local_matrix = model;
                         if (parent && parent.has_component<GlobalTransform>())
-                        {
-                            glm::mat4 parentTransform = parent.get_world_matrix();
-                            model = glm::inverse(parentTransform) * model;
-                        }
+                            local_matrix = glm::inverse(parent.get_world_matrix()) * model;
+
                         if (ImGuizmo::IsScaleType())
                         {
-                            glm::vec3 skew,scale,pos;
+                            glm::vec3 skew, scale, pos;
                             glm::vec4 perspective;
                             glm::quat rot;
-                            glm::decompose(model, scale, rot, pos, skew, perspective);
-                            pivot_transform.set_local_scale(scale);
+                            glm::decompose(local_matrix, scale, rot, pos, skew, perspective);
                             transform->set_local_scale(scale);
                         }
-                        else
+                        else if (!splatEdit.has_select_gaussians())
                         {
-                            if(!splatEdit.has_select_gaussians())
-                                transform->set_local_transform(deltaMatrix * transform->get_local_matrix());
-                            pivot_transform.set_local_transform(deltaMatrix * pivot_transform.get_local_matrix());
+                            transform->set_local_transform(local_matrix);
                         }
-                        pivot_transform.set_world_matrix(glm::mat4(1.0f));
-                        //if current select entity is gaussian splat
-                        if(current_splat_entity == m_SelectedEntity)
-                        {
-                            splatEdit.update_transform_op(old_transform, pivot_transform);
-                        }
+                        mark_entity_transform_dirty(get_current_scene(), m_SelectedEntity);
+
+                        pivot->set_from_world_matrix(model);
+                        if (current_splat_entity == m_SelectedEntity)
+                            splatEdit.update_transform_op(old_transform, pivot->get_transform());
+
                         imguizmo_manipulated = true;
                         invalidate_pt_state();
-
                     }
                     if (imguizmo_manipulated && !Input::get().get_mouse_held(InputCode::ButtonLeft))
                     {
                         auto& splatEdit = GaussianEdit::get();
-                        splatEdit.end_transform_op(old_transform, pivot_transform,pivot.get());
+                        splatEdit.end_transform_op(old_transform, pivot->get_transform(), pivot.get());
                         imguizmo_manipulated = false;
                     }
                 }
@@ -3291,21 +3308,17 @@ namespace diverse
                 {
                     if (!registry.valid(entityID))
                         continue;
-                    auto transform = registry.try_get<maths::Transform>(entityID);
 
-                    if (!transform)
-                        continue;
-                    if (ImGuizmo::IsScaleType()) 
+                    if (auto* transform = registry.try_get<Transform>(entityID))
                     {
-                        transform->set_local_scale(transform->get_local_scale() * deltaScale);
-                    }
-                    else if (ImGuizmo::IsRotateType())
-                    {
-                        transform->set_local_orientation(transform->get_local_orientation() + glm::eulerAngles(deltaRotation));
-                    }
-                    else
-                    {
-                        transform->set_local_transform(deltaMatrix * transform->get_local_matrix());
+                        if (ImGuizmo::IsScaleType())
+                            transform->set_local_scale(transform->get_local_scale() * deltaScale);
+                        else if (ImGuizmo::IsRotateType())
+                            transform->set_local_orientation(transform->get_local_orientation() * deltaRotation);
+                        else
+                            transform->set_local_transform(deltaMatrix * transform->get_local_matrix());
+
+                        mark_entity_transform_dirty(get_current_scene(), entityID);
                     }
                 }
             }

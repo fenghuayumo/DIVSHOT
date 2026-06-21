@@ -1,6 +1,6 @@
 #pragma once
 
-#include <maths/transform.h>
+#include "scene/components/transform_component.h"
 #include <maths/bounding_box.h>
 #include <maths/bounding_sphere.h>
 #include <maths/rect.h>
@@ -26,7 +26,7 @@ namespace diverse
             GaussianCropData();
             maths::BoundingSphere   bdsphere;
             maths::BoundingBox      bdbox;
-            maths::Transform        transform;
+            Transform        transform;
             int crop_op = 0x0000FFFF;
 
             void set_crop_type(CropType type);

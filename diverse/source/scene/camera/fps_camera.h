@@ -11,9 +11,9 @@ namespace diverse
         FPSCameraController();
         virtual ~FPSCameraController() override;
 
-        virtual void handle_mouse(maths::Transform& transform, float dt, float xpos, float ypos) override;
-        virtual void handle_keyboard(maths::Transform& transform, float dt) override;
-        void update_scroll(maths::Transform& transform, float offset, float dt) override {};
+        virtual void handle_mouse(Transform& transform, float dt, float xpos, float ypos) override;
+        virtual void handle_keyboard(Transform& transform, float dt) override;
+        void update_scroll(Transform& transform, float offset, float dt) override {};
     };
 
 }

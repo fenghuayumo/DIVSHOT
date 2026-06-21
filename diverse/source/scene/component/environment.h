@@ -5,7 +5,7 @@
 #include <string>
 #include <memory>
 #include "renderer/light.h"
-#include "maths/transform.h"
+#include "scene/components/transform_component.h"
 namespace diverse
 {   
     namespace rhi
@@ -46,7 +46,7 @@ namespace diverse
         const glm::vec3& get_color() const { return sky_ambient; }
         void set_color(const glm::vec3& param) { sky_ambient = param; }
 
-        auto  get_render_light_data(const maths::Transform& transform, struct LightShaderData* light_data) -> void;
+        auto  get_render_light_data(const Transform& transform, struct LightShaderData* light_data) -> void;
     public:
         glm::vec2   latent;
         float       intensity = 1.0f;

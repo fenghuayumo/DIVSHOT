@@ -8,6 +8,27 @@ namespace diverse
 {
         DebugRenderer* DebugRenderer::s_Instance = nullptr;
 
+    namespace
+    {
+        struct WorldPose
+        {
+            glm::vec3 position;
+            glm::quat rotation;
+            glm::vec3 forward;
+        };
+
+        WorldPose decompose_world_matrix(const glm::mat4& world_matrix)
+        {
+            WorldPose pose;
+            glm::vec3 scale;
+            glm::vec3 skew;
+            glm::vec4 perspective;
+            glm::decompose(world_matrix, scale, pose.rotation, pose.position, skew, perspective);
+            pose.forward = pose.rotation * glm::vec3(0.0f, 0.0f, 1.0f);
+            return pose;
+        }
+    }
+
     static const uint32_t MaxLines        = 10000;
     static const uint32_t MaxLineVertices = MaxLines * 2;
     static const uint32_t MaxLineIndices  = MaxLines * 6;
@@ -573,11 +594,11 @@ namespace diverse
         DebugRenderer::draw_hair_line(vertices[2], vertices[6], colour);
         DebugRenderer::draw_hair_line(vertices[3], vertices[7], colour);
     }
-    void DebugRenderer::debug_draw(const RectLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const RectLight* light, const glm::mat4& world_matrix, const LightCommon* common, const glm::vec4& colour)
     {
-        // Draw rectangle representation
-        auto position = transform.get_world_position();
-        auto rotation = transform.get_world_orientation();
+        const auto pose = decompose_world_matrix(world_matrix);
+        auto position = pose.position;
+        auto rotation = pose.rotation;
 
         glm::vec3 half_size(light->width * 0.5f, light->height * 0.5f, 0.0f);
         glm::vec3 vertices[8] = {
@@ -608,19 +629,21 @@ namespace diverse
         DebugRenderer::draw_hair_line(vertices[3], vertices[7], colour);
     }
 
-    void DebugRenderer::debug_draw(const SpotLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const SpotLight* light, const glm::mat4& world_matrix, const LightCommon* common, const glm::vec4& colour)
     {
+        const auto pose = decompose_world_matrix(world_matrix);
         auto angle = light->outer_angle;
-        auto position = transform.get_world_position();
-        auto rotation = transform.get_world_orientation();
+        auto position = pose.position;
+        auto rotation = pose.rotation;
         debug_draw_cone(20, 4, angle, common->intensity, position, rotation, colour);
     }
 
-    void DebugRenderer::debug_draw(const DirectionalLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const DirectionalLight* light, const glm::mat4& world_matrix, const LightCommon* common, const glm::vec4& colour)
     {
-        auto position = transform.get_world_position();
-        auto rotation = transform.get_world_orientation();
-        auto direction = transform.get_forward_direction();
+        const auto pose = decompose_world_matrix(world_matrix);
+        auto position = pose.position;
+        auto rotation = pose.rotation;
+        auto direction = pose.forward;
         glm::vec3 offset(0.0f, 0.1f, 0.0f);
         draw_hair_line(position + offset, position + direction * 2.0f + offset, colour);
         draw_hair_line(position - offset, position + direction * 2.0f - offset, colour);
@@ -629,24 +652,26 @@ namespace diverse
         debug_draw_cone(20, 4, 30.0f, 1.5f, position - direction * 1.5f, rotation, colour);
     }
 
-    void DebugRenderer::debug_draw(const PointLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const PointLight* light, const glm::mat4& world_matrix, const LightCommon* common, const glm::vec4& colour)
     {
-        auto position = transform.get_world_position();
-        auto rotation = transform.get_world_orientation();
+        const auto pose = decompose_world_matrix(world_matrix);
+        auto position = pose.position;
         debug_draw_sphere(light->radius, position, colour);
     }
 
-    void DebugRenderer::debug_draw(const DiskLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const DiskLight* light, const glm::mat4& world_matrix, const LightCommon* common, const glm::vec4& colour)
     {
-        auto position = transform.get_world_position();
-        auto rotation = transform.get_world_orientation();
+        const auto pose = decompose_world_matrix(world_matrix);
+        auto position = pose.position;
+        auto rotation = pose.rotation;
         debug_draw_circle(30, light->radius, position, rotation, colour);
     }
 
-    void DebugRenderer::debug_draw(const CylinderLight* light, const maths::Transform& transform, const LightCommon* common, const glm::vec4& colour)
+    void DebugRenderer::debug_draw(const CylinderLight* light, const glm::mat4& world_matrix, const LightCommon* common, const glm::vec4& colour)
     {
-        auto position = transform.get_world_position();
-        auto rotation = transform.get_world_orientation();
+        const auto pose = decompose_world_matrix(world_matrix);
+        auto position = pose.position;
+        auto rotation = pose.rotation;
         debug_draw_capsule(position, rotation, light->length, light->radius, colour);
     }
 

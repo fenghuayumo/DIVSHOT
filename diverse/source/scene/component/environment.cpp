@@ -56,8 +56,9 @@ namespace diverse
 		return device->create_texture(img_desc, { sub_data }, "gray");
 	}
 
-	auto Environment::get_render_light_data(const maths::Transform& transform, struct LightShaderData* light_data) -> void
+	auto Environment::get_render_light_data(const Transform& transform, struct LightShaderData* light_data) -> void
 	{
+        (void)transform;
 		light_data->colorTypeAndFlags = (uint32_t)LightType::kEnvironment << kPolymorphicLightTypeShift;
 		//packLightColor(, *light_data);
 		//light_data->direction1 = (uint32_t)env.textureIndex;

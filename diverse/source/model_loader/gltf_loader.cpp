@@ -12,7 +12,6 @@
 #include "animation/animation.h"
 #include "backend/drs_rhi/gpu_texture.h"
 #include "maths/maths_basic_types.h"
-#include "maths/transform.h"
 #include "utility/string_utils.h"
 #include "utility/file_utils.h"
 #include "assets/asset_metadata.h"
@@ -552,7 +551,7 @@ namespace diverse
         return loadedMaterials;
     }
 
-    std::vector<std::shared_ptr<MeshAsset>> LoadMesh(const tinygltf::Model& model,const tinygltf::Mesh& mesh,const maths::Transform& parentTransform)
+    std::vector<std::shared_ptr<MeshAsset>> LoadMesh(const tinygltf::Model& model,const tinygltf::Mesh& mesh,const glm::mat4& worldMatrix)
     {
         std::vector<std::shared_ptr<MeshAsset>> meshes;
 
@@ -610,7 +609,7 @@ namespace diverse
                     parallel_for<size_t>(0, positionCount, [&](size_t p)
                     {
                         const auto position = ReadAccessorVec4(model, accessor, p, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-                        vertices[p].Position = parentTransform.get_world_matrix() * glm::vec4(glm::vec3(position),1.0f);
+                        vertices[p].Position = worldMatrix * glm::vec4(glm::vec3(position),1.0f);
                         DS_ASSERT(!glm::isinf(vertices[p].Position.x) && !glm::isinf(vertices[p].Position.y) && !glm::isinf(vertices[p].Position.z) && 
                         !glm::isnan(vertices[p].Position.x) && !glm::isnan(vertices[p].Position.y) && !glm::isnan(vertices[p].Position.z));
                     });
@@ -621,7 +620,7 @@ namespace diverse
                 else if(attribute.first == "NORMAL")
                 {
                     size_t normalCount            = accessor.count;
-                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix())));
+                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(worldMatrix)));
                     //for(auto p = 0; p < normalCount; ++p)
                     parallel_for<size_t>(0, normalCount, [&](size_t p)
                     {
@@ -660,7 +659,7 @@ namespace diverse
                 {
                     hasTangents               = true;
                     size_t uvCount            = accessor.count;
-                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix())));
+                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(worldMatrix)));
                     parallel_for<size_t>(0, uvCount, [&](size_t p)
                     {
                         vertices[p].Tangent = normalMatrix * glm::vec3(ReadAccessorVec4(model, accessor, p));
@@ -673,7 +672,7 @@ namespace diverse
                 {
                     hasBitangents             = true;
                     size_t uvCount            = accessor.count;
-                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(parentTransform.get_world_matrix())));
+                    glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(worldMatrix)));
                     //for(auto p = 0; p < uvCount; ++p)
                     parallel_for<size_t>(0, uvCount, [&](size_t p)
                     {
@@ -894,8 +893,7 @@ namespace diverse
         DS_LOG_INFO("asset.minVersion : {}", model.asset.minVersion);
 #endif
 
-        maths::Transform transform;
-        glm::mat4 matrix;
+        glm::mat4 localMatrix = glm::mat4(1.0f);
         glm::mat4 position = glm::mat4(1.0f);
         glm::mat4 rotation = glm::mat4(1.0f);
         glm::mat4 scale    = glm::mat4(1.0f);
@@ -903,19 +901,15 @@ namespace diverse
         if(!node.scale.empty())
         {
             scale = glm::scale(glm::mat4(1.0), glm::vec3(static_cast<float>(node.scale[0]), static_cast<float>(node.scale[1]), static_cast<float>(node.scale[2])));
-            // transform.SetLocalScale(Vec3(static_cast<float>(node.scale[0]), static_cast<float>(node.scale[1]), static_cast<float>(node.scale[2])));
         }
 
         if(!node.rotation.empty())
         {
             rotation = glm::toMat4(glm::quat(static_cast<float>(node.rotation[3]), static_cast<float>(node.rotation[0]), static_cast<float>(node.rotation[1]), static_cast<float>(node.rotation[2])));
-
-            // transform.SetLocalOrientation(Quat(static_cast<float>(node.rotation[3]), static_cast<float>(node.rotation[0]), static_cast<float>(node.rotation[1]), static_cast<float>(node.rotation[2])));
         }
 
         if(!node.translation.empty())
         {
-            // transform.SetLocalPosition(Vec3(static_cast<float>(node.translation[0]), static_cast<float>(node.translation[1]), static_cast<float>(node.translation[2])));
             position = glm::translate(glm::mat4(1.0), glm::vec3(static_cast<float>(node.translation[0]), static_cast<float>(node.translation[1]), static_cast<float>(node.translation[2])));
         }
 
@@ -924,20 +918,18 @@ namespace diverse
             float matrixData[16];
             for(int i = 0; i < 16; i++)
                 matrixData[i] = float(node.matrix.data()[i]);
-            matrix = glm::make_mat4(matrixData);
-            transform.set_local_transform(matrix);
+            localMatrix = glm::make_mat4(matrixData);
         }
         else
         {
-            matrix = position * rotation * scale;
-            transform.set_local_transform(matrix);
+            localMatrix = position * rotation * scale;
         }
 
-        transform.set_world_matrix(parentTransform);
+        const glm::mat4 worldMatrix = parentTransform * localMatrix;
 
         if(node.mesh >= 0)
         {
-            auto meshes = LoadMesh(model, model.meshes[node.mesh], transform);
+            auto meshes = LoadMesh(model, model.meshes[node.mesh], worldMatrix);
             int subIndex = 0;
             for(auto& mesh : meshes)
             {
@@ -963,7 +955,7 @@ namespace diverse
         {
             for(auto child : node.children)
             {
-                LoadNode(mainModel, child, transform.get_local_matrix(), model, materials);
+                LoadNode(mainModel, child, worldMatrix, model, materials);
             }
         }
     }

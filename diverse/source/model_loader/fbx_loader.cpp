@@ -3,7 +3,8 @@
 #include "assets/texture_importer.h"
 #include "model_loader_utils.h"
 #include "assets/mesh_geometry_utils.h"
-#include "maths/transform.h"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include "engine/file_system.h"
 #include "backend/drs_rhi/gpu_texture.h"
 #include "utility/string_utils.h"
@@ -204,31 +205,25 @@ namespace diverse
         return pbrMaterial;
     }
 
-    maths::Transform GetTransform(const ofbx::Object* mesh)
+    glm::mat4 GetWorldMatrix(const ofbx::Object* object)
     {
-        auto transform = maths::Transform();
+        ofbx::Vec3 p = object->getLocalTranslation();
+        glm::vec3 pos = FixOrientation(glm::vec3(static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)));
 
-        ofbx::Vec3 p = mesh->getLocalTranslation();
-
-        glm::vec3 pos = (glm::vec3(static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)));
-        transform.set_local_position(FixOrientation(pos));
-
-        ofbx::Vec3 r = mesh->getLocalRotation();
+        ofbx::Vec3 r = object->getLocalRotation();
         glm::vec3 rot = FixOrientation(glm::vec3(static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.z)));
-        transform.set_local_orientation(glm::quat(glm::vec3(rot.x, rot.y, rot.z)));
 
-        ofbx::Vec3 s = mesh->getLocalScaling();
+        ofbx::Vec3 s = object->getLocalScaling();
         glm::vec3 scl = glm::vec3(static_cast<float>(s.x), static_cast<float>(s.y), static_cast<float>(s.z));
-        transform.set_local_scale(scl);
 
-        if (mesh->getParent())
-        {
-            transform.set_world_matrix(GetTransform(mesh->getParent()).get_world_matrix());
-        }
-        else
-            transform.set_world_matrix(glm::mat4(1.0f));
+        const glm::mat4 localMatrix = glm::translate(glm::mat4(1.0f), pos)
+            * glm::mat4_cast(glm::quat(glm::vec3(rot.x, rot.y, rot.z)))
+            * glm::scale(glm::mat4(1.0f), scl);
 
-        return transform;
+        if(object->getParent())
+            return GetWorldMatrix(object->getParent()) * localMatrix;
+
+        return localMatrix;
     }
 
     std::shared_ptr<MeshAsset> LoadMesh(const ofbx::Mesh* fbxMesh, int32_t triangleStart, int32_t triangleEnd)
@@ -254,19 +249,19 @@ namespace diverse
         int indexCount = 0;
         auto indices = geom->getFaceIndices();
 
-        auto transform = GetTransform(fbxMesh);
+        const glm::mat4 worldMatrix = GetWorldMatrix(fbxMesh);
+        const glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(worldMatrix)));
 
         for (int i = 0; i < vertexCount; i++)
         {
             ofbx::Vec3 cp = vertices[i + firstVertexOffset];
 
             auto& vertex = tempvertices[i];
-            vertex.Position = transform.get_world_matrix() * glm::vec4(float(cp.x), float(cp.y), float(cp.z), 1.0f);
+            vertex.Position = worldMatrix * glm::vec4(float(cp.x), float(cp.y), float(cp.z), 1.0f);
             FixOrientation(vertex.Position);
 
             if (normals)
-                vertex.Normal = transform.get_world_matrix() * glm::normalize(glm::vec4(float(normals[i + firstVertexOffset].x), float(normals[i + firstVertexOffset].y), float(normals[i + firstVertexOffset].z), 1.0f));
-            // vertex.Normal = transform.get_world_matrix().ToMatrix3().Inverse().Transpose() * (glm::vec3(float(normals[i].x), float(normals[i].y), float(normals[i].z))).Normalised();
+                vertex.Normal = normalMatrix * glm::normalize(glm::vec3(float(normals[i + firstVertexOffset].x), float(normals[i + firstVertexOffset].y), float(normals[i + firstVertexOffset].z)));
             if (uvs)
                 vertex.TexCoords = glm::vec2(float(uvs[i + firstVertexOffset].x), 1.0f - float(uvs[i + firstVertexOffset].y));
             if (colours)

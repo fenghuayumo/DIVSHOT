@@ -122,7 +122,7 @@ namespace diverse
 			glm::vec4 locked_color;
 			glm::vec4 select_color;
 		}gs_constants;
-		gs_constants.transform = glm::transpose(splat_data.transform.get_world_matrix());
+		gs_constants.transform = glm::transpose(splat_data.transform.get_local_matrix());
 		gs_constants.point_size = glm::clamp(render_settings.gs_point_size,0.0f,100.0f) / 2.0f;
 		gs_constants.surface_width = color_img.desc.extent[0];
 		gs_constants.surface_height = color_img.desc.extent[1];
@@ -168,7 +168,7 @@ namespace diverse
 			u32 surface_height;
 			uint buf_id;
 		}gs_constants;
-		gs_constants.transform = glm::transpose(splat_data.transform.get_world_matrix());
+		gs_constants.transform = glm::transpose(splat_data.transform.get_local_matrix());
 		gs_constants.point_size = glm::clamp(splat_data.model->splat_size, 1.0f, 100.0f) / 2.0f;
 		gs_constants.surface_width = color_img.desc.extent[0];
 		gs_constants.surface_height = color_img.desc.extent[1];

@@ -105,7 +105,7 @@ public:
     
     Camera camera;
     
-    maths::Transform cameraTransform;
+    Transform cameraTransform;
     
 };
 

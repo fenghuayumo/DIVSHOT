@@ -1,5 +1,5 @@
 #pragma once
-#include <maths/transform.h>
+#include "scene/components/transform_component.h"
 #include <maths/bounding_box.h>
 #include <maths/bounding_sphere.h>
 #include <maths/rect.h>
@@ -8,6 +8,11 @@
 #include <deque>
 #include "brush_tool.h"
 #include "splat_edit_history.h"
+
+DISABLE_WARNING_PUSH
+DISABLE_WARNING_CONVERSION_TO_SMALLER_TYPE
+#include <entt/entt.hpp>
+DISABLE_WARNING_POP
 
 #define RESET_OP  0
 #define DELETE_OP 1
@@ -88,8 +93,8 @@ namespace diverse
         auto    add_selection_op(EditSelectOpType type)->void;
         auto    add_paint_op()->void;
         auto    add_place_pivot_op(
-                const maths::Transform& old_trans,
-                const maths::Transform& new_trans,
+                const Transform& old_trans,
+                const Transform& new_trans,
                 class Pivot* pivot_t)->void;
         auto    add_select_all_op()->void;
         auto    add_select_inverse_op()->void;
@@ -106,19 +111,19 @@ namespace diverse
         auto    clear_op_history()->void;
         auto    intersect_splat(EditSelectOpType op)->bool;
         void    set_edit_splat(GaussianComponent* splat);
-        auto    set_splat_transform(maths::Transform* t)->void;
-        auto    get_edit_transform()->maths::Transform& { return edit_transform;}
+        void    set_splat_transform(Scene* sc, entt::entity entity, Transform* t);
+        auto    get_edit_transform()->Transform& { return edit_transform;}
+        glm::mat4 get_splat_world_matrix() const;
         void    set_edit_scene(Scene* sc) { scene = sc;};
         auto    has_select_gaussians()->bool;
-        //transform handler
-        auto    start_transform_op(const maths::Transform& new_trans)->void;
+        auto    start_transform_op(const Transform& new_trans)->void;
         auto    end_transform_op(
-                const maths::Transform& old_trans, 
-                const maths::Transform& new_trans, 
+                const Transform& old_trans, 
+                const Transform& new_trans, 
                 class Pivot* pivot_t)->void;
         auto    update_transform_op(
-                const maths::Transform& old_trans,
-                const maths::Transform& new_trans)->void;
+                const Transform& old_trans,
+                const Transform& new_trans)->void;
 
         auto   reset_splat_intersected()->void;
         auto   get_splat_intersected()->bool;
@@ -133,9 +138,10 @@ namespace diverse
         maths::BoundingBox      bdbox;
         maths::Rect             rect;
         glm::vec2               mouse_pos;
-        maths::Transform        edit_transform;
-        maths::Transform*       splat_transform;
-        Scene*                  scene;
+        Transform               edit_transform;
+        Transform*              splat_transform = nullptr;
+        entt::entity            splat_entity = entt::null;
+        Scene*                  scene = nullptr;
 
         std::unordered_map<u32, u32> palette_map;
         std::vector<glm::mat3x4>    splat_transforms;

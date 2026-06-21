@@ -3,7 +3,6 @@
 #include "assets/asset_system.h"
 #include "assets/asset_registry.h"
 #include "model_loader/model_loader_utils.h"
-#include "maths/transform.h"
 #include "utility/string_utils.h"
 #include "core/profiler.h"
 #include "core/ds_log.h"

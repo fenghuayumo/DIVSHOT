@@ -254,9 +254,8 @@ namespace diverse
                     isect_point))
                 {
                     auto& pivot_transform = editor->get_pivot()->get_transform();
-                    pivot_transform.set_world_matrix(global.world_matrix);
                     pivot_transform.set_local_position(isect_point);
-                    editor->focus_camera(pivot_transform.get_world_position(), 2.0f, 2.0f);
+                    editor->focus_camera(pivot_transform.get_local_position(), 2.0f, 2.0f);
                     GaussianEdit::get().add_place_pivot_op(old_pivot_transform, pivot_transform, editor->get_pivot());
                 }
             }
@@ -1266,14 +1265,14 @@ namespace diverse
     
     void SceneViewPanel::handle_splat_crop(Camera* camera, Transform* camera_transform,const ImVec2& sceneViewPosition, const ImVec2& sceneViewSize)
     {
-        auto splat_group = current_scene->get_registry().group<GaussianCrop>(entt::get<maths::Transform>);
-        for (auto gs_ent : splat_group)
+        auto crop_view = current_scene->get_registry().view<GaussianCrop>();
+        for (auto gs_ent : crop_view)
         {
             if (!Entity(gs_ent, current_scene).active())
                 continue;
 
             auto drawList = ImGui::GetWindowDrawList();
-            auto& gs_crop = splat_group.get<GaussianCrop>(gs_ent);
+            auto& gs_crop = crop_view.get<GaussianCrop>(gs_ent);
             auto& crop_datas = gs_crop.get_crop_data();
             for (auto& crop_data : crop_datas)
             {
@@ -1281,7 +1280,7 @@ namespace diverse
                 glm::mat4 proj = camera->get_projection_matrix();
                 auto world2proj = proj * view;
                 auto& model = crop_data.transform;
-                auto m = model.get_world_matrix();
+                auto m = model.get_local_matrix();
                 if (crop_data.get_crop_type() == GaussianCrop::CropType::Box)
                 {
                     const auto& bd_box = crop_data.bouding_box();
@@ -1374,7 +1373,7 @@ namespace diverse
             auto entity = entitys.front();
             auto& registry = editor->get_current_scene()->get_registry();
             auto model = registry.try_get<MeshModelComponent>(entity);
-            auto transform = registry.try_get<maths::Transform>(entity);
+            auto transform = registry.try_get<Transform>(entity);
 
             auto& edit_type = ImagePaint::get().image_edit_type();
             auto& brush_tool = ImagePaint::get().brush();

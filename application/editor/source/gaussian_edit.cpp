@@ -1,5 +1,6 @@
 #include "gaussian_edit.h"
 #include "redo_undo_system.h"
+#include "scene/components/global_transform_component.h"
 #include <backend/drs_rhi/gpu_device.h>
 #include <opencv2/opencv.hpp>
 #include <utility/thread_pool.h>
@@ -141,8 +142,8 @@ namespace diverse
         UndoRedoSystem::get().add(std::make_shared<SetSplatColorAdjustmentOp>(splat, old_state, new_state));
     }
 
-    auto GaussianEdit::add_place_pivot_op(const maths::Transform& old_trans,
-        const maths::Transform& new_trans,
+    auto GaussianEdit::add_place_pivot_op(const Transform& old_trans,
+        const Transform& new_trans,
         class Pivot* pivot_t) -> void
     {
         if (!(splat && splat->ModelRef)) return;
@@ -210,9 +211,29 @@ namespace diverse
     {
         splat = model;
     }
-    void GaussianEdit::set_splat_transform(maths::Transform* t)
+    void GaussianEdit::set_splat_transform(Scene* sc, entt::entity entity, Transform* t)
     {
+        scene = sc;
+        splat_entity = entity;
         splat_transform = t;
+    }
+
+    glm::mat4 GaussianEdit::get_splat_world_matrix() const
+    {
+        if (!splat_transform)
+            return glm::mat4(1.0f);
+
+        if (scene && splat_entity != entt::null)
+        {
+            auto& registry = scene->get_registry();
+            if (registry.valid(splat_entity))
+            {
+                if (auto* global = registry.try_get<GlobalTransform>(splat_entity))
+                    return global->world_matrix;
+            }
+        }
+
+        return splat_transform->get_local_matrix();
     }
 
     auto GaussianEdit::has_select_gaussians() -> bool
@@ -221,7 +242,7 @@ namespace diverse
         return splat->ModelRef->has_select_gaussians();
     }
 
-    auto GaussianEdit::start_transform_op(const maths::Transform& new_trans) -> void
+    auto GaussianEdit::start_transform_op(const Transform& new_trans) -> void
     {
         if (!(splat && splat->ModelRef)) return;
         if(has_select_gaussians())
@@ -250,14 +271,14 @@ namespace diverse
     }
 
     auto GaussianEdit::update_transform_op(
-        const maths::Transform& old_transform,
-        const maths::Transform& new_transform) -> void
+        const Transform& old_transform,
+        const Transform& new_transform) -> void
     {
         if (!(splat && splat->ModelRef)) return;
-        auto delta_matrix = new_transform.get_world_matrix() * glm::inverse(old_transform.get_world_matrix());
+        auto delta_matrix = new_transform.get_local_matrix() * glm::inverse(old_transform.get_local_matrix());
         if (has_select_gaussians())
         {
-            auto transform_mat = splat_transform->get_world_matrix();
+            auto transform_mat = get_splat_world_matrix();
             for (auto [old_idx, new_idx] : palette_map)
             {
                 glm::mat4 mat = splat->ModelRef->splat_transforms[old_idx];
@@ -269,13 +290,13 @@ namespace diverse
     }
 
     auto GaussianEdit::end_transform_op(
-        const maths::Transform& old_trans,
-        const maths::Transform& new_trans,
+        const Transform& old_trans,
+        const Transform& new_trans,
         class Pivot* pivot_t) -> void
     {
         if (!(splat && splat->ModelRef)) return;
         if(has_select_gaussians()){
-            auto transform_matrix = splat_transform->get_world_matrix();
+            auto transform_matrix = get_splat_world_matrix();
             auto top = std::make_shared<SplatTransformOp>(splat,old_trans, new_trans, transform_matrix, palette_map);
             auto pop = std::make_shared<PlacePivotOp>(splat, old_trans,new_trans, pivot_t);
             std::vector<std::shared_ptr<SplatEditOperation>> ops = { top,pop };
@@ -284,13 +305,15 @@ namespace diverse
         }
         else
         {
-            auto old_m = old_trans.get_world_matrix();
-            auto new_m = new_trans.get_world_matrix();
+            auto old_m = old_trans.get_local_matrix();
+            auto new_m = new_trans.get_local_matrix();
             if (old_m != new_m) 
             {
-                auto delta_matrix = new_trans.get_world_matrix() * glm::inverse(old_trans.get_world_matrix());
-                auto old_t = glm::inverse(delta_matrix) * (splat_transform->get_world_matrix());
-                auto top = std::make_shared<SplatEntityTransformOp>(splat, old_t, *splat_transform, splat_transform);
+                auto delta_matrix = new_trans.get_local_matrix() * glm::inverse(old_trans.get_local_matrix());
+                Transform old_t;
+                old_t.set_local_transform(glm::inverse(delta_matrix) * get_splat_world_matrix());
+                auto top = std::make_shared<SplatEntityTransformOp>(
+                    splat, old_t, *splat_transform, splat_transform, splat_entity, scene);
                 auto pop = std::make_shared<PlacePivotOp>(splat, old_trans, new_trans, pivot_t);
                 std::vector<std::shared_ptr<SplatEditOperation>> ops = { top,pop };
                 auto op = std::make_shared<MultiOp>(splat, ops);
@@ -365,7 +388,7 @@ namespace diverse
                 }gs_constants;
                 auto offset = -splat->black_point + splat->brightness;
                 auto scale = 1.0f / (splat->white_point - splat->black_point);
-                gs_constants.transform = glm::transpose(splat_transform->get_world_matrix());
+                gs_constants.transform = glm::transpose(get_splat_world_matrix());
                 gs_constants.mesh_index = buffer_id;
                 gs_constants.surface_width = color_img.desc.extent[0];
                 gs_constants.surface_height = color_img.desc.extent[1];
@@ -446,7 +469,7 @@ namespace diverse
             }edit_constants;
 
             edit_constants = { width, height, (u32)num_gaussians, glm::clamp(g_render_settings.gs_point_size,1.0f,100.0f)};
-            edit_constants.transform = glm::transpose(splat_transform->get_world_matrix());
+            edit_constants.transform = glm::transpose(get_splat_world_matrix());
             edit_constants.edit_box_min = edit_box.min();
             edit_constants.edit_box_max = edit_box.max();
             edit_constants.edit_rect = glm::vec4(rect_area().get_position(), rect_area().get_position() + rect_area().get_size());

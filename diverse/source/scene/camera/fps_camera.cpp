@@ -5,7 +5,7 @@
 #include "engine/window.h"
 #include "camera.h"
 #include "maths/maths_utils.h"
-#include "maths/transform.h"
+#include "scene/components/transform_component.h"
 
 namespace diverse
 {
@@ -16,7 +16,7 @@ namespace diverse
 
     FPSCameraController::~FPSCameraController() = default;
 
-    void FPSCameraController::handle_mouse(maths::Transform& transform, float dt, float xpos, float ypos)
+    void FPSCameraController::handle_mouse(Transform& transform, float dt, float xpos, float ypos)
     {
         if(Application::get().get_window()->get_window_focus())
         {
@@ -27,7 +27,7 @@ namespace diverse
 
                 Application::get().get_window()->set_mouse_position(windowCentre);
 
-                glm::vec3 euler = transform.get_local_orientation();
+                glm::vec3 euler = glm::eulerAngles(transform.get_local_orientation());
                 float pitch     = euler.x;
                 float yaw       = euler.y;
 
@@ -43,7 +43,7 @@ namespace diverse
         }
     }
 
-    void FPSCameraController::handle_keyboard(maths::Transform& transform, float dt)
+    void FPSCameraController::handle_keyboard(Transform& transform, float dt)
     {
         camera_speed = 1000.0f * dt;
 

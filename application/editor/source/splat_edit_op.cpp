@@ -1,5 +1,6 @@
 #include "splat_edit_op.h"
 #include "pivot.h"
+#include "scene/components/global_transform_component.h"
 #include <utility/thread_pool.h>
 
 namespace diverse
@@ -156,32 +157,47 @@ namespace diverse
     {
     }
 
-    SplatEntityTransformOp::SplatEntityTransformOp(GaussianComponent* splat, 
-        const maths::Transform& old_trans,
-        const maths::Transform& new_trans,
-        maths::Transform* splat_transform)
-        : SplatEditOperation(splat), 
-        old_transform(old_trans), 
+    SplatEntityTransformOp::SplatEntityTransformOp(
+        GaussianComponent* splat,
+        const Transform& old_trans,
+        const Transform& new_trans,
+        Transform* splat_transform,
+        entt::entity entity,
+        Scene* scene)
+        : SplatEditOperation(splat),
+        old_transform(old_trans),
         new_transform(new_trans),
-        transform(splat_transform)
+        transform(splat_transform),
+        entity(entity),
+        scene(scene)
     {
     }
 
     auto SplatEntityTransformOp::apply()->void
     {
         *transform = new_transform;
+        if (scene && entity != entt::null)
+        {
+            if (auto* global = scene->get_registry().try_get<GlobalTransform>(entity))
+                global->dirty = true;
+        }
         splat->ModelRef->make_selection_bound_dirty();
     }
 
     auto SplatEntityTransformOp::undo()->void
     {
         *transform = old_transform;
+        if (scene && entity != entt::null)
+        {
+            if (auto* global = scene->get_registry().try_get<GlobalTransform>(entity))
+                global->dirty = true;
+        }
         splat->ModelRef->make_selection_bound_dirty();
     }
 
     SplatTransformOp::SplatTransformOp(GaussianComponent* splat,
-        const maths::Transform& old_trans,
-        const maths::Transform& new_trans,
+        const Transform& old_trans,
+        const Transform& new_trans,
         const  glm::mat4& t,
         const std::unordered_map<u32, u32>& palette_map_p)
         : SplatEditOperation(splat), 
@@ -196,7 +212,7 @@ namespace diverse
 
     auto SplatTransformOp::apply()->void
     {
-        auto delta_matrix = new_transform.get_world_matrix() * glm::inverse(old_transform.get_world_matrix());
+        auto delta_matrix = new_transform.get_local_matrix() * glm::inverse(old_transform.get_local_matrix());
         for (auto [old_id,new_id] : palette_map)
         {
             glm::mat4 t = splat->ModelRef->splat_transforms[old_id];
@@ -228,8 +244,8 @@ namespace diverse
     }
 
     PlacePivotOp::PlacePivotOp(GaussianComponent* splat,
-        const maths::Transform& old_trans,
-        const maths::Transform& new_trans,
+        const Transform& old_trans,
+        const Transform& new_trans,
         Pivot* pivot_t)
         : SplatEditOperation(splat), 
         old_transform(old_trans), 
@@ -286,8 +302,9 @@ namespace diverse
 			modelRef->transform_index()[i] = 0;
 		});
         modelRef->update_state();
-        auto& new_transform = new_splat_ent.get_or_add_component<maths::Transform>();
-        new_transform = transform;
+        auto& new_transform = new_splat_ent.get_component<Transform>();
+        new_transform.set_local_transform(transform);
+        new_splat_ent.get_or_add_component<GlobalTransform>().dirty = true;
         modelRef->splat_transforms.set_transform(0, transform);
     }
 

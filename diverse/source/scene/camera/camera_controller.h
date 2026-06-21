@@ -3,13 +3,11 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/gtx/quaternion.hpp>
+
 namespace diverse
 {
-    namespace maths
-    {
-        class Transform;
-    }
     class Camera;
+    class Transform;
 
     class CameraController
     {
@@ -17,9 +15,9 @@ namespace diverse
         CameraController()          = default;
         virtual ~CameraController() = default;
 
-        virtual void handle_mouse(maths::Transform& transform, float dt, float xpos, float ypos) {};
-        virtual void handle_keyboard(maths::Transform& transform, float dt) {};
-        virtual void update_scroll(maths::Transform& transform, float offset, float dt) {};
+        virtual void handle_mouse(Transform& transform, float dt, float xpos, float ypos) {};
+        virtual void handle_keyboard(Transform& transform, float dt) {};
+        virtual void update_scroll(Transform& transform, float offset, float dt) {};
 
         virtual void on_imgui() {};
 

@@ -10,8 +10,8 @@ namespace diverse
         ThirdPersonCameraController();
         virtual ~ThirdPersonCameraController() override;
 
-        virtual void handle_mouse(maths::Transform& transform, float dt, float xpos, float ypos) override;
-        virtual void handle_keyboard(maths::Transform& transform, float dt) override;
+        virtual void handle_mouse(Transform& transform, float dt, float xpos, float ypos) override;
+        virtual void handle_keyboard(Transform& transform, float dt) override;
 
     private:
         bool m_Free;

@@ -77,23 +77,6 @@ namespace diverse
             return glm::normalize(read_rotation_quat(node) * z_forward_conversion);
         }
 
-        void apply_transform(maths::Transform& transform, const json& node)
-        {
-            if (node.contains("translation"))
-                transform.set_local_position(read_vec3(node["translation"]));
-
-            if (node.contains("rotation"))
-                transform.set_local_orientation(read_rotation_quat(node["rotation"]));
-            else if (node.contains("euler"))
-                transform.set_local_orientation(read_vec3(node["euler"]));
-
-            if (node.contains("scaling"))
-                transform.set_local_scale(read_scale(node["scaling"]));
-
-            // Don't set world matrix here - let scene graph update handle it
-            transform.update_matrices();
-        }
-
         void apply_transform(::diverse::Transform& transform, const json& node)
         {
             if (node.contains("translation"))

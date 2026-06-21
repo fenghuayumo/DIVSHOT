@@ -42,9 +42,15 @@ namespace diverse
     {
         ModelMeshSlot slot;
         if (mesh)
+        {
+            AssetSystem::get_instance().register_cpu_mesh(mesh);
             slot.mesh = AssetRegistry::get_instance().get_mesh_handle(mesh->id);
+        }
         if (material)
+        {
+            AssetSystem::get_instance().register_cpu_material(material);
             slot.material = AssetRegistry::get_instance().get_material_handle(material->id);
+        }
         slots.push_back(slot);
     }
 
@@ -72,9 +78,15 @@ namespace diverse
         auto mesh = create_primitive_mesh(type);
         auto material = ::diverse::create_default_material();
         if (mesh)
+        {
+            AssetSystem::get_instance().register_cpu_mesh(mesh);
             slot.mesh = AssetRegistry::get_instance().get_mesh_handle(mesh->id);
+        }
         if (material)
+        {
+            AssetSystem::get_instance().register_cpu_material(material);
             slot.material = AssetRegistry::get_instance().get_material_handle(material->id);
+        }
         if (slot.mesh.is_valid() || slot.material.is_valid())
             slots.push_back(std::move(slot));
         loaded = !slots.empty();

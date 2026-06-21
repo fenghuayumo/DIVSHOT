@@ -2,7 +2,6 @@
 #include "assets/point_cloud.h"
 #include "assets/material_asset.h"
 #include "model_loader/model_loader_utils.h"
-#include "maths/transform.h"
 #include "backend/drs_rhi/gpu_texture.h"
 #include "utility/string_utils.h"
 #include "engine/application.h"

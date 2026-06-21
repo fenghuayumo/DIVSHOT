@@ -1,7 +1,7 @@
 #pragma once
-#include <maths/transform.h>
-#include <scene/component/gaussian_component.h>
-#include <scene/entity.h>
+#include "scene/components/transform_component.h"
+#include "scene/component/gaussian_component.h"
+#include "scene/entity.h"
 #include "edit_op.h"
 namespace diverse
 {
@@ -75,33 +75,35 @@ namespace diverse
         ResetSplatEditOp(GaussianComponent* splat);
     };
 
-    //splat ent transform operation
     struct SplatEntityTransformOp : public SplatEditOperation
     {
-        SplatEntityTransformOp(GaussianComponent* splat, 
-                            const maths::Transform& old_transform,
-                            const maths::Transform& new_transform,
-                            maths::Transform* splat_transform
-                            );
+        SplatEntityTransformOp(
+            GaussianComponent* splat,
+            const Transform& old_transform,
+            const Transform& new_transform,
+            Transform* splat_transform,
+            entt::entity entity,
+            Scene* scene);
         void apply() override;
         void undo() override;
-        maths::Transform old_transform;
-        maths::Transform new_transform;
-        maths::Transform* transform;
+        Transform old_transform;
+        Transform new_transform;
+        Transform* transform = nullptr;
+        entt::entity entity = entt::null;
+        Scene* scene = nullptr;
     };
 
-    //select per splat transform op
     struct SplatTransformOp : public SplatEditOperation
     {
         SplatTransformOp(GaussianComponent* splat,
-                        const maths::Transform& old_transform,
-                        const maths::Transform& new_transform,
+                        const Transform& old_transform,
+                        const Transform& new_transform,
                         const glm::mat4& t,
                         const std::unordered_map<u32,u32>& palette_map);
         void apply() override;
         void undo() override;
-        maths::Transform old_transform;
-        maths::Transform new_transform;
+        Transform old_transform;
+        Transform new_transform;
         glm::mat4    transform_matrix;
         std::vector<u32>    indices;
         std::unordered_map<u32, u32> palette_map;
@@ -109,13 +111,13 @@ namespace diverse
     struct PlacePivotOp : public SplatEditOperation
     {
         PlacePivotOp(GaussianComponent* splat,
-                    const maths::Transform& old_transform,
-                    const maths::Transform& new_transform,
+                    const Transform& old_transform,
+                    const Transform& new_transform,
                     class Pivot* pivot_t);
         void apply() override;
         void undo() override;
-        maths::Transform old_transform;
-        maths::Transform new_transform;
+        Transform old_transform;
+        Transform new_transform;
         class Pivot* pivot = nullptr;
     };
 

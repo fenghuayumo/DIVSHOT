@@ -5,7 +5,7 @@
 #include "engine/application.h"
 #include "engine/window.h"
 #include "maths/maths_utils.h"
-#include "maths/transform.h"
+#include "scene/components/transform_component.h"
 
 namespace diverse
 {
@@ -23,7 +23,7 @@ namespace diverse
     {
     }
 
-    void ThirdPersonCameraController::handle_mouse(maths::Transform& transform, float dt, float xpos, float ypos)
+    void ThirdPersonCameraController::handle_mouse(Transform& transform, float dt, float xpos, float ypos)
     {
         static bool mouseHeld = false;
         if(Input::get().get_mouse_clicked(InputCode::MouseKey::ButtonRight))
@@ -65,7 +65,7 @@ namespace diverse
         update_scroll(transform, Input::get().get_scroll_offset(), dt);
     }
 
-    void ThirdPersonCameraController::handle_keyboard(maths::Transform& transform, float dt)
+    void ThirdPersonCameraController::handle_keyboard(Transform& transform, float dt)
     {
         // Temp
         return;

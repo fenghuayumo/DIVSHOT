@@ -5,7 +5,7 @@
 #include "assets/gaussian_model.h"
 #include "maths/bounding_box.h"
 #include "maths/bounding_sphere.h"
-#include "maths/transform.h"
+#include "scene/components/transform_component.h"
 #include <glm/glm.hpp>
 namespace diverse
 {    
@@ -20,7 +20,7 @@ namespace diverse
 	{
 		u32 buf_id;
 		GaussianModel* model;
-		const maths::Transform& transform;
+		const Transform& transform;
 		glm::vec4 	select_color;
 		glm::vec4 	locked_color;
 	};
