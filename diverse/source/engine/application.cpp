@@ -343,8 +343,7 @@ namespace diverse
             return;
 
 
-        if (get_editor_state() != EditorState::Paused
-            && get_editor_state() != EditorState::Preview)
+        if (should_run_scene_update())
         {
             scene_manager->get_current_scene()->on_update(dt);
         }

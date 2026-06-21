@@ -48,6 +48,14 @@ namespace diverse
         EntityNames = 64,
 
     };
+
+    enum class EditorState
+    {
+        Preview,
+        Play,
+        Paused,
+    };
+
     namespace asset
     {
         struct Texture;
@@ -69,6 +77,10 @@ namespace diverse
         void handle_event(Event& e) override;
         void quit() override;
         void handle_new_scene(Scene* scene) override;
+        bool should_run_scene_update() const override;
+
+        EditorState get_editor_state() const { return m_editor_state; }
+        void set_editor_state(EditorState state) { m_editor_state = state; }
 
         void draw_menu_bar();
         void begin_dock_space(bool gameFullScreen);
@@ -279,6 +291,13 @@ namespace diverse
         EditorSettings& get_settings() { return settings; }
         void set_scene_view_active(bool active) { scene_view_active = active; }
         bool get_scene_view_active() {return scene_view_active;}
+        bool is_camera_transitioning() const { return is_transitioning_camera; }
+        void set_camera_transitioning(bool active) { is_transitioning_camera = active; }
+        const glm::vec3& get_camera_destination() const { return camera_destination; }
+        float get_camera_transition_speed() const { return camera_transition_speed; }
+        void toggle_helper_panel();
+        void toggle_render_mode();
+        void register_editor_schedule_systems(Scene* scene);
         void set_scene_view_rect(const maths::Rect& rect) { scene_view_rect = rect; }
         std::unordered_map<size_t, const char*>& get_component_iconmap()
         {
@@ -349,6 +368,7 @@ namespace diverse
         bool cut_copy_entity = false;
 
         EditorSettings settings;
+        EditorState m_editor_state = EditorState::Preview;
         std::vector<SharedPtr<EditorPanel>> panels;
         SharedPtr<HelperPanel>          helper_panels;
         SharedPtr<EditorPanel>          image_2d_panel;  

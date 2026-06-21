@@ -11,10 +11,10 @@ namespace diverse
 
     namespace EntityFactory
     {
-        glm::vec4 GenColour(float alpha);
+        glm::vec4 gen_colour(float alpha);
 
         // Generates a default Sphere object with the parameters specified.
-        Entity BuildSphereObject(
+        Entity build_sphere_object(
             Scene* scene,
             const std::string& name,
             const glm::vec3& pos,
@@ -25,7 +25,7 @@ namespace diverse
             const glm::vec4& colour = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
         // Generates a default Cuboid object with the parameters specified
-        Entity BuildCuboidObject(
+        Entity build_cuboid_object(
             Scene* scene,
             const std::string& name,
             const glm::vec3& pos,
@@ -36,7 +36,7 @@ namespace diverse
             const glm::vec4& colour = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
         // Generates a default Cuboid object with the parameters specified
-        Entity BuildPyramidObject(
+        Entity build_pyramid_object(
             Scene* scene,
             const std::string& name,
             const glm::vec3& pos,
@@ -46,8 +46,8 @@ namespace diverse
             bool collidable         = true, // requires physics_enabled = true
             const glm::vec4& colour = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-        void AddLightCube(Scene* scene, const glm::vec3& pos, const glm::vec3& dir);
-        void AddSphere(Scene* scene, const glm::vec3& pos, const glm::vec3& dir);
-        void AddPyramid(Scene* scene, const glm::vec3& pos, const glm::vec3& dir);
+        void add_light_cube(Scene* scene, const glm::vec3& pos, const glm::vec3& dir);
+        void add_sphere(Scene* scene, const glm::vec3& pos, const glm::vec3& dir);
+        void add_pyramid(Scene* scene, const glm::vec3& pos, const glm::vec3& dir);
     };
 }

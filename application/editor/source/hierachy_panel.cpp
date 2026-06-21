@@ -167,7 +167,7 @@ namespace diverse
             if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && ImGui::IsItemHovered(ImGuiHoveredFlags_None))
             {
                 double_clicked_entity = node;
-                if (Application::get().get_editor_state() == EditorState::Preview)
+                if (editor->get_editor_state() == EditorState::Preview)
                 {
                     auto globalTransform = registry.try_get<GlobalTransform>(node);
                     if (globalTransform)
@@ -328,7 +328,7 @@ namespace diverse
             if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && ImGui::IsItemHovered(ImGuiHoveredFlags_None))
             {
                 double_clicked_entity = node;
-                if (Application::get().get_editor_state() == EditorState::Preview)
+                if (editor->get_editor_state() == EditorState::Preview)
                 {
                     auto globalTransform = registry.try_get<GlobalTransform>(node);
                     if (globalTransform)

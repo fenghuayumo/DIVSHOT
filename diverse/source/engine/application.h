@@ -38,32 +38,8 @@ namespace diverse
         Closing
     };
 
-    enum class EditorState
-    {
-        Paused,
-        Play,
-        Next,
-        Preview
-    };
-
-    enum class AppType
-    {
-        Game,
-        Editor
-    };
-
     class DeferedRenderer;
 
-  //  enum EngineShowFlag : u32
-  //  {
-  //      ShowGrid = 1,
-		//ShowGizmo = 2,
-		//ShowSelected = 4,
-		//ShowCameraFrustum = 8,
-		//ShowMeshBoundingBoxes = 16,
-		//ShowSpriteBoxes = 32,
-		//ShowEntityNames = 64,
-  //  };
     class DS_EXPORT Application
     {
     public:
@@ -81,6 +57,8 @@ namespace diverse
         virtual void imgui_render();
         virtual void debug_draw();
         virtual void handle_new_scene(Scene* scene);
+        virtual void on_scene_switched(Scene* scene) {}
+        virtual bool should_run_scene_update() const { return true; }
 
         virtual void serialise();
         virtual void deserialise();
@@ -146,14 +124,12 @@ namespace diverse
         DeferedRenderer* get_renderer() const { return main_renderer.get(); }
 
         void    set_app_state(AppState state) { current_state = state; }
-        void    set_editor_state(EditorState state) { editor_state = state; }
         void    set_scene_active(bool active) { scene_active = active; }
         Scene*  get_current_scene() const;
 
         bool    get_scene_active() const { return scene_active; }
         Window* get_window() const { return window.get(); }
         AppState get_state() const { return current_state; }
-        EditorState get_editor_state() const { return editor_state; }
 
         std::array<u32,2> get_window_size() const;
         float get_window_dpi() const;
@@ -273,9 +249,7 @@ namespace diverse
         std::mutex main_thread_queue_mutex;
 
         AppState current_state = AppState::Loading;
-        EditorState editor_state = EditorState::Preview;
-        AppType app_type = AppType::Editor;
-        
+
         Arena* frame_arena;
         Arena* arena;
         NONCOPYABLE(Application)

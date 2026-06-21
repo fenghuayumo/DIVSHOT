@@ -23,52 +23,13 @@ namespace diverse::schedule
     {
         if (m_transform_enabled)
         {
-            // Transform hierarchy update system
-            schedule.add_system("TransformSystem", [&schedule]() {
-                auto* scene = schedule.scene();
-                if (!scene) return;
-
-                auto& registry = scene->get_registry();
-
-                // Update global transforms based on parent relationships
-                auto view = registry.view<::diverse::Transform, GlobalTransform, Parent>();
-                for (auto entity : view)
-                {
-                    auto local_transform = &view.get<::diverse::Transform>(entity);
-                    auto global_transform = &view.get<GlobalTransform>(entity);
-                    auto parent = &view.get<Parent>(entity);
-
-                    if (parent->value != entt::null)
-                    {
-                        // This entity has a parent - get parent's global transform
-                        if (auto* parent_global = registry.try_get<GlobalTransform>(parent->value))
-                        {
-                            // Combine parent global with local transform
-                            glm::mat4 parent_matrix = parent_global->world_matrix;
-                            glm::mat4 local_matrix = local_transform->compute_local_matrix();
-
-                            global_transform->world_matrix = parent_matrix * local_matrix;
-                        }
-                    }
-                    else
-                    {
-                        // No parent - global equals local
-                        global_transform->world_matrix = local_transform->compute_local_matrix();
-                    }
-                }
-
-                // Update entities without parents (root level)
-                auto root_view = registry.view<::diverse::Transform, GlobalTransform>(entt::exclude<Parent>);
-                for (auto entity : root_view)
-                {
-                    auto& local_transform = root_view.get<::diverse::Transform>(entity);
-                    auto& global_transform = root_view.get<GlobalTransform>(entity);
-
-                    global_transform.world_matrix = local_transform.compute_local_matrix();
-                }
+            schedule.add_system("SceneGraphUpdate", [&schedule]() {
+                if (auto* scene = schedule.scene())
+                    scene->update_scene_graph();
             })
             .in_stage(SystemStage::PreUpdate)
             .add_label("transform")
+            .add_label("hierarchy")
             .set_thread_local_flag();
         }
 
@@ -113,7 +74,7 @@ namespace diverse::schedule
                 }
             })
             .in_stage(SystemStage::Update)
-            .after("TransformSystem")
+            .after("SceneGraphUpdate")
             .add_label("camera")
             .set_thread_local_flag();
         }

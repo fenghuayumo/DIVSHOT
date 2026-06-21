@@ -248,7 +248,6 @@ public:
     {
         Application::init();
 
-        set_editor_state(EditorState::Play);
         get_window()->set_window_title("Schedule Demo");
         get_window()->set_event_callback(BIND_EVENT_FN(DemoApplication::handle_event));
 
@@ -267,6 +266,12 @@ public:
 
         std::cout << "\n=== Schedule Demo Running ===" << std::endl;
         std::cout << "Close window or press ESC to exit." << std::endl;
+    }
+
+    void on_scene_switched(Scene* scene) override
+    {
+        if (scene)
+            scene->on_init();
     }
 
     void update(const TimeStep& dt) override

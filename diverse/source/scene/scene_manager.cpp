@@ -130,9 +130,7 @@ namespace diverse
         auto screenSize = app.get_window_size();
         m_CurrentScene->set_screen_size(static_cast<uint32_t>(screenSize[0]), static_cast<uint32_t>(screenSize[1]));
 
-        if (app.get_editor_state() == EditorState::Play)
-            m_CurrentScene->on_init();
-
+        app.on_scene_switched(m_CurrentScene);
         Application::get().handle_new_scene(m_CurrentScene);
 
         DS_LOG_INFO("Scene switched to : {0}", m_CurrentScene->get_scene_name().c_str());

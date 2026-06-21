@@ -22,6 +22,7 @@
 #include "scene/camera/editor_camera.h"
 #include "scene_graph.h"
 #include "scene/schedule/schedule.h"
+#include "scene/schedule/core_systems_plugin.h"
 
 #include <cereal/types/polymorphic.hpp>
 #include <cereal/archives/binary.hpp>
@@ -221,16 +222,14 @@ namespace diverse
 
     void Scene::register_systems()
     {
-        // Register core systems that every scene needs
-        if (!m_schedule) return;
+        if (!m_schedule)
+            return;
 
-        // Scene graph update system - updates transform hierarchy
-        m_schedule->add_system("SceneGraphUpdate", [this]() {
-            scene_graph->update(entity_manager->get_registry());
-        })
-        .in_stage(schedule::SystemStage::PreUpdate)
-        .add_label("hierarchy")
-        .set_thread_local_flag();
+        auto core_plugin = std::make_shared<schedule::CoreSystemsPlugin>();
+        core_plugin->enable_camera_system(false);
+        m_schedule->add_plugin(core_plugin);
+
+        m_schedule->add_plugin(std::make_shared<schedule::RenderingPlugin>());
     }
 
     void Scene::build_schedule()

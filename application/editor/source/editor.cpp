@@ -1,4 +1,5 @@
 #include "editor.h"
+#include "editor_systems_plugin.h"
 #include "hierarchy_panel.h"
 #include "console_panel.h"
 #include "inspector_panel.h"
@@ -33,7 +34,8 @@
 #include <events/application_event.h>
 #include <core/job_system.h>
 #include <backend/drs_rhi/gpu_device.h>
-#include <renderer/defered_renderer.h>
+#include "renderer/defered_renderer.h"
+#include "renderer/render_settings.h"
 
 #include <imgui/Plugins/imcmd_command_palette.h>
 #include <renderer/debug_renderer.h>
@@ -88,7 +90,7 @@ namespace diverse
         return FileSystem::get_working_directory() + "/../resource/";
     }
 
-    static void update_entity_global_transform(Scene* scene, entt::entity entity)
+    static void mark_entity_transform_dirty(Scene* scene, entt::entity entity)
     {
         if (!scene || entity == entt::null)
             return;
@@ -99,7 +101,6 @@ namespace diverse
 
         if (auto* global_transform = registry.try_get<GlobalTransform>(entity))
             global_transform->dirty = true;
-        scene->update_scene_graph();
     }
 
     Editor::Editor()
@@ -223,7 +224,7 @@ namespace diverse
 #endif
 
         Application::init();
-        Application::set_editor_state(EditorState::Preview);
+        set_editor_state(EditorState::Preview);
         Application::get().get_window()->set_event_callback(BIND_EVENT_FN(Editor::handle_event));
 #ifdef DS_PLATFORM_WINDOWS
         _putenv_s("PATH", "../Python/");
@@ -357,6 +358,11 @@ namespace diverse
             panel->handle_mouse_released(e);
 		return true;
 	}
+
+    bool Editor::should_run_scene_update() const
+    {
+        return m_editor_state != EditorState::Paused;
+    }
     
     void Editor::handle_new_scene(Scene* scene)
     {
@@ -432,6 +438,8 @@ namespace diverse
         }
 
         scene->update_scene_graph();
+
+        register_editor_schedule_systems(scene);
         
         for (auto panel : panels)
         {
@@ -1083,6 +1091,7 @@ namespace diverse
         if (current_camera && current_camera->is_orthographic())
         {
             transform->set_local_position(point);
+            mark_entity_transform_dirty(get_current_scene(), editor_camera_entity);
         }
         else
         {
@@ -1093,12 +1102,44 @@ namespace diverse
         }
     }
 
+    void Editor::toggle_helper_panel()
+    {
+        if (helper_panels)
+            helper_panels->set_active(!helper_panels->active());
+    }
+
+    void Editor::toggle_render_mode()
+    {
+        g_render_settings.render_mode = RenderMode::PT == g_render_settings.render_mode
+            ? RenderMode::Hybrid
+            : RenderMode::PT;
+    }
+
+    void Editor::register_editor_schedule_systems(Scene* scene)
+    {
+        if (!scene)
+            return;
+
+        auto* schedule = scene->get_schedule();
+        if (!schedule)
+            return;
+
+        schedule->add_plugin(std::make_shared<schedule::EditorSystemsPlugin>(this));
+        scene->build_schedule();
+
+        if (!schedule->has_executed_startup())
+        {
+            TimeStep startup_timestep;
+            schedule->execute_startup_stages(startup_timestep);
+        }
+    }
+
     void Editor::imgui_render()
     {
         DS_PROFILE_FUNCTION();
         draw_menu_bar();
 
-        begin_dock_space(Application::get().get_editor_state() == EditorState::Play);
+        begin_dock_space(get_editor_state() == EditorState::Play);
         for (auto& panel : panels)
         {
             if (panel->active())
@@ -1108,10 +1149,6 @@ namespace diverse
 
         auto& io = ImGui::GetIO();
 
-        if (Application::get().get_editor_state() == EditorState::Preview)
-        {
-            Application::get().get_scene_manager()->get_current_scene()->update_scene_graph();
-        }
         end_dock_space();
         ImGuiDockContext* dc = &ImGui::GetCurrentContext()->DockContext;
         for (int n = 0; n < dc->Nodes.Data.Size; n++)
@@ -1149,7 +1186,7 @@ namespace diverse
 #if DS_PROFILE
         isProfiling = tracy::GetProfiler().IsConnected();
 #endif
-        if (!isProfiling && settings.sleep_outof_focus && !Application::get().get_window()->get_window_focus() && editor_state != EditorState::Preview && !firstFrame)
+        if (!isProfiling && settings.sleep_outof_focus && !Application::get().get_window()->get_window_focus() && m_editor_state != EditorState::Preview && !firstFrame)
             OS::instance()->delay(1000000);
 
         Application::render();
@@ -1295,26 +1332,16 @@ namespace diverse
         selected_entities.erase(std::remove_if(selected_entities.begin(), selected_entities.end(), [&registry](entt::entity entity)
             { return !registry.valid(entity); }),
             selected_entities.end());
-        if(editor_state == EditorState::Play)
+        if (m_editor_state == EditorState::Play)
             autoSaveTimer = 0.0f;
-        //add default Environment
+        //add default Environment - handled by EditorEnsureEnvironment schedule system
         auto scene = get_current_scene();
-        if (scene)
-        {
-            auto environments = scene->get_entity_manager()->get_entities_with_type<Environment>();
-            if (environments.size() == 0)
-            {
-                auto environment = scene->get_entity_manager()->create("Environment");
-                environment.add_component<Environment>();
-                environment.get_component<Environment>().load(Application::get().get_renderer()->get_device());
-            }
-        }
         if (gs2mesh_load)
         {
             Entity modelEntity = scene->get_entity_manager()->create(stringutility::get_file_name(load_model_path));
             modelEntity.add_component<MeshModelComponent>(load_model_path);
             set_selected(modelEntity.get_handle());
-            get_current_scene()->update_scene_graph();
+            mark_entity_transform_dirty(get_current_scene(), modelEntity.get_handle());
             auto& global = modelEntity.get_component<GlobalTransform>();
             focus_camera(global.position(), 2.0f, 2.0f);
             auto group = scene->get_entity_manager()->get_entities_with_type<Environment>();
@@ -1333,116 +1360,12 @@ namespace diverse
         if (Input::get().get_key_pressed(diverse::InputCode::Key::Escape) && get_editor_state() != EditorState::Preview)
         {
 
-            Application::get().set_editor_state(EditorState::Preview);
-
+            set_editor_state(EditorState::Preview);
             selected_entities.clear();
             ImGui::SetWindowFocus("###scene");
-            //load cache scene
-            set_editor_state(EditorState::Preview);
         }
         if (scene_view_active)
         {
-            auto& registry = scene->get_registry();
-            
-            // Get editor camera components
-            auto* controller = get_editor_camera_controller();
-            auto* transform = get_editor_camera_transform();
-            auto* camera = get_camera();
-
-            if (controller && transform && camera)
-            {
-                const glm::vec2 mousePos = Input::get().get_mouse_position();
-                controller->set_camera(camera);
-
-                // Make sure the camera is not controllable during transitions
-                if (!is_transitioning_camera)
-                {
-                    controller->handle_mouse(*transform, (float)ts.get_seconds(), mousePos.x, mousePos.y);
-                    controller->handle_keyboard(*transform, (float)ts.get_seconds());
-                }
-
-                update_entity_global_transform(scene, editor_camera_entity);
-
-                if (!selected_entities.empty() && Input::get().get_key_pressed(InputCode::Key::F))
-                {
-                    if (registry.valid(selected_entities.front()))
-                    {
-                        auto transform = registry.try_get<maths::Transform>(selected_entities.front());
-                        if (transform)
-                            focus_camera(transform->get_world_position(), 2.0f, 2.0f);
-                    }
-                }
-            }
-
-            if (Input::get().get_key_held(InputCode::Key::O))
-            {
-                focus_camera(glm::vec3(0.0f, 0.0f, 0.0f), 2.0f, 2.0f);
-            }
-            if (Input::get().get_key_pressed(InputCode::Key::H))
-            {
-                helper_panels->set_active(!helper_panels->active());
-            }
-            if (Input::get().get_key_pressed(InputCode::Key::Space))
-                g_render_settings.render_mode = RenderMode::PT == g_render_settings.render_mode ? RenderMode::Hybrid : RenderMode::PT;
-
-            if (is_transitioning_camera)
-            {
-                // Defines the tolerance for distance, beyond which a transition is considered completed
-                constexpr float kTransitionCompletionDistanceTolerance = 0.01f;
-                constexpr float kSpeedBaseFactor = 5.0f;
-                
-                auto* controller = get_editor_camera_controller();
-                auto* transform = get_editor_camera_transform();
-                
-                if (controller && transform)
-                {
-                    const auto cameraCurrentPosition = transform->get_local_position();
-
-                    controller->update_focal_point(*transform, glm::mix(
-                        cameraCurrentPosition,
-                        camera_destination,
-                    glm::clamp(camera_transition_speed * kSpeedBaseFactor * static_cast<float>(ts.get_seconds()), 0.0f, 1.0f)
-                ));
-                    auto distanceToDestination = glm::distance(cameraCurrentPosition, camera_destination);
-
-                    is_transitioning_camera = distanceToDestination > kTransitionCompletionDistanceTolerance;
-                    update_entity_global_transform(scene, editor_camera_entity);
-                }
-            }
-
-            if(!Input::get().get_mouse_held(InputCode::MouseKey::ButtonRight) && !ImGuizmo::IsUsing())
-            {
-                // if(Input::get().get_key_pressed(InputCode::Key::Q))
-                // {
-                //     set_imguizmo_operation(ImGuizmo::OPERATION::BOUNDS);
-                // }
-
-                if(Input::get().get_key_pressed(InputCode::Key::T))
-                {
-                    set_imguizmo_operation(ImGuizmo::OPERATION::TRANSLATE);
-                }
-
-                if(Input::get().get_key_pressed(InputCode::Key::R))
-                {
-                    set_imguizmo_operation(ImGuizmo::OPERATION::ROTATE);
-                }
-
-                if(Input::get().get_key_pressed(InputCode::Key::Y))
-                {
-                    set_imguizmo_operation(ImGuizmo::OPERATION::SCALE);
-                }
-
-                if(Input::get().get_key_pressed(InputCode::Key::U))
-                {
-                    set_imguizmo_operation(ImGuizmo::OPERATION::UNIVERSAL);
-                }
-
-                // if(Input::get().get_key_pressed(InputCode::Key::Y))
-                // {
-                //     toggle_snap();
-                // }
-            }
-
             auto& splatEdit = GaussianEdit::get();
             if (Input::get().get_key_pressed(InputCode::Key::Delete) && !selected_entities.empty())
             {
@@ -1624,7 +1547,7 @@ namespace diverse
                     auto* cam_transform = get_editor_camera_transform();
                     if (cam_transform)
                         cam_transform->set_local_transform(glm::mat4(1.0f));
-                    get_current_scene()->update_scene_graph();
+                    mark_entity_transform_dirty(get_current_scene(), editor_camera_entity);
                     auto* global = gs_ent.try_get_component<GlobalTransform>();
                     if (global)
                         focus_camera(global->position(), 1.0f, 1.0f);
@@ -2262,7 +2185,7 @@ namespace diverse
                 else
                 {
                     set_selected(modelEntity.get_handle());
-                    get_current_scene()->update_scene_graph();
+                    mark_entity_transform_dirty(get_current_scene(), modelEntity.get_handle());
                     auto& global = modelEntity.get_component<GlobalTransform>();
                     focus_camera(global.position(), 2.0f, 2.0f);
                     auto group = get_current_scene()->get_entity_manager()->get_entities_with_type<Environment>();
@@ -2285,7 +2208,7 @@ namespace diverse
                 auto& transform = modelEntity.get_component<Transform>();
                 auto rotation = glm::vec3(glm::radians(180.0f), 0.0f, 0.0f);
                 transform.set_local_orientation(rotation);
-                get_current_scene()->update_scene_graph();
+                mark_entity_transform_dirty(get_current_scene(), modelEntity.get_handle());
                 auto& global = modelEntity.get_component<GlobalTransform>();
                 focus_camera(global.position(), 2.0f, 2.0f);
             }
@@ -2296,7 +2219,7 @@ namespace diverse
                 auto& transform = modelEntity.get_component<Transform>();
                 auto rotation = glm::vec3(glm::radians(180.0f), 0.0f, 0.0f);
                 transform.set_local_orientation(rotation);
-                get_current_scene()->update_scene_graph();
+                mark_entity_transform_dirty(get_current_scene(), modelEntity.get_handle());
                 auto& global = modelEntity.get_component<GlobalTransform>();
                 focus_camera(global.position(), 2.0f, 2.0f);
                 //set_selected(modelEntity.get_handle());
@@ -2835,7 +2758,7 @@ namespace diverse
                 // Only show training/pause buttons if there are entities with GaussianTrainerScene component
                 if (!gsGroup.empty())
                 {
-                    selected = Application::get().get_editor_state() == EditorState::Play;
+                    selected = get_editor_state() == EditorState::Play;
                     if (selected)
                         ImGui::PushStyleColor(ImGuiCol_Text, ImGuiHelper::GetSelectedColour());
                     
