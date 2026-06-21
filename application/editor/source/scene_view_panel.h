@@ -62,13 +62,13 @@ namespace diverse
         {
             if (show_component_gizmo_map[typeid(T).hash_code()])
             {
-                auto group = registry.group<T>(entt::get<maths::Transform>);
+                auto group = registry.group<T>(entt::get<GlobalTransform>);
 
                 for (auto entity : group)
                 {
-                    const auto& [component, trans] = group.template get<T, maths::Transform>(entity);
+                    const auto& [component, global_trans] = group.template get<T, GlobalTransform>(entity);
 
-                    glm::vec3 pos = trans.get_world_position();
+                    glm::vec3 pos = global_trans.position();
 
                     auto inside = frustum.is_inside(pos);
 

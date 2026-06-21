@@ -443,7 +443,7 @@ namespace diverse
         
         // Find all gaussian training entities in the new scene
         auto& reg = scene->get_registry();
-        auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<maths::Transform>);
+        auto gsGroup = reg.group<GaussianTrainerScene>(entt::get<GlobalTransform>);
         
         // Set the first one as current_train_entity and select it (for UI compatibility)
         bool found_first = false;
@@ -937,18 +937,18 @@ namespace diverse
         float closestEntityDist = maths::M_INFINITY;
         entt::entity currentClosestEntity = entt::null;
 
-        auto group = registry.group<GaussianComponent>(entt::get<maths::Transform>);
+        auto group = registry.group<GaussianComponent>(entt::get<GlobalTransform>);
 
         static Timer timer;
         static float timeSinceLastSelect = 0.0f;
 #ifdef DS_SPLAT_TRAIN
         //gaussian train scene
         {
-            auto gsGroup = registry.group<GaussianTrainerScene>(entt::get<maths::Transform>);
+            auto gsGroup = registry.group<GaussianTrainerScene>(entt::get<GlobalTransform>);
             float closet_t = maths::M_INFINITY;
             for (auto entity : gsGroup)
             {
-                const auto& [gstrain, transform] = gsGroup.get<GaussianTrainerScene, maths::Transform>(entity);
+                const auto& [gstrain, global_transform] = gsGroup.get<GaussianTrainerScene, GlobalTransform>(entity);
                 auto cur_status = gstrain.getCurrentTrainingStatus();
                 if (gstrain.ShowTrainView && cur_status >= TrainingStatus::Training)
                 {
@@ -960,7 +960,7 @@ namespace diverse
                         auto viewR = gstrain.getCameraRotation(i);
                         auto viewT = gstrain.getCameraPos(i);
                         auto view = glm::translate(glm::identity<glm::mat4>(), viewT) * glm::mat4_cast(viewR);
-                        maths::Frustum cameraFrustum(projection, glm::inverse(view) * glm::inverse(transform.get_world_matrix()));
+                        maths::Frustum cameraFrustum(projection, glm::inverse(view) * glm::inverse(global_transform.world_matrix));
                         float distance;
                         ray.intersects(cameraFrustum.get_bounding_box(), distance);
                         if(distance < closet_t)
@@ -987,9 +987,9 @@ namespace diverse
         for (auto entity : group)
         {
             if( !Entity(entity,get_current_scene()).active() ) continue;
-            const auto& [model, trans] = group.get<GaussianComponent, maths::Transform>(entity);
+            const auto& [model, global_trans] = group.get<GaussianComponent, GlobalTransform>(entity);
 
-            auto& worldTransform = trans.get_world_matrix();
+            const auto& worldTransform = global_trans.world_matrix;
             auto bbCopy = model.ModelRef->get_world_bounding_box(worldTransform);
             float distance;
             ray.intersects(bbCopy, distance);
@@ -1005,12 +1005,12 @@ namespace diverse
         }
 
         //mesh model
-        auto mesh_group = registry.group<MeshModelComponent>(entt::get<maths::Transform>);
+        auto mesh_group = registry.group<MeshModelComponent>(entt::get<GlobalTransform>);
         for (auto entity : mesh_group)
         {
             if( !Entity(entity,get_current_scene()).active() ) continue;
-            const auto& [model, trans] = mesh_group.get<MeshModelComponent, maths::Transform>(entity);
-            auto& worldTransform = trans.get_world_matrix();
+            const auto& [model, global_trans] = mesh_group.get<MeshModelComponent, GlobalTransform>(entity);
+            const auto& worldTransform = global_trans.world_matrix;
             const auto& slots = model.ModelRef->get_slots();
             for (const auto& slot : slots)
             {
@@ -1176,11 +1176,11 @@ namespace diverse
 #ifdef DS_SPLAT_TRAIN
         //gaussian train scene
         {
-            auto gsGroup = registry.group<GaussianTrainerScene>(entt::get<maths::Transform>);
+            auto gsGroup = registry.group<GaussianTrainerScene>(entt::get<GlobalTransform>);
 
             for (auto entity : gsGroup)
             {
-                const auto& [gstrain, transform] = gsGroup.get<GaussianTrainerScene, maths::Transform>(entity);
+                const auto& [gstrain, global_transform] = gsGroup.get<GaussianTrainerScene, GlobalTransform>(entity);
                 if (gstrain.ShowTrainView && gstrain.getCurrentTrainingStatus() == TrainingStatus::Training)
                 {
                     auto model = registry.get<GaussianComponent>(entity).ModelRef;
@@ -1191,7 +1191,7 @@ namespace diverse
                         auto viewR = gstrain.getCameraRotation(i);
                         auto viewT = gstrain.getCameraPos(i);
                         auto view = glm::translate(glm::identity<glm::mat4>(), viewT) * glm::mat4_cast(viewR);
-                        maths::Frustum cameraFrustum(projection, glm::inverse(view) * glm::inverse(transform.get_world_matrix()));
+                        maths::Frustum cameraFrustum(projection, glm::inverse(view) * glm::inverse(global_transform.world_matrix));
                         DebugRenderer::debug_draw(cameraFrustum, current_train_view_id == i ? glm::vec4(0.8,0,0,0.9): glm::vec4(0.9f));
                     }
                 }
@@ -1204,62 +1204,64 @@ namespace diverse
             for (auto select_ent : selected_entities)
                 if (registry.valid(select_ent)) // && Application::Get().GetEditorState() == EditorState::Preview)
                 {
-                    auto transform = registry.try_get<maths::Transform>(select_ent);
+                    auto global_transform = registry.try_get<GlobalTransform>(select_ent);
                     auto light_common = registry.try_get<LightCommon>(select_ent);
 
+                    maths::Transform debug_transform;
+                    if (global_transform)
+                        debug_transform.set_world_matrix(global_transform->world_matrix);
+
                     auto point_light = registry.try_get<PointLight>(select_ent);
-                    if (point_light && transform && light_common)
+                    if (point_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(point_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(point_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto spot_light = registry.try_get<SpotLight>(select_ent);
-                    if (spot_light && transform && light_common)
+                    if (spot_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(spot_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(spot_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto rect_light = registry.try_get<RectLight>(select_ent);
-                    if (rect_light && transform && light_common)
+                    if (rect_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(rect_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(rect_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto dir_light = registry.try_get<DirectionalLight>(select_ent);
-                    if (dir_light && transform && light_common)
+                    if (dir_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(dir_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(dir_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto disk_light = registry.try_get<DiskLight>(select_ent);
-                    if (disk_light && transform && light_common)
+                    if (disk_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(disk_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(disk_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     auto cylinder_light = registry.try_get<CylinderLight>(select_ent);
-                    if (cylinder_light && transform && light_common)
+                    if (cylinder_light && global_transform && light_common)
                     {
-                        DebugRenderer::debug_draw(cylinder_light, *transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
+                        DebugRenderer::debug_draw(cylinder_light, debug_transform, light_common, glm::vec4(glm::vec3(light_common->radiance), 0.2f));
                     }
 
                     #define drawdebugBoxMesh()                                                  \
                     {                                                                       \
                         auto model = registry.try_get<MeshModelComponent>(select_ent);      \
-                        if (transform && model && model->ModelRef && model->ModelRef->is_loaded()) \
+                        if (global_transform && model && model->ModelRef && model->ModelRef->is_loaded()) \
                         {                                                                   \
-                            auto& worldTransform = transform->get_world_matrix();           \
-                            auto bbCopy = model->ModelRef->get_world_bounding_box(worldTransform); \
+                            auto bbCopy = model->ModelRef->get_world_bounding_box(global_transform->world_matrix); \
                             DebugRenderer::debug_draw(bbCopy, selectedColour, true);         \
                         }                                                                   \
                     }
                     #define drawdebugBoxLegacy(T)                                             \
                     {                                                                       \
                         auto model = registry.try_get<T>(select_ent);                      \
-                        if (transform && model && model->ModelRef && model->ModelRef->is_loaded()) \
+                        if (global_transform && model && model->ModelRef && model->ModelRef->is_loaded()) \
                         {                                                                   \
-                            auto& worldTransform = transform->get_world_matrix();           \
-                            auto bbCopy = model->ModelRef->get_world_bounding_box(worldTransform); \
+                            auto bbCopy = model->ModelRef->get_world_bounding_box(global_transform->world_matrix); \
                             DebugRenderer::debug_draw(bbCopy, selectedColour, true);         \
                         }                                                                   \
                     }
@@ -1312,8 +1314,9 @@ namespace diverse
             Entity modelEntity = scene->get_entity_manager()->create(stringutility::get_file_name(load_model_path));
             modelEntity.add_component<MeshModelComponent>(load_model_path);
             set_selected(modelEntity.get_handle());
-            auto& trans = modelEntity.get_component<maths::Transform>();
-            focus_camera(trans.get_world_position(), 2.0f, 2.0f);
+            get_current_scene()->update_scene_graph();
+            auto& global = modelEntity.get_component<GlobalTransform>();
+            focus_camera(global.position(), 2.0f, 2.0f);
             auto group = scene->get_entity_manager()->get_entities_with_type<Environment>();
             for (auto ent : group)
             {
@@ -1613,15 +1616,18 @@ namespace diverse
                     gs_train.getNumGaussians()
                 );
                 //set camera from training camera views
-                auto transform = gs_ent.try_get_component<maths::Transform>();
+                auto transform = gs_ent.try_get_component<Transform>();
                 if (transform)
                 {
                     auto viewR = gs_train.getCameraRotation(0);
                     //editor_cameraTransform.set_local_orientation(viewR);
                     auto* cam_transform = get_editor_camera_transform();
                     if (cam_transform)
-                        cam_transform->set_world_matrix(glm::mat4(1.0f));
-                    focus_camera(transform->get_world_position(), 1.0f, 1.0f);
+                        cam_transform->set_local_transform(glm::mat4(1.0f));
+                    get_current_scene()->update_scene_graph();
+                    auto* global = gs_ent.try_get_component<GlobalTransform>();
+                    if (global)
+                        focus_camera(global->position(), 1.0f, 1.0f);
                     auto aabb = gs_model->get_local_bounding_box();
                     auto scale = (aabb.max() - aabb.min()) / 2.0f;
                     auto translate = aabb.center();
@@ -2247,18 +2253,28 @@ namespace diverse
             {
                 Entity modelEntity = Application::get().get_scene_manager()->get_current_scene()->get_entity_manager()->create(stringutility::get_file_name(filepath));
                 modelEntity.add_component<MeshModelComponent>(filepath);
-                set_selected(modelEntity.get_handle());
-                auto& trans = modelEntity.get_component<maths::Transform>();
-                focus_camera(trans.get_local_position(), 2.0f, 2.0f);
-                auto group = get_current_scene()->get_entity_manager()->get_entities_with_type<Environment>();
-                for (auto ent : group)
+                auto& mesh_comp = modelEntity.get_component<MeshModelComponent>();
+                if (!mesh_comp.ModelRef || mesh_comp.ModelRef->is_invalid() || !mesh_comp.ModelRef->is_loaded())
                 {
-                    auto& enviroment = ent.get_component<Environment>();
-                    if (enviroment.mode == Environment::Mode::Pure)
+                    DS_LOG_ERROR("Failed to import mesh: {}", filepath);
+                    modelEntity.destroy();
+                }
+                else
+                {
+                    set_selected(modelEntity.get_handle());
+                    get_current_scene()->update_scene_graph();
+                    auto& global = modelEntity.get_component<GlobalTransform>();
+                    focus_camera(global.position(), 2.0f, 2.0f);
+                    auto group = get_current_scene()->get_entity_manager()->get_entities_with_type<Environment>();
+                    for (auto ent : group)
                     {
-                        enviroment.mode = Environment::Mode::SunSky;
-                        auto& sun_controller = ent.get_or_add_component<diverse::SunController>();
-                        sun_controller.calculate_towards_sun_from_theta_phi(glm::radians(enviroment.theta), glm::radians(enviroment.phi));
+                        auto& enviroment = ent.get_component<Environment>();
+                        if (enviroment.mode == Environment::Mode::Pure)
+                        {
+                            enviroment.mode = Environment::Mode::SunSky;
+                            auto& sun_controller = ent.get_or_add_component<diverse::SunController>();
+                            sun_controller.calculate_towards_sun_from_theta_phi(glm::radians(enviroment.theta), glm::radians(enviroment.phi));
+                        }
                     }
                 }
             }
@@ -2266,21 +2282,23 @@ namespace diverse
             {
                 Entity modelEntity = Application::get().get_scene_manager()->get_current_scene()->get_entity_manager()->create(stringutility::get_file_name(filepath));
                 modelEntity.add_component<PointCloudComponent>(filepath);
-                auto& transform = modelEntity.get_component<maths::Transform>();
-                auto rotation = glm::vec3(180.0f, 0.0f, 0.0f);
-                transform.set_local_orientation(glm::radians(rotation));
-                transform.set_world_matrix(glm::mat4(1.0f));
-                focus_camera(transform.get_local_position(), 2.0f, 2.0f);
+                auto& transform = modelEntity.get_component<Transform>();
+                auto rotation = glm::vec3(glm::radians(180.0f), 0.0f, 0.0f);
+                transform.set_local_orientation(rotation);
+                get_current_scene()->update_scene_graph();
+                auto& global = modelEntity.get_component<GlobalTransform>();
+                focus_camera(global.position(), 2.0f, 2.0f);
             }
             else
             {
                 Entity modelEntity = Application::get().get_scene_manager()->get_current_scene()->get_entity_manager()->create(stringutility::get_file_name(filepath));
                 modelEntity.add_component<GaussianComponent>(filepath);
-                auto& transform = modelEntity.get_component<maths::Transform>();
-                auto rotation = glm::vec3(180.0f, 0.0f, 0.0f);
-                transform.set_local_orientation(glm::radians(rotation));
-                transform.set_world_matrix(glm::mat4(1.0f));
-                focus_camera(transform.get_local_position(), 2.0f, 2.0f);
+                auto& transform = modelEntity.get_component<Transform>();
+                auto rotation = glm::vec3(glm::radians(180.0f), 0.0f, 0.0f);
+                transform.set_local_orientation(rotation);
+                get_current_scene()->update_scene_graph();
+                auto& global = modelEntity.get_component<GlobalTransform>();
+                focus_camera(global.position(), 2.0f, 2.0f);
                 //set_selected(modelEntity.get_handle());
                 //auto& ModelRef = modelEntity.get_component<GaussianComponent>().ModelRef;
                 //if (ModelRef)
@@ -3234,7 +3252,7 @@ namespace diverse
                 ImGuizmo::SetDrawlist();
                 ImGuizmo::SetOrthographic(current_camera->is_orthographic());
 
-                auto transform = registry.try_get<maths::Transform>(m_SelectedEntity);
+                auto transform = registry.try_get<Transform>(m_SelectedEntity);
                 if (transform != nullptr)
                 {
                     auto& pivot_transform = pivot->get_transform();

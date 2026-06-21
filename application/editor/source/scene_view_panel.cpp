@@ -239,14 +239,14 @@ namespace diverse
             if (splat_ent.valid() && splat_ent.active() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             {
                 auto splat_model = splat_ent.get_component<GaussianComponent>().ModelRef;
-                auto& transform = splat_ent.get_component<maths::Transform>();
+                auto& global = splat_ent.get_component<GlobalTransform>();
                 Transform* cameraTransform = editor->get_editor_camera_transform();
                 auto project = camera->get_projection_matrix();
                 glm::vec3 isect_point;
                 if (cameraTransform && pick_splat(splat_model,
                     clickPos,
                     ray,
-                    transform.get_world_matrix(),
+                    global.world_matrix,
                     *cameraTransform,
                     project,
                     view_size.x,
@@ -254,9 +254,8 @@ namespace diverse
                     isect_point))
                 {
                     auto& pivot_transform = editor->get_pivot()->get_transform();
-                    pivot_transform = transform;
+                    pivot_transform.set_world_matrix(global.world_matrix);
                     pivot_transform.set_local_position(isect_point);
-                    pivot_transform.set_world_matrix(glm::mat4(1.0f));
                     editor->focus_camera(pivot_transform.get_world_position(), 2.0f, 2.0f);
                     GaussianEdit::get().add_place_pivot_op(old_pivot_transform, pivot_transform, editor->get_pivot());
                 }
@@ -913,12 +912,12 @@ namespace diverse
         }
 #endif
         //draw model loading progress bar
-        auto mesh_group = current_scene->get_registry().group<MeshModelComponent>(entt::get<maths::Transform>);
+        auto mesh_group = current_scene->get_registry().group<MeshModelComponent>(entt::get<GlobalTransform>);
         for (auto ent : mesh_group)
         {
             if (!Entity(ent, current_scene).active())
                 continue;
-            const auto& [model, trans] = mesh_group.get<MeshModelComponent, maths::Transform>(ent);
+            const auto& [model, global_trans] = mesh_group.get<MeshModelComponent, GlobalTransform>(ent);
             if(model.ModelRef->source_path.empty()) continue;
             if (!model.ModelRef->is_loaded() && !model.ModelRef->is_invalid())
             {
@@ -928,12 +927,12 @@ namespace diverse
             }
         }
         //point
-        auto point_group = current_scene->get_registry().group<PointCloudComponent>(entt::get<maths::Transform>);
+        auto point_group = current_scene->get_registry().group<PointCloudComponent>(entt::get<GlobalTransform>);
         for (auto ent : point_group)
         {
             if (!Entity(ent, current_scene).active())
                 continue;
-            const auto& [model, trans] = point_group.get<PointCloudComponent, maths::Transform>(ent);
+            const auto& [model, global_trans] = point_group.get<PointCloudComponent, GlobalTransform>(ent);
             if(model.ModelRef->get_file_path().empty()) continue;
             if (!model.ModelRef->is_gpu_uploaded() && !model.ModelRef->is_invalid())
             {
@@ -943,12 +942,12 @@ namespace diverse
             }
         }
 
-        auto group = current_scene->get_registry().group<GaussianComponent>(entt::get<maths::Transform>);
+        auto group = current_scene->get_registry().group<GaussianComponent>(entt::get<GlobalTransform>);
         for (auto gs_ent : group)
         {
             if (!Entity(gs_ent, current_scene).active())
                 continue;
-            const auto& [model, trans] = group.get<GaussianComponent, maths::Transform>(gs_ent);
+            const auto& [model, global_trans] = group.get<GaussianComponent, GlobalTransform>(gs_ent);
             if (model.ModelRef->get_file_path().empty()) continue;
             if (!model.ModelRef->is_gpu_uploaded() && !model.ModelRef->is_invalid())
             {
@@ -1239,11 +1238,12 @@ namespace diverse
             if(!gsTrain->getTrainConfig().enableFocusRegion) return;
             auto [a,b] = gsTrain->getFocusRegion();
             auto focusTransform = gsTrain->getFocusRegionTransform();
-            auto model = splat_ent.get_component<maths::Transform>();
+            auto global_transform = splat_ent.try_get_component<GlobalTransform>();
+            if (!global_transform) return;
             glm::mat4 view = glm::inverse(camera_transform->get_world_matrix());
             glm::mat4 proj = camera->get_projection_matrix();
             auto world2proj = proj * view;
-            auto m = model.get_world_matrix() * focusTransform;           
+            auto m = global_transform->world_matrix * focusTransform;           
             auto drawList = ImGui::GetWindowDrawList();
             using namespace glm;
             draw_3d_line(drawList, world2proj, m * vec3{ a.x, a.y, a.z }, m * vec3{ a.x, a.y, b.z }, 0xffff4040, sceneViewPosition, sceneViewSize);
