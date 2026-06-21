@@ -1,4 +1,5 @@
 #pragma once
+#include "core/reference.h"
 #include "serialisation.h"
 #include "json_scene_loader.h"
 #include <sol/forward.hpp>
@@ -14,18 +15,21 @@ namespace diverse
 
 // Forward declarations
 class TimeStep;
-class Event;
 class Camera;
 class EntityManager;
 class Entity;
 class SceneGraph;
-class WindowResizeEvent;
 
 // New component forward declarations
 struct Transform;
 struct GlobalTransform;
 struct Parent;
 class Children;
+
+namespace schedule
+{
+    class Schedule;
+}
 
 
     class DS_EXPORT Scene
@@ -54,8 +58,23 @@ class Children;
         //   - Called once per frame and should contain all time-sensitive update logic
         //	   Note: This is time relative to seconds not milliseconds! (e.g. msec / 1000)
         virtual void on_update(const TimeStep& timeStep);
-        virtual void on_imgui() {};
-        virtual void on_event(Event& e);
+
+        /**
+         * @brief Register core systems for this scene.
+         *
+         * Called during scene initialization to set up the default systems.
+         * Override this method to add custom systems to your scene.
+         * Call the base class method to ensure core systems are registered.
+         */
+        virtual void register_systems();
+
+        /**
+         * @brief Build the system schedule.
+         *
+         * Call this after registering all systems to build the dependency graph.
+         */
+        void build_schedule();
+
         // Delete all contained Objects
         //    - This is the default action upon firing on_cleanup_scene()
         void delete_all_game_objects();
@@ -106,6 +125,12 @@ class Children;
 
         EntityManager* get_entity_manager() { return entity_manager.get(); }
 
+        /**
+         * @brief Get the schedule for system registration and execution
+         */
+        schedule::Schedule* get_schedule() { return m_schedule.get(); }
+        const schedule::Schedule* get_schedule() const { return m_schedule.get(); }
+
         virtual void serialise(const std::string& filePath, bool binary = false);
         virtual void deserialise(const std::string& filePath, bool binary = false);
 
@@ -145,6 +170,7 @@ class Children;
 
         UniquePtr<EntityManager> entity_manager;
         UniquePtr<SceneGraph> scene_graph;
+        UniquePtr<schedule::Schedule> m_schedule;
 
         uint32_t screen_width;
         uint32_t screen_height;
@@ -153,8 +179,6 @@ class Children;
         SceneImportMeta import_meta;
     private:
         NONCOPYABLE(Scene)
-
-        bool on_window_resize(WindowResizeEvent& e);
 
         friend class Entity;
     };

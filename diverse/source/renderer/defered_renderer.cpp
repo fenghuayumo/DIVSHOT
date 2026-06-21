@@ -438,7 +438,7 @@ namespace diverse
 			}
 		}
 
-		if(!camera || !camera_transform)
+		if(!camera || !camera_transform || !camera_global_transform)
 			return std::nullopt;
 
 		RenderFramePacket packet;

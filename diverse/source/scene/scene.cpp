@@ -7,9 +7,6 @@
 #include "sun_controller.h"
 #include "utility/time_step.h"
 
-#include "events/event.h"
-#include "events/application_event.h"
-
 #include "scene/components/transform_component.h"
 #include "scene/components/global_transform_component.h"
 #include "engine/file_system.h"
@@ -24,6 +21,7 @@
 #include "scene/components/light_component.h"
 #include "scene/camera/editor_camera.h"
 #include "scene_graph.h"
+#include "scene/schedule/schedule.h"
 
 #include <cereal/types/polymorphic.hpp>
 #include <cereal/archives/binary.hpp>
@@ -187,6 +185,7 @@ namespace diverse
         : scene_name(name)
         , screen_width(0)
         , screen_height(0)
+        , m_schedule(createUniquePtr<schedule::Schedule>(this))
     {
         entity_manager = createUniquePtr<EntityManager>(this);
         entity_manager->add_dependency<Camera, ::diverse::Transform>();
@@ -202,6 +201,12 @@ namespace diverse
         entity_manager->add_dependency<CylinderLight, ::diverse::Transform>();
         scene_graph = createUniquePtr<SceneGraph>();
         scene_graph->init(entity_manager->get_registry());
+
+        // Register core systems
+        register_systems();
+
+        // Build the schedule after registering systems
+        build_schedule();
     }
 
     Scene::~Scene()
@@ -212,6 +217,28 @@ namespace diverse
     entt::registry& Scene::get_registry()
     {
         return entity_manager->get_registry();
+    }
+
+    void Scene::register_systems()
+    {
+        // Register core systems that every scene needs
+        if (!m_schedule) return;
+
+        // Scene graph update system - updates transform hierarchy
+        m_schedule->add_system("SceneGraphUpdate", [this]() {
+            scene_graph->update(entity_manager->get_registry());
+        })
+        .in_stage(schedule::SystemStage::PreUpdate)
+        .add_label("hierarchy")
+        .set_thread_local_flag();
+    }
+
+    void Scene::build_schedule()
+    {
+        if (m_schedule)
+        {
+            m_schedule->build();
+        }
     }
 
     void Scene::on_init()
@@ -234,67 +261,20 @@ namespace diverse
     void Scene::on_update(const TimeStep& timeStep)
     {
         DS_PROFILE_FUNCTION();
-        const glm::vec2& mousePos = Input::get().get_mouse_position();
 
-        auto defaultCameraControllerView = entity_manager->get_entities_with_type<EditorCameraController>();
-        auto cameraView = entity_manager->get_entities_with_type<Camera>();
-        Camera* camera = nullptr;
-        ::diverse::Transform* camera_transform = nullptr;
-        GlobalTransform* camera_global_transform = nullptr;
-        if (!cameraView.empty())
+        // Execute systems using the schedule
+        if (m_schedule && m_schedule->is_built())
         {
-            camera = &cameraView.front().get_component<Camera>();
-            camera_transform = cameraView.front().try_get_component<::diverse::Transform>();
-            camera_global_transform = cameraView.front().try_get_component<GlobalTransform>();
+            // Execute update stages (PreUpdate -> Update -> PostUpdate)
+            m_schedule->execute_stage(schedule::SystemStage::PreUpdate, timeStep);
+            m_schedule->execute_stage(schedule::SystemStage::Update, timeStep);
+            m_schedule->execute_stage(schedule::SystemStage::PostUpdate, timeStep);
+
+            // Execute render stages (PreRender -> Render -> PostRender)
+            m_schedule->execute_stage(schedule::SystemStage::PreRender, timeStep);
+            m_schedule->execute_stage(schedule::SystemStage::Render, timeStep);
+            m_schedule->execute_stage(schedule::SystemStage::PostRender, timeStep);
         }
-
-        if (!defaultCameraControllerView.empty())
-        {
-            auto& cameraController = defaultCameraControllerView.front().get_component<EditorCameraController>();
-            camera_transform = defaultCameraControllerView.front().try_get_component<::diverse::Transform>();
-            camera_global_transform = defaultCameraControllerView.front().try_get_component<GlobalTransform>();
-            if (Application::get().get_scene_active() && camera_transform && camera_global_transform)
-            {
-                cameraController.set_camera(camera);
-                // TODO: Migrate EditorCameraController to use new ECS Transform component
-                // For now, camera controller handling is disabled during migration
-                // cameraController.handle_mouse(*camera_transform, (float)timeStep.get_seconds(), mousePos.x, mousePos.y);
-                // cameraController.handle_keyboard(*camera_transform, (float)timeStep.get_seconds());
-            }
-        }
-
-        auto environmentView = entity_manager->get_entities_with_type<Environment>();
-        Environment* enviroment = nullptr;
-        if (!environmentView.empty())
-        {
-            enviroment = &environmentView.front().get_component<Environment>();
-        }
-        if (Application::get().get_scene_active() && enviroment && camera_global_transform)
-        {
-            auto& input = Input::get();
-            if (input.get_mouse_held(InputCode::ButtonLeft) && enviroment->mode == Environment::Mode::SunSky)
-            {
-                auto delta = input.get_mouse_delta();
-                auto delta_x = (delta.x / (f32)2048) * 6.283;
-                auto delta_y = (delta.y / (f32)968) * 3.1415;
-                glm::quat ref_frame = camera_global_transform->rotation();
-                // Keep only Y component of rotation for reference frame
-                ref_frame = glm::quat(ref_frame.w, 0.0f, ref_frame.y, 0.0f);
-                ref_frame = glm::normalize(ref_frame);
-                auto& sun_controller = environmentView.front().get_component<SunController>();
-                sun_controller.view_space_rotate(ref_frame, delta_x, delta_y);
-            }
-        }
-
-        scene_graph->update(entity_manager->get_registry());
-
-    }
-
-    void Scene::on_event(Event& e)
-    {
-        DS_PROFILE_FUNCTION();
-        EventDispatcher dispatcher(e);
-        dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FN(Scene::on_window_resize));
     }
 
     Entity Scene::get_keyFrame_entity()
@@ -305,21 +285,6 @@ namespace diverse
             return keyFrameView.front();
         }
         return Entity();
-    }
-
-    bool Scene::on_window_resize(WindowResizeEvent& e)
-    {
-        DS_PROFILE_FUNCTION();
-        if (!Application::get().get_scene_active())
-            return false;
-
-        auto cameraView = entity_manager->get_registry().view<Camera>();
-        if (!cameraView.empty())
-        {
-            entity_manager->get_registry().get<Camera>(cameraView.front()).set_aspect_ratio(static_cast<float>(e.GetWidth()) / static_cast<float>(e.GetHeight()));
-        }
-
-        return false;
     }
 
     void Scene::set_screen_size(uint32_t width, uint32_t height)
