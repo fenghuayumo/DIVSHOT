@@ -2,7 +2,7 @@
 
 # DIVSHOT 
 
-**Official Website:** [https://divshot.app/](https://divshot.app/)
+**Note:** This project is no longer maintained. I have reorganized it into a new project: https://github.com/fenghuayumo/photara-studio. The training speed is exceptionally fast, and I recommend using this one.
 </div>
 
 ### Introduction
